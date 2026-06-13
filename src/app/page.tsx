@@ -11,7 +11,7 @@ export default function Home() {
             Healthcare communication simulation
           </p>
           <h1 className="mt-4 max-w-3xl text-5xl font-semibold tracking-tight text-slate-950">
-            FirstDrop roleplay training for difficult healthcare conversations.
+            FirstDropAI roleplay training for difficult healthcare conversations.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
             Trainers turn rough scenario notes into structured roleplay sessions.

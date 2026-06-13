@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
 import { LoadingButton } from "@/components/common/LoadingButton";
@@ -19,10 +19,18 @@ import type { SimulationState } from "@/types/simulation";
 
 export default function FeedbackPage() {
   const router = useRouter();
-  const [state, setState] = useState<SimulationState | null>(() => loadSimulationState());
+  const [state, setState] = useState<SimulationState | null>(null);
   const [report, setReport] = useState<FeedbackReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setState(loadSimulationState());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function handleGenerateReport() {
     if (!state) {

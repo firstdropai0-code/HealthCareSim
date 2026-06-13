@@ -1,6 +1,6 @@
-# FirstDrop Healthcare Simulation MVP
+# FirstDropAI Healthcare Simulation MVP
 
-FirstDrop is a healthcare communication simulation prototype for roleplay-style training. A trainer enters a rough scenario idea, Gemini converts it into a structured training scenario, a trainee responds step by step, and the app generates a feedback report on communication quality.
+FirstDropAI is a healthcare communication simulation prototype for roleplay-style training. A trainer enters a rough scenario idea, Gemini converts it into a structured training scenario, a trainee responds step by step, and the app generates a feedback report on communication quality.
 
 ## Safety Disclaimer
 

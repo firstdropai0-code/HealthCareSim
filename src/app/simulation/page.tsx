@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
@@ -18,15 +18,9 @@ import {
 } from "@/lib/storage/localSimulationStorage";
 import type { SimulationState } from "@/types/simulation";
 
-const responseStarters = [
-  "I can hear this has been frustrating. Let me explain what I know so far.",
-  "Before I continue, what is your biggest concern right now?",
-  "I want to make sure I am being clear. Can I pause and check what you have understood?",
-];
-
 export default function SimulationPage() {
   const router = useRouter();
-  const [state, setState] = useState<SimulationState | null>(() => loadSimulationState());
+  const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +30,14 @@ export default function SimulationPage() {
     }
   }, []);
   const speech = useSpeechToText({ onTranscript: handleTranscript });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setState(loadSimulationState());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function handleSend() {
     if (!state || !response.trim()) {
@@ -158,25 +160,13 @@ export default function SimulationPage() {
                     {response.trim().length} characters
                   </p>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {responseStarters.map((starter) => (
-                    <button
-                      key={starter}
-                      type="button"
-                      onClick={() => setResponse(starter)}
-                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900 transition hover:border-blue-500"
-                    >
-                      {starter}
-                    </button>
-                  ))}
-                </div>
                 <textarea
                   id="trainee-response"
                   rows={4}
                   value={response}
                   onChange={(event) => setResponse(event.target.value)}
                   placeholder="Type what the trainee says or does next."
-                  className="mt-4 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                  className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                 />
                 {speech.error ? <p className="mt-2 text-sm text-rose-700">{speech.error}</p> : null}
                 {error ? (

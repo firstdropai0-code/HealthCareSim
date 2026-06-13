@@ -16,7 +16,7 @@ export function buildFeedbackExportText(
     })
     .join("\n\n");
 
-  return `FirstDrop Feedback Report
+  return `FirstDropAI Feedback Report
 
 Scenario: ${state.scenario.title}
 Generated: ${new Date().toLocaleString()}
