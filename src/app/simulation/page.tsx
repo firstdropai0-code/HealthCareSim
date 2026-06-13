@@ -245,14 +245,37 @@ export default function SimulationPage() {
                 )}
               </div>
             </section>
-            <button
-              type="button"
-              onClick={handleGenerateFeedback}
-              className="w-full rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
-            >
-              Generate Feedback
-            </button>
           </aside>
+        </div>
+        <div className="sticky bottom-4 z-10 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">
+                Ready to wrap up?
+              </p>
+              <p className="text-xs text-slate-500">
+                Generate feedback from the conversation so far.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {!completed ? (
+                <button
+                  type="button"
+                  onClick={handleEndSimulation}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
+                >
+                  End Simulation
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleGenerateFeedback}
+                className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+              >
+                Generate Feedback
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </AppShell>
