@@ -107,39 +107,53 @@ export default function SimulationPage() {
 
   const completed = state.status === "completed";
   const progressPercent = Math.min(100, Math.round((state.currentTurn / state.maxTurns) * 100));
+  const coachCues = [
+    "Name the emotion",
+    "Explain one next step",
+    "Check understanding",
+  ];
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase text-emerald-700">
-              Simulation room
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-              {state.scenario.title}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              {state.scenario.traineeObjective}
-            </p>
+      <div className="space-y-5">
+        <div className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
+          <div className="flex flex-col gap-4 bg-emerald-950 p-5 text-white lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase text-emerald-200">Simulation room</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+                {state.scenario.title}
+              </h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-50">
+                {state.scenario.summary}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase text-white">
+                Turn {state.currentTurn} / {state.maxTurns}
+              </span>
+              <TensionBadge level={state.tensionLevel} />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">
-              Turn {state.currentTurn} / {state.maxTurns}
-            </span>
-            <TensionBadge level={state.tensionLevel} />
+          <div className="bg-slate-100">
+            <div
+              className="h-2 bg-emerald-600 transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
-        <div className="overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-2 rounded-full bg-emerald-700 transition-all"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        <SafetyNotice />
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-5">
-            <section className="rounded-lg border border-emerald-900/10 bg-slate-50 p-4 shadow-sm md:p-6">
+            <section className="min-h-[420px] rounded-lg border border-emerald-900/10 bg-slate-50 p-4 shadow-sm md:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-slate-500">Live roleplay</p>
+                  <h2 className="text-lg font-semibold text-slate-950">Conversation</h2>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                  {state.messages.length} messages
+                </span>
+              </div>
               <ChatMessageList messages={state.messages} />
             </section>
             {!completed ? (
@@ -150,11 +164,8 @@ export default function SimulationPage() {
                       htmlFor="trainee-response"
                       className="text-sm font-semibold text-slate-900"
                     >
-                      Trainee response
+                      Your next response
                     </label>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Keep it conversational. Empathy, clarity, and checking understanding matter.
-                    </p>
                   </div>
                   <p className="text-xs font-medium text-slate-500">
                     {response.trim().length} characters
@@ -162,7 +173,7 @@ export default function SimulationPage() {
                 </div>
                 <textarea
                   id="trainee-response"
-                  rows={4}
+                  rows={3}
                   value={response}
                   onChange={(event) => setResponse(event.target.value)}
                   placeholder="Type what the trainee says or does next."
@@ -216,35 +227,62 @@ export default function SimulationPage() {
             )}
           </div>
 
-          <aside className="space-y-4">
-            <section className="rounded-lg border border-emerald-900/10 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase text-slate-500">Scenario context</p>
-              <h2 className="mt-2 text-lg font-semibold text-slate-950">
-                {state.scenario.setting}
-              </h2>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-                <p>
-                  <span className="font-semibold text-slate-950">Objective:</span>{" "}
-                  {state.scenario.traineeObjective}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-950">Challenge:</span>{" "}
-                  {state.scenario.communicationChallenge}
-                </p>
+          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+            <section className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+                <p className="text-xs font-semibold uppercase text-slate-500">Training brief</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                  {state.scenario.setting}
+                </h2>
+              </div>
+              <div className="space-y-3 p-5">
+                <div className="rounded-lg bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase text-emerald-800">Objective</p>
+                  <p className="mt-2 text-sm leading-6 text-emerald-950">
+                    {state.scenario.traineeObjective}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-amber-50 p-4">
+                  <p className="text-xs font-semibold uppercase text-amber-800">Challenge</p>
+                  <p className="mt-2 text-sm leading-6 text-amber-950">
+                    {state.scenario.communicationChallenge}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Patient mood</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900">
+                      {state.scenario.patientEmotion}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Status</p>
+                    <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
+                      {state.status.replace("_", " ")}
+                    </p>
+                  </div>
+                </div>
               </div>
             </section>
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase text-slate-500">Coach reminders</p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
-                {["Acknowledge emotion", "Use plain language", "Check understanding"].map(
-                  (reminder) => (
-                    <div key={reminder} className="rounded-md bg-slate-50 px-3 py-2">
-                      {reminder}
-                    </div>
-                  ),
-                )}
+              <p className="text-xs font-semibold uppercase text-slate-500">Response cues</p>
+              <div className="mt-3 space-y-2">
+                {coachCues.map((cue, index) => (
+                  <div key={cue} className="flex items-center gap-3 rounded-md bg-slate-50 px-3 py-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-emerald-800 shadow-sm">
+                      {index + 1}
+                    </span>
+                    <span className="text-sm font-medium text-slate-700">{cue}</span>
+                  </div>
+                ))}
               </div>
             </section>
+            <details className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <summary className="cursor-pointer font-semibold">Safety note</summary>
+              <div className="mt-3">
+                <SafetyNotice />
+              </div>
+            </details>
           </aside>
         </div>
         <div className="sticky bottom-4 z-10 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
