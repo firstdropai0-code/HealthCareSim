@@ -1,8 +1,23 @@
 import type { FeedbackReport } from "@/types/feedback";
 import type { SimulationState } from "@/types/simulation";
+import type { VoiceMetrics } from "@/types/voice";
 
 function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
+}
+
+function formatVoiceMetrics(metrics?: VoiceMetrics): string {
+  if (!metrics) {
+    return "";
+  }
+
+  return [
+    `Voice delivery estimate: ${metrics.toneEstimate} (${metrics.confidence} confidence)`,
+    `Volume: ${metrics.volumeLevel}`,
+    `Pitch: ${metrics.pitchLevel}`,
+    `Pace: ${metrics.paceLevel}`,
+    `Pauses: ${metrics.pausePattern}`,
+  ].join("\n");
 }
 
 export function buildFeedbackExportText(
@@ -12,9 +27,26 @@ export function buildFeedbackExportText(
   const transcript = state.messages
     .map((message) => {
       const role = message.role.toUpperCase();
-      return `[${role}] ${message.content}`;
+      const voiceMetrics =
+        message.role === "trainee" ? formatVoiceMetrics(message.voiceMetrics) : "";
+
+      return voiceMetrics
+        ? `[${role}] ${message.content}\n${voiceMetrics}`
+        : `[${role}] ${message.content}`;
     })
     .join("\n\n");
+  const voiceDelivery = report.voiceDeliveryFeedback
+    ? `
+Voice Delivery Feedback
+${report.voiceDeliveryFeedback.summary}
+
+Voice Delivery Strengths
+${formatList(report.voiceDeliveryFeedback.strengths)}
+
+Voice Delivery Improvements
+${formatList(report.voiceDeliveryFeedback.improvements)}
+`
+    : "";
 
   return `FirstDropAI Feedback Report
 
@@ -41,6 +73,7 @@ ${formatList(report.communicationGaps)}
 
 Better Response Examples
 ${formatList(report.betterResponses)}
+${voiceDelivery}
 
 Final Advice
 ${report.finalAdvice}

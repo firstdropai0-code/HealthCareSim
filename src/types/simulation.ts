@@ -1,4 +1,5 @@
 import type { Scenario } from "./scenario";
+import type { VoiceMetrics } from "./voice";
 
 export type SimulationMessageRole = "system" | "scenario" | "trainee" | "feedback";
 export type TensionLevel = "low" | "medium" | "high";
@@ -9,6 +10,7 @@ export type SimulationMessage = {
   role: SimulationMessageRole;
   content: string;
   timestamp: string;
+  voiceMetrics?: VoiceMetrics;
 };
 
 export type SimulationState = {

@@ -100,6 +100,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
     report.whatCouldImprove[0] ||
     report.communicationGaps[0] ||
     "Use clearer structure in the next response.";
+  const voiceFeedback = report.voiceDeliveryFeedback;
 
   return (
     <div className="space-y-5">
@@ -157,6 +158,49 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
           tone="rose"
         />
       </div>
+
+      {voiceFeedback ? (
+        <section className="rounded-lg border border-indigo-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase text-indigo-700">
+                Estimated voice delivery
+              </p>
+              <h3 className="mt-1 text-lg font-semibold text-indigo-950">
+                How the response may have sounded
+              </h3>
+            </div>
+            <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">
+              Approximate
+            </span>
+          </div>
+          <p className="mt-4 rounded-lg bg-indigo-50 px-4 py-3 text-sm leading-6 text-indigo-950">
+            {voiceFeedback.summary}
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg bg-emerald-50 p-4">
+              <p className="text-xs font-semibold uppercase text-emerald-800">
+                Delivery strengths
+              </p>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-emerald-950">
+                {voiceFeedback.strengths.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-lg bg-amber-50 p-4">
+              <p className="text-xs font-semibold uppercase text-amber-800">
+                Delivery focus
+              </p>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-950">
+                {voiceFeedback.improvements.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-blue-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

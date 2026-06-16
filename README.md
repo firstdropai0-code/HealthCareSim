@@ -14,6 +14,8 @@ This is not a medical diagnosis tool. It is only for communication training and 
 - Gemini API through a Next.js API route
 - Browser `localStorage` for the current simulation session
 - Browser Web Speech API for optional voice input
+- Browser SpeechSynthesis API for scenario message playback
+- Browser Web Audio API for approximate voice delivery estimates
 
 ## Local Setup
 
@@ -60,10 +62,21 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 - Scenario creator with typed and voice input.
 - Gemini-powered structured scenario generation.
 - Chat-style simulation room with turn count and tension level.
+- Scenario message playback with browser text-to-speech.
+- Voice capture that can estimate volume, pitch, pace, pauses, and likely tone.
 - Gemini-powered next-turn generation.
-- Feedback report generation focused on communication, empathy, clarity, and pressure handling.
+- Feedback report generation focused on communication, empathy, clarity, pressure handling, and optional estimated voice delivery.
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
+
+## Voice Prototype Notes
+
+- Voice input uses the browser Web Speech API.
+- Scenario playback uses the browser SpeechSynthesis API.
+- Voice tone analysis uses the browser Web Audio API and simple heuristics.
+- Tone detection is approximate and intended only for communication training feedback.
+- Browser support varies. Chrome and Edge generally provide the best Web Speech support.
+- No audio is stored, uploaded, or saved by this prototype unless that behavior is explicitly changed later.
 
 ## Future Roadmap
 
@@ -95,6 +108,8 @@ src/
     simulation/
   hooks/
     useSpeechToText.ts
+    useTextToSpeech.ts
+    useVoiceCapture.ts
   lib/
     ai/
     export/
@@ -107,6 +122,7 @@ src/
     media.ts
     scenario.ts
     simulation.ts
+    voice.ts
 roadmap/
   futureMediaArchitecture.md
 ```

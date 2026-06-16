@@ -1,6 +1,7 @@
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
+import type { VoiceMetrics } from "@/types/voice";
 
 type GeminiAction = "generateScenario" | "nextTurn" | "feedback";
 
@@ -29,10 +30,12 @@ export function generateScenarioFromIdea(input: string): Promise<Scenario> {
 export function generateNextSimulationTurn(
   state: SimulationState,
   traineeResponse: string,
+  voiceMetrics?: VoiceMetrics,
 ): Promise<NextSimulationTurn> {
   return callGemini<NextSimulationTurn>("nextTurn", {
     state,
     traineeResponse,
+    voiceMetrics,
   });
 }
 

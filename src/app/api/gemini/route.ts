@@ -5,12 +5,13 @@ import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
+import type { VoiceMetrics } from "@/types/voice";
 
 type GeminiRequest =
   | { action: "generateScenario"; payload: { input: string } }
   | {
       action: "nextTurn";
-      payload: { state: SimulationState; traineeResponse: string };
+      payload: { state: SimulationState; traineeResponse: string; voiceMetrics?: VoiceMetrics };
     }
   | { action: "feedback"; payload: { state: SimulationState } };
 
@@ -203,6 +204,15 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     communicationGaps: report.communicationGaps || [],
     betterResponses: report.betterResponses || [],
     finalAdvice: report.finalAdvice,
+    ...(report.voiceDeliveryFeedback
+      ? {
+          voiceDeliveryFeedback: {
+            summary: report.voiceDeliveryFeedback.summary || "",
+            strengths: report.voiceDeliveryFeedback.strengths || [],
+            improvements: report.voiceDeliveryFeedback.improvements || [],
+          },
+        }
+      : {}),
   };
 }
 
@@ -222,14 +232,14 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "nextTurn") {
-      const { state, traineeResponse } = body.payload;
+      const { state, traineeResponse, voiceMetrics } = body.payload;
 
       if (!state || !traineeResponse?.trim()) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
       const result = normalizeTurn(
-        await callGemini(buildSimulationPrompt(state, traineeResponse)),
+        await callGemini(buildSimulationPrompt(state, traineeResponse, voiceMetrics)),
       );
       return NextResponse.json({ result });
     }

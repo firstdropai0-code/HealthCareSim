@@ -6,4 +6,9 @@ export type FeedbackReport = {
   communicationGaps: string[];
   betterResponses: string[];
   finalAdvice: string;
+  voiceDeliveryFeedback?: {
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+  };
 };

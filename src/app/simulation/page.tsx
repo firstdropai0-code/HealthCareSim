@@ -5,11 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
-import { VoiceInputButton } from "@/components/common/VoiceInputButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
-import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useVoiceCapture } from "@/hooks/useVoiceCapture";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
@@ -17,19 +17,29 @@ import {
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
 import type { SimulationState } from "@/types/simulation";
+import type { VoiceMetrics } from "@/types/voice";
+
+function formatVoiceLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
 
 export default function SimulationPage() {
   const router = useRouter();
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
+  const [voiceMetrics, setVoiceMetrics] = useState<VoiceMetrics | null>(null);
+  const [autoReadScenario, setAutoReadScenario] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const handleTranscript = useCallback((text: string) => {
-    if (text) {
-      setResponse((current) => `${current} ${text}`.trim());
-    }
-  }, []);
-  const speech = useSpeechToText({ onTranscript: handleTranscript });
+  const voiceCapture = useVoiceCapture();
+  const {
+    speak,
+    stop: stopSpeech,
+    speaking,
+    supported: textToSpeechSupported,
+    error: textToSpeechError,
+  } = useTextToSpeech();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -39,6 +49,41 @@ export default function SimulationPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      stopSpeech();
+    };
+  }, [stopSpeech]);
+
+  const handleSpeakMessage = useCallback(
+    (message: SimulationState["messages"][number]) => {
+      stopSpeech();
+      setSpeakingMessageId(message.id);
+      speak(message.content);
+    },
+    [speak, stopSpeech],
+  );
+
+  const handleStopSpeech = useCallback(() => {
+    stopSpeech();
+    setSpeakingMessageId(null);
+  }, [stopSpeech]);
+
+  async function handleStartVoiceCapture() {
+    setError(null);
+    await voiceCapture.startCapture();
+  }
+
+  function handleStopVoiceCapture() {
+    const result = voiceCapture.stopCapture();
+
+    if (result.transcript.trim()) {
+      setResponse((current) => `${current} ${result.transcript}`.trim());
+    }
+
+    setVoiceMetrics(result.metrics);
+  }
+
   async function handleSend() {
     if (!state || !response.trim()) {
       return;
@@ -46,20 +91,35 @@ export default function SimulationPage() {
 
     setLoading(true);
     setError(null);
+    const traineeResponse = response.trim();
+    const responseVoiceMetrics = voiceMetrics ?? undefined;
 
     try {
-      const turn = await generateNextSimulationTurn(state, response);
+      const turn = await generateNextSimulationTurn(
+        state,
+        traineeResponse,
+        responseVoiceMetrics,
+      );
       const updatedState = appendSimulationTurn(
         state,
-        response,
+        traineeResponse,
         turn.message,
         turn.tensionLevel,
         turn.shouldEnd,
+        responseVoiceMetrics,
       );
 
       setState(updatedState);
       saveSimulationState(updatedState);
       setResponse("");
+      setVoiceMetrics(null);
+
+      const nextScenarioMessage = updatedState.messages.at(-1);
+
+      if (autoReadScenario && nextScenarioMessage?.role === "scenario") {
+        setSpeakingMessageId(nextScenarioMessage.id);
+        speak(nextScenarioMessage.content);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue simulation.");
     } finally {
@@ -73,6 +133,7 @@ export default function SimulationPage() {
     }
 
     const completedState: SimulationState = { ...state, status: "completed" };
+    handleStopSpeech();
     setState(completedState);
     saveSimulationState(completedState);
   }
@@ -154,7 +215,13 @@ export default function SimulationPage() {
                   {state.messages.length} messages
                 </span>
               </div>
-              <ChatMessageList messages={state.messages} />
+              <ChatMessageList
+                messages={state.messages}
+                speechSupported={textToSpeechSupported}
+                speakingMessageId={speaking ? speakingMessageId : null}
+                onSpeakMessage={handleSpeakMessage}
+                onStopSpeech={handleStopSpeech}
+              />
             </section>
             {!completed ? (
               <section className="rounded-lg border border-emerald-900/10 bg-white p-5 shadow-sm">
@@ -175,11 +242,52 @@ export default function SimulationPage() {
                   id="trainee-response"
                   rows={3}
                   value={response}
-                  onChange={(event) => setResponse(event.target.value)}
+                  onChange={(event) => {
+                    setResponse(event.target.value);
+                    if (!event.target.value.trim()) {
+                      setVoiceMetrics(null);
+                    }
+                  }}
                   placeholder="Type what the trainee says or does next."
                   className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                 />
-                {speech.error ? <p className="mt-2 text-sm text-rose-700">{speech.error}</p> : null}
+                {voiceCapture.isRecording && voiceCapture.transcript ? (
+                  <p className="mt-2 text-xs font-medium text-slate-500">
+                    Live transcript: {voiceCapture.transcript}
+                  </p>
+                ) : null}
+                {voiceMetrics ? (
+                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-semibold text-indigo-950">
+                        Estimated voice delivery pattern
+                      </p>
+                      <span className="text-xs font-semibold uppercase text-indigo-700">
+                        {formatVoiceLabel(voiceMetrics.toneEstimate)} / {voiceMetrics.confidence}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-xs font-medium text-indigo-950 sm:grid-cols-4">
+                      <span>Volume: {formatVoiceLabel(voiceMetrics.volumeLevel)}</span>
+                      <span>Pitch: {formatVoiceLabel(voiceMetrics.pitchLevel)}</span>
+                      <span>Pace: {formatVoiceLabel(voiceMetrics.paceLevel)}</span>
+                      <span>Pauses: {formatVoiceLabel(voiceMetrics.pausePattern)}</span>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-indigo-800">
+                      This is an approximate browser estimate for training feedback. Edit the transcript before sending if needed.
+                    </p>
+                  </div>
+                ) : null}
+                {voiceCapture.error ? (
+                  <p className="mt-2 text-sm text-rose-700">{voiceCapture.error}</p>
+                ) : null}
+                {textToSpeechError ? (
+                  <p className="mt-2 text-sm text-rose-700">{textToSpeechError}</p>
+                ) : null}
+                {!voiceCapture.analysisSupported ? (
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Voice tone analysis is not supported in this browser. You can still type or use basic voice input.
+                  </p>
+                ) : null}
                 {error ? (
                   <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                     {error}
@@ -202,12 +310,32 @@ export default function SimulationPage() {
                   >
                     Send Response
                   </LoadingButton>
-                  <VoiceInputButton
-                    supported={speech.supported}
-                    listening={speech.listening}
-                    onStart={speech.startListening}
-                    onStop={speech.stopListening}
-                  />
+                  <button
+                    type="button"
+                    disabled={!voiceCapture.supported || loading}
+                    onClick={
+                      voiceCapture.isRecording
+                        ? handleStopVoiceCapture
+                        : handleStartVoiceCapture
+                    }
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    title={
+                      voiceCapture.supported
+                        ? "Capture voice and estimate delivery"
+                        : "Voice capture is not supported"
+                    }
+                  >
+                    {voiceCapture.isRecording ? "Stop voice capture" : "Use voice"}
+                  </button>
+                  <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={autoReadScenario}
+                      onChange={(event) => setAutoReadScenario(event.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    Auto-read scenario responses
+                  </label>
                   <button
                     type="button"
                     onClick={handleEndSimulation}
@@ -216,6 +344,11 @@ export default function SimulationPage() {
                     End Simulation
                   </button>
                 </div>
+                {voiceCapture.isRecording ? (
+                  <p className="mt-3 text-xs font-medium text-emerald-800">
+                    Recording voice. {voiceCapture.isAnalyzing ? "Estimating delivery pattern." : "Listening for transcript."}
+                  </p>
+                ) : null}
               </section>
             ) : (
               <section className="rounded-lg border border-blue-200 bg-blue-50 p-5">
