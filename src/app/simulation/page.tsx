@@ -114,6 +114,7 @@ export default function SimulationPage() {
         state,
         traineeResponse,
         turn.message,
+        turn.speaker,
         turn.tensionLevel,
         turn.shouldEnd,
         responseVoiceMetrics,

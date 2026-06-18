@@ -3,6 +3,7 @@ import type { SimulationState } from "@/types/simulation";
 export function buildFeedbackPrompt(state: SimulationState): string {
   const transcript = state.messages.map((message) => ({
     role: message.role,
+    ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
     content: message.content,
     ...(message.role === "trainee" && message.voiceMetrics
       ? {

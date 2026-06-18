@@ -10,6 +10,14 @@ function formatLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+function formatRoleLabel(message: SimulationState["messages"][number]): string {
+  if (message.role === "scenario" && message.speaker) {
+    return formatLabel(message.speaker).toUpperCase();
+  }
+
+  return message.role.toUpperCase();
+}
+
 function formatVoiceMetrics(metrics?: VoiceMetrics): string {
   if (!metrics) {
     return "";
@@ -36,7 +44,7 @@ export function buildFeedbackExportText(
 ): string {
   const transcript = state.messages
     .map((message) => {
-      const role = message.role.toUpperCase();
+      const role = formatRoleLabel(message);
       const voiceMetrics =
         message.role === "trainee" ? formatVoiceMetrics(message.voiceMetrics) : "";
 

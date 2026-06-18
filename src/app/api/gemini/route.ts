@@ -4,7 +4,11 @@ import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
-import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
+import type {
+  NextSimulationTurn,
+  ScenarioSpeaker,
+  SimulationState,
+} from "@/types/simulation";
 import type { VoiceMetrics } from "@/types/voice";
 
 type GeminiRequest =
@@ -173,6 +177,7 @@ function normalizeScenario(value: unknown): Scenario {
 
 function normalizeTurn(value: unknown): NextSimulationTurn {
   const turn = value as Partial<NextSimulationTurn>;
+  const speaker = normalizeScenarioSpeaker(turn.speaker);
   const tensionLevel =
     turn.tensionLevel === "low" || turn.tensionLevel === "medium" || turn.tensionLevel === "high"
       ? turn.tensionLevel
@@ -183,10 +188,49 @@ function normalizeTurn(value: unknown): NextSimulationTurn {
   }
 
   return {
+    speaker,
     message: turn.message,
     tensionLevel,
     shouldEnd: Boolean(turn.shouldEnd),
   };
+}
+
+function normalizeScenarioSpeaker(value: unknown): ScenarioSpeaker {
+  if (
+    value === "patient" ||
+    value === "family_member" ||
+    value === "nurse" ||
+    value === "bystander" ||
+    value === "narrator"
+  ) {
+    return value;
+  }
+
+  return "narrator";
+}
+
+function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
+  if (turn.speaker === "nurse" || turn.speaker === "narrator") {
+    return false;
+  }
+
+  const normalizedMessage = turn.message
+    .trim()
+    .replace(/^["'“”‘’]+/, "")
+    .toLowerCase();
+  const doctorLikeStarts = [
+    "i understand",
+    "i can",
+    "i will",
+    "we are",
+    "let me",
+    "i'm going to",
+    "i am going to",
+    "i cannot share",
+    "i can't share",
+  ];
+
+  return doctorLikeStarts.some((phrase) => normalizedMessage.startsWith(phrase));
 }
 
 function normalizeFeedback(value: unknown): FeedbackReport {
@@ -238,9 +282,20 @@ export async function POST(request: Request) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
-      const result = normalizeTurn(
+      const firstResult = normalizeTurn(
         await callGemini(buildSimulationPrompt(state, traineeResponse, voiceMetrics)),
       );
+      const result = appearsToSpeakAsTrainee(firstResult)
+        ? normalizeTurn(
+            await callGemini(
+              buildSimulationPrompt(state, traineeResponse, voiceMetrics, {
+                roleCorrection: true,
+                rejectedMessage: firstResult.message,
+              }),
+            ),
+          )
+        : firstResult;
+
       return NextResponse.json({ result });
     }
 

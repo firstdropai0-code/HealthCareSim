@@ -7,6 +7,14 @@ const roleLabels: Record<SimulationMessage["role"], string> = {
   feedback: "Feedback",
 };
 
+const speakerLabels: Record<NonNullable<SimulationMessage["speaker"]>, string> = {
+  patient: "Patient",
+  family_member: "Family member",
+  nurse: "Nurse",
+  bystander: "Bystander",
+  narrator: "Narrator",
+};
+
 function labelValue(value: string): string {
   return value.replace(/_/g, " ");
 }
@@ -32,6 +40,10 @@ export function ChatMessageList({
         const isTrainee = message.role === "trainee";
         const canPlay = message.role === "scenario" && speechSupported && onSpeakMessage;
         const isSpeaking = speakingMessageId === message.id;
+        const messageLabel =
+          message.role === "scenario" && message.speaker
+            ? speakerLabels[message.speaker]
+            : roleLabels[message.role];
 
         return (
           <article
@@ -51,7 +63,7 @@ export function ChatMessageList({
                     isTrainee ? "text-emerald-100" : "text-slate-500"
                   }`}
                 >
-                  {roleLabels[message.role]}
+                  {messageLabel}
                 </p>
                 {canPlay ? (
                   <button

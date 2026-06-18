@@ -1,11 +1,12 @@
 import type { Scenario } from "@/types/scenario";
-import type { SimulationMessage, SimulationState } from "@/types/simulation";
+import type { ScenarioSpeaker, SimulationMessage, SimulationState } from "@/types/simulation";
 import type { VoiceMetrics } from "@/types/voice";
 
 export function createMessage(
   role: SimulationMessage["role"],
   content: string,
   voiceMetrics?: VoiceMetrics,
+  speaker?: ScenarioSpeaker,
 ): SimulationMessage {
   return {
     id:
@@ -16,13 +17,14 @@ export function createMessage(
     content,
     timestamp: new Date().toISOString(),
     ...(voiceMetrics ? { voiceMetrics } : {}),
+    ...(speaker ? { speaker } : {}),
   };
 }
 
 export function createInitialSimulationState(scenario: Scenario): SimulationState {
   return {
     scenario,
-    messages: [createMessage("scenario", scenario.firstPrompt)],
+    messages: [createMessage("scenario", scenario.firstPrompt, undefined, "narrator")],
     currentTurn: 0,
     maxTurns: Math.max(1, scenario.suggestedTurns || 5),
     tensionLevel: "low",
@@ -34,6 +36,7 @@ export function appendSimulationTurn(
   state: SimulationState,
   traineeResponse: string,
   scenarioMessage: string,
+  scenarioSpeaker: ScenarioSpeaker,
   tensionLevel: SimulationState["tensionLevel"],
   shouldEnd: boolean,
   voiceMetrics?: VoiceMetrics,
@@ -46,7 +49,7 @@ export function appendSimulationTurn(
     messages: [
       ...state.messages,
       createMessage("trainee", traineeResponse, voiceMetrics),
-      createMessage("scenario", scenarioMessage),
+      createMessage("scenario", scenarioMessage, undefined, scenarioSpeaker),
     ],
     currentTurn: nextTurn,
     tensionLevel,
