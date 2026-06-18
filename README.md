@@ -81,11 +81,68 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 
 Text input should always work. Browser voice features depend on microphone permission and browser support.
 
-## Sample Trainer Scenario Ideas
+## Demo Testing Scenarios
 
-- A parent is anxious because their child has been waiting in the emergency department and wants clearer updates.
-- A patient is frustrated about a delayed test result and needs a calm explanation of what will happen next.
-- A family member is upset after hearing confusing information from multiple staff members and wants reassurance.
+Use these trainer prompts to test the prototype end to end. They are designed to check live role boundaries, speaker labels, TTS behavior, estimated voice delivery, and communication-focused feedback.
+
+### 1. ER patient with anxious family
+
+**Trainer prompt:** A child has been waiting in the emergency department for several hours. The parent is anxious, repeatedly asking whether the child is safe and why no one has explained the delay.
+
+**Doctor response to test:** Clear acknowledgement of anxiety, simple explanation of next communication steps, and a check for understanding without giving unsupported clinical details.
+
+**Expected simulation behavior:** The AI should speak as the parent, patient, nurse, or narrator. If the doctor is vague, the parent should become more anxious and ask for clearer updates or escalation.
+
+**Good feedback should mention:** Empathy, naming the concern, explaining what can be shared, setting expectations, and avoiding dismissive or overly technical language.
+
+### 2. Post-surgery update to worried relative
+
+**Trainer prompt:** A relative is waiting after a surgery and has only heard that the patient is in recovery. They are worried, tired, and asking whether something went wrong.
+
+**Doctor response to test:** Calm update structure, reassurance without overpromising, clear boundaries around what is known, and a plan for the next update.
+
+**Expected simulation behavior:** The AI should respond as the worried relative or narrator. If the doctor sounds rushed or unclear, the relative should press for more certainty or ask who can answer.
+
+**Good feedback should mention:** Reassurance, transparency, pacing, avoiding false certainty, and giving a concrete next communication step.
+
+### 3. Patient angry about long waiting time
+
+**Trainer prompt:** An adult patient is angry after waiting a long time for an appointment. They feel ignored and say the clinic does not care about them.
+
+**Doctor response to test:** De-escalation, apology for the experience, acknowledgement of frustration, and a practical next step without blaming staff or the patient.
+
+**Expected simulation behavior:** The AI should speak as the angry patient or narrator. If the doctor becomes defensive, the patient should remain upset or challenge the response.
+
+**Good feedback should mention:** De-escalation, non-defensive wording, validating emotion, concise explanation, and keeping the conversation focused on what happens next.
+
+### 4. Elderly patient confused and scared
+
+**Trainer prompt:** An elderly patient is confused in a busy hospital setting and is scared because they do not understand where they are being taken or why.
+
+**Doctor response to test:** Slower, simpler communication; reassurance; orientation; one step at a time; and checking whether the patient understood.
+
+**Expected simulation behavior:** The AI should speak as the elderly patient, nurse, or narrator. If the doctor uses complex language, the patient should stay confused or ask repeated questions.
+
+**Good feedback should mention:** Plain language, slower pace, checking understanding, emotional reassurance, and avoiding information overload.
+
+### 5. Family demanding information the doctor cannot fully share yet
+
+**Trainer prompt:** A family member demands detailed information about a patient before the team has confirmed what can be shared. The family member is upset and believes staff are hiding something.
+
+**Doctor response to test:** Boundary-setting, empathy, privacy-aware communication, and offering what can be shared now without inventing or disclosing unsupported details.
+
+**Expected simulation behavior:** The AI should speak as the demanding family member or narrator. If the doctor shares too much or is vague, the family member should challenge the response.
+
+**Good feedback should mention:** Respectful boundaries, calm tone, explaining limits, offering next steps, and maintaining trust without giving diagnosis or treatment advice.
+
+## Internal QA Checklist
+
+- AI should never speak as the doctor during live simulation.
+- AI should label the scenario speaker correctly.
+- TTS should only read AI scenario messages.
+- Voice metrics should be shown as estimates.
+- Feedback should be communication-focused.
+- No diagnosis or treatment advice should be generated.
 
 ## Voice Prototype Notes
 
