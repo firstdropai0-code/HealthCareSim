@@ -45,9 +45,11 @@ Rules:
 - Keep the next scenario message short, realistic, and spoken from the patient/family/situation perspective.
 - message: 1 to 3 sentences, under 55 words.
 - Consider both what the trainee said and the estimated delivery pattern.
-- Increase tension if the trainee is dismissive, vague, unclear, or if delivery appears rushed, loud, tense, or frustrated.
+- Treat voice delivery as a light communication cue, never as the main reason for the next turn.
+- Do not change tension based on one voice metric alone.
+- Increase tension only if the trainee is dismissive, vague, unclear, or if several medium/high-confidence delivery cues suggest rushed, loud, tense, or frustrated communication.
 - Reduce tension if the trainee is calm, empathetic, transparent, clear, and delivery appears steady.
-- Voice estimates are approximate; do not overreact to low-confidence metrics.
+- Voice estimates are approximate; low-confidence metrics are weak signals and may be ignored.
 - Ask what the trainee says or does next unless the scenario should end.
 - Do not provide diagnosis, medication, treatment instructions, triage advice, or clinical decision-making advice.
 - Return only valid JSON:

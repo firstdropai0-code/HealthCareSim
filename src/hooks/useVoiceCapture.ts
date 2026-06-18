@@ -102,7 +102,13 @@ function classifyMetrics(
   const volumeLevel =
     averageVolume === undefined ? "normal" : averageVolume < 0.025 ? "soft" : averageVolume > 0.09 ? "loud" : "normal";
   const pitchLevel =
-    averagePitchHz === undefined ? "normal" : averagePitchHz < 145 ? "low" : averagePitchHz > 240 ? "high" : "normal";
+    averagePitchHz === undefined
+      ? "not_detected"
+      : averagePitchHz < 145
+        ? "low"
+        : averagePitchHz > 240
+          ? "high"
+          : "normal";
   const paceLevel =
     wordsPerMinute === undefined ? "normal" : wordsPerMinute < 105 ? "slow" : wordsPerMinute > 165 ? "fast" : "normal";
   const pausePattern = pauseCount > 5 ? "many_pauses" : pauseCount > 2 ? "some_pauses" : "smooth";
@@ -122,9 +128,9 @@ function classifyMetrics(
   }
 
   const confidence =
-    durationSeconds >= 5 && wordCount >= 10 && volumes.length > 20
+    durationSeconds >= 5 && wordCount >= 10 && volumes.length > 20 && pitches.length > 5
       ? "high"
-      : durationSeconds >= 2 && wordCount >= 4
+      : durationSeconds >= 2 && wordCount >= 4 && volumes.length > 10
         ? "medium"
         : "low";
 
@@ -275,7 +281,13 @@ export function useVoiceCapture() {
         };
 
         recognitionRef.current = recognition;
-        recognition.start();
+
+        try {
+          recognition.start();
+        } catch {
+          setError("Speech recognition could not start. You can still type your response.");
+          recognitionRef.current = null;
+        }
       }
     }
 
@@ -335,10 +347,15 @@ export function useVoiceCapture() {
 
       sample();
     } catch (captureError) {
+      const friendlyMessage =
+        captureError instanceof DOMException && captureError.name === "NotAllowedError"
+          ? "Microphone permission was blocked. You can still type your response."
+          : captureError instanceof Error
+            ? captureError.message
+            : "Microphone access failed. You can still type your response.";
+
       setError(
-        captureError instanceof Error
-          ? captureError.message
-          : "Microphone access failed. You can still type your response.",
+        friendlyMessage,
       );
       setIsRecording(Boolean(recognitionRef.current));
       setIsAnalyzing(false);

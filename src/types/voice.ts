@@ -1,6 +1,6 @@
 export type VoiceMetrics = {
   volumeLevel: "soft" | "normal" | "loud";
-  pitchLevel: "low" | "normal" | "high";
+  pitchLevel: "low" | "normal" | "high" | "not_detected";
   paceLevel: "slow" | "normal" | "fast";
   pausePattern: "smooth" | "some_pauses" | "many_pauses";
   toneEstimate:

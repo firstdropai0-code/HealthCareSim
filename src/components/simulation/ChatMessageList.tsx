@@ -62,7 +62,7 @@ export function ChatMessageList({
                     className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 transition hover:border-emerald-500 hover:text-emerald-800"
                     title={isSpeaking ? "Stop scenario audio" : "Play scenario audio"}
                   >
-                    {isSpeaking ? "Stop" : "Play"}
+                    {isSpeaking ? "Stop audio" : "Play audio"}
                   </button>
                 ) : null}
               </div>
@@ -70,8 +70,10 @@ export function ChatMessageList({
               {isTrainee && message.voiceMetrics ? (
                 <div className="mt-3 rounded-md bg-white/15 px-3 py-2 text-xs leading-5 text-emerald-50">
                   <span className="font-semibold">Estimated voice delivery:</span>{" "}
-                  {labelValue(message.voiceMetrics.toneEstimate)} /{" "}
-                  {message.voiceMetrics.confidence} confidence
+                  possibly {labelValue(message.voiceMetrics.toneEstimate)} /{" "}
+                  {message.voiceMetrics.confidence === "low"
+                    ? "low confidence estimate"
+                    : `${message.voiceMetrics.confidence} confidence`}
                 </div>
               ) : null}
             </div>

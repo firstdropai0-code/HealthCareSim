@@ -167,13 +167,16 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
                 Estimated voice delivery
               </p>
               <h3 className="mt-1 text-lg font-semibold text-indigo-950">
-                How the response may have sounded
+                Possible delivery patterns
               </h3>
             </div>
             <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">
-              Approximate
+              Estimate only
             </span>
           </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">
+            Based on estimated voice delivery patterns. Use this as coaching guidance, not as a medical or personal judgement.
+          </p>
           <p className="mt-4 rounded-lg bg-indigo-50 px-4 py-3 text-sm leading-6 text-indigo-950">
             {voiceFeedback.summary}
           </p>

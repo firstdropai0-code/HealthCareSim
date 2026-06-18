@@ -6,17 +6,27 @@ function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
+function formatLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
 function formatVoiceMetrics(metrics?: VoiceMetrics): string {
   if (!metrics) {
     return "";
   }
 
+  const confidenceText =
+    metrics.confidence === "low"
+      ? "low confidence estimate"
+      : `${metrics.confidence} confidence`;
+
   return [
-    `Voice delivery estimate: ${metrics.toneEstimate} (${metrics.confidence} confidence)`,
-    `Volume: ${metrics.volumeLevel}`,
-    `Pitch: ${metrics.pitchLevel}`,
-    `Pace: ${metrics.paceLevel}`,
-    `Pauses: ${metrics.pausePattern}`,
+    `Estimated voice delivery pattern: possibly ${formatLabel(metrics.toneEstimate)} (${confidenceText})`,
+    `Volume: ${formatLabel(metrics.volumeLevel)}`,
+    `Pitch: ${formatLabel(metrics.pitchLevel)}`,
+    `Pace: ${formatLabel(metrics.paceLevel)}`,
+    `Pauses: ${formatLabel(metrics.pausePattern)}`,
+    "No audio was stored or uploaded by this prototype.",
   ].join("\n");
 }
 
@@ -38,6 +48,7 @@ export function buildFeedbackExportText(
   const voiceDelivery = report.voiceDeliveryFeedback
     ? `
 Voice Delivery Feedback
+Based on estimated voice delivery patterns, not medical or personal judgement.
 ${report.voiceDeliveryFeedback.summary}
 
 Voice Delivery Strengths

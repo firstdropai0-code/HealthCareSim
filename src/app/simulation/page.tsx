@@ -23,11 +23,14 @@ function formatVoiceLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready";
+
 export default function SimulationPage() {
   const router = useRouter();
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
   const [voiceMetrics, setVoiceMetrics] = useState<VoiceMetrics | null>(null);
+  const [voiceCaptureStatus, setVoiceCaptureStatus] = useState<VoiceCaptureStatus>("idle");
   const [autoReadScenario, setAutoReadScenario] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,10 +74,14 @@ export default function SimulationPage() {
 
   async function handleStartVoiceCapture() {
     setError(null);
+    setVoiceMetrics(null);
+    setVoiceCaptureStatus("recording");
+    handleStopSpeech();
     await voiceCapture.startCapture();
   }
 
   function handleStopVoiceCapture() {
+    setVoiceCaptureStatus("analyzing");
     const result = voiceCapture.stopCapture();
 
     if (result.transcript.trim()) {
@@ -82,6 +89,9 @@ export default function SimulationPage() {
     }
 
     setVoiceMetrics(result.metrics);
+    window.setTimeout(() => {
+      setVoiceCaptureStatus("ready");
+    }, 450);
   }
 
   async function handleSend() {
@@ -116,7 +126,7 @@ export default function SimulationPage() {
 
       const nextScenarioMessage = updatedState.messages.at(-1);
 
-      if (autoReadScenario && nextScenarioMessage?.role === "scenario") {
+      if (autoReadScenario && !voiceCapture.isRecording && nextScenarioMessage?.role === "scenario") {
         setSpeakingMessageId(nextScenarioMessage.id);
         speak(nextScenarioMessage.content);
       }
@@ -246,6 +256,7 @@ export default function SimulationPage() {
                     setResponse(event.target.value);
                     if (!event.target.value.trim()) {
                       setVoiceMetrics(null);
+                      setVoiceCaptureStatus("idle");
                     }
                   }}
                   placeholder="Type what the trainee says or does next."
@@ -256,6 +267,21 @@ export default function SimulationPage() {
                     Live transcript: {voiceCapture.transcript}
                   </p>
                 ) : null}
+                {voiceCaptureStatus === "recording" ? (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+                    <span className="font-semibold">Recording started.</span> Speak naturally, then stop recording to review and edit the transcript.
+                  </div>
+                ) : null}
+                {voiceCaptureStatus === "analyzing" ? (
+                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
+                    <span className="font-semibold">Recording stopped.</span> Analyzing voice delivery...
+                  </div>
+                ) : null}
+                {voiceCaptureStatus === "ready" && voiceMetrics ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                    Recording stopped. Review the estimated voice delivery pattern and edit your transcript before sending.
+                  </div>
+                ) : null}
                 {voiceMetrics ? (
                   <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -263,7 +289,7 @@ export default function SimulationPage() {
                         Estimated voice delivery pattern
                       </p>
                       <span className="text-xs font-semibold uppercase text-indigo-700">
-                        {formatVoiceLabel(voiceMetrics.toneEstimate)} / {voiceMetrics.confidence}
+                        Possibly {formatVoiceLabel(voiceMetrics.toneEstimate)} / {voiceMetrics.confidence} confidence
                       </span>
                     </div>
                     <div className="mt-3 grid gap-2 text-xs font-medium text-indigo-950 sm:grid-cols-4">
@@ -272,8 +298,13 @@ export default function SimulationPage() {
                       <span>Pace: {formatVoiceLabel(voiceMetrics.paceLevel)}</span>
                       <span>Pauses: {formatVoiceLabel(voiceMetrics.pausePattern)}</span>
                     </div>
+                    {voiceMetrics.confidence === "low" ? (
+                      <p className="mt-3 rounded-md bg-white/70 px-3 py-2 text-xs font-semibold text-indigo-900">
+                        Low confidence estimate. Treat this as a weak signal and rely on the transcript first.
+                      </p>
+                    ) : null}
                     <p className="mt-3 text-xs leading-5 text-indigo-800">
-                      This is an approximate browser estimate for training feedback. Edit the transcript before sending if needed.
+                      This is an approximate browser estimate for training feedback. No audio is stored or uploaded in this prototype.
                     </p>
                   </div>
                 ) : null}
@@ -305,7 +336,7 @@ export default function SimulationPage() {
                   <LoadingButton
                     type="button"
                     loading={loading}
-                    disabled={!response.trim()}
+                    disabled={!response.trim() || voiceCapture.isRecording}
                     onClick={handleSend}
                   >
                     Send Response
@@ -321,11 +352,11 @@ export default function SimulationPage() {
                     className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                     title={
                       voiceCapture.supported
-                        ? "Capture voice and estimate delivery"
+                        ? "Start voice recording and estimate delivery"
                         : "Voice capture is not supported"
                     }
                   >
-                    {voiceCapture.isRecording ? "Stop voice capture" : "Use voice"}
+                    {voiceCapture.isRecording ? "Stop recording" : "Start voice recording"}
                   </button>
                   <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                     <input
@@ -346,9 +377,12 @@ export default function SimulationPage() {
                 </div>
                 {voiceCapture.isRecording ? (
                   <p className="mt-3 text-xs font-medium text-emerald-800">
-                    Recording voice. {voiceCapture.isAnalyzing ? "Estimating delivery pattern." : "Listening for transcript."}
+                    Recording voice. {voiceCapture.isAnalyzing ? "Estimating delivery pattern while you speak." : "Listening for transcript."}
                   </p>
                 ) : null}
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Text input always works. Browser voice is optional, and no audio is stored or uploaded in this prototype.
+                </p>
               </section>
             ) : (
               <section className="rounded-lg border border-blue-200 bg-blue-50 p-5">

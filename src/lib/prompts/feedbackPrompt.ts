@@ -39,10 +39,13 @@ Rules:
 - betterResponses should be phrased as direct example lines the trainee could say.
 - ${
     hasVoiceMetrics
-      ? "Include voiceDeliveryFeedback based on estimated delivery patterns: calmness, clarity, pacing, tone under pressure, reassurance, and whether delivery matched the words."
+      ? "Include constructive voiceDeliveryFeedback based on estimated voice delivery patterns: calmness, clarity, pacing, tone under pressure, reassurance, and whether delivery matched the words."
       : "Omit voiceDeliveryFeedback because no voice delivery estimates were captured."
   }
-- If voiceDeliveryFeedback is included, state that it is based on estimated delivery patterns and avoid overclaiming accuracy.
+- If voiceDeliveryFeedback is included, state that it is based on estimated voice delivery patterns and avoid overclaiming accuracy.
+- Voice delivery feedback must not sound like medical judgement or personality judgement.
+- Give practical delivery suggestions such as slower pace, calmer tone, shorter pauses, or clearer reassurance.
+- Treat low-confidence voice metrics as weak signals.
 - Return only valid JSON matching this shape. voiceDeliveryFeedback is optional when no voice estimates exist:
 {
   "overallScore": 8,

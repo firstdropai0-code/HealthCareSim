@@ -69,6 +69,24 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
 
+## How to Test This Prototype
+
+1. Create a scenario from one of the sample ideas below or your own communication challenge.
+2. Start the simulation and read the first patient or family prompt.
+3. Type a response, or use **Start voice recording** to capture speech.
+4. Stop recording, review the transcript, and edit it before sending.
+5. Check the estimated voice delivery pattern when available.
+6. Continue for a few turns, then use **Generate Feedback**.
+7. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
+
+Text input should always work. Browser voice features depend on microphone permission and browser support.
+
+## Sample Trainer Scenario Ideas
+
+- A parent is anxious because their child has been waiting in the emergency department and wants clearer updates.
+- A patient is frustrated about a delayed test result and needs a calm explanation of what will happen next.
+- A family member is upset after hearing confusing information from multiple staff members and wants reassurance.
+
 ## Voice Prototype Notes
 
 - Voice input uses the browser Web Speech API.
