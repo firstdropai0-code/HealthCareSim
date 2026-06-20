@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
 import { LoadingButton } from "@/components/common/LoadingButton";
@@ -10,8 +10,12 @@ import { AppShell } from "@/components/layout/AppShell";
 import { generateFeedbackReport } from "@/lib/ai/geminiClient";
 import { exportFeedback } from "@/lib/export/exportFeedback";
 import {
+  clearPendingFeedbackGeneration,
   clearSimulationState,
+  loadFeedbackReport,
+  loadPendingFeedbackGeneration,
   loadSimulationState,
+  saveFeedbackReport,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
 import type { FeedbackReport } from "@/types/feedback";
@@ -19,6 +23,9 @@ import type { SimulationState } from "@/types/simulation";
 
 export default function FeedbackPage() {
   const router = useRouter();
+  const autoGenerationStartedRef = useRef(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [pendingAutoGenerate, setPendingAutoGenerate] = useState(false);
   const [state, setState] = useState<SimulationState | null>(null);
   const [report, setReport] = useState<FeedbackReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,13 +33,24 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setState(loadSimulationState());
+      const savedState = loadSimulationState();
+      const savedReport = loadFeedbackReport();
+      const shouldAutoGenerate = loadPendingFeedbackGeneration();
+
+      setState(savedState);
+      setReport(savedReport);
+      setPendingAutoGenerate(shouldAutoGenerate);
+      setHasLoaded(true);
+
+      if (savedReport) {
+        clearPendingFeedbackGeneration();
+      }
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function handleGenerateReport() {
+  const handleGenerateReport = useCallback(async () => {
     if (!state) {
       return;
     }
@@ -45,17 +63,51 @@ export default function FeedbackPage() {
       const nextReport = await generateFeedbackReport(completedState);
       setState(completedState);
       setReport(nextReport);
+      setPendingAutoGenerate(false);
       saveSimulationState(completedState);
+      saveFeedbackReport(nextReport);
+      clearPendingFeedbackGeneration();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to generate feedback.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [state]);
+
+  useEffect(() => {
+    if (
+      !hasLoaded ||
+      !state ||
+      report ||
+      loading ||
+      autoGenerationStartedRef.current ||
+      (state.status !== "completed" && !pendingAutoGenerate)
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      autoGenerationStartedRef.current = true;
+      void handleGenerateReport();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [handleGenerateReport, hasLoaded, loading, pendingAutoGenerate, report, state]);
 
   function handleRestart() {
     clearSimulationState();
     router.push("/scenario");
+  }
+
+  if (!hasLoaded) {
+    return (
+      <AppShell>
+        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold text-slate-950">Loading feedback</h1>
+          <p className="mt-3 text-sm text-slate-600">Preparing the feedback page.</p>
+        </section>
+      </AppShell>
+    );
   }
 
   if (!state) {
@@ -95,9 +147,26 @@ export default function FeedbackPage() {
         {error ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             {error}
+            <button
+              type="button"
+              onClick={handleGenerateReport}
+              disabled={loading}
+              className="ml-3 font-semibold underline disabled:text-rose-300"
+            >
+              Retry
+            </button>
           </div>
         ) : null}
-        {!report ? (
+        {loading ? (
+          <section className="rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-950">
+              Generating feedback report...
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              The report will focus on communication, empathy, clarity, and pressure handling.
+            </p>
+          </section>
+        ) : !report ? (
           <section className="grid gap-5 rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm lg:grid-cols-[1fr_320px]">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">

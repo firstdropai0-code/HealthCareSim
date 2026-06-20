@@ -79,7 +79,7 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 6. Continue for a few turns, then use **Generate Feedback**.
 7. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
 
-Text input should always work. Browser voice features depend on microphone permission and browser support.
+Text input should always work. Browser voice features depend on microphone permission and browser support. On mobile browsers, voice capture may stop automatically after silence; the app keeps the transcript visible so testers can review, edit, and send it manually.
 
 ## Demo Testing Scenarios
 
@@ -151,6 +151,7 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 - Voice tone analysis uses the browser Web Audio API and simple heuristics.
 - Tone detection is approximate and intended only for communication training feedback.
 - Browser support varies. Chrome and Edge generally provide the best Web Speech support.
+- Mobile speech recognition may auto-stop after a pause; this is expected browser behavior, and text input remains the fallback.
 - No audio is stored, uploaded, or saved by this prototype unless that behavior is explicitly changed later.
 
 ## Future Roadmap

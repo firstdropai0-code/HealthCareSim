@@ -13,7 +13,10 @@ import { useVoiceCapture } from "@/hooks/useVoiceCapture";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
+  clearFeedbackReport,
+  loadFeedbackReport,
   loadSimulationState,
+  savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
 import type { SimulationState } from "@/types/simulation";
@@ -23,7 +26,24 @@ function formatVoiceLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
-type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready";
+function mergeTranscript(current: string, next: string): string {
+  const currentText = current.trim();
+  const nextText = next.trim();
+  const normalizedCurrent = currentText.toLowerCase();
+  const normalizedNext = nextText.toLowerCase();
+
+  if (!nextText || normalizedCurrent.endsWith(normalizedNext)) {
+    return current;
+  }
+
+  if (normalizedCurrent && normalizedNext.startsWith(`${normalizedCurrent} `)) {
+    return nextText;
+  }
+
+  return `${currentText} ${nextText}`.trim();
+}
+
+type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready" | "unavailable";
 
 export default function SimulationPage() {
   const router = useRouter();
@@ -33,6 +53,7 @@ export default function SimulationPage() {
   const [voiceCaptureStatus, setVoiceCaptureStatus] = useState<VoiceCaptureStatus>("idle");
   const [autoReadScenario, setAutoReadScenario] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [hasFeedbackReport, setHasFeedbackReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const voiceCapture = useVoiceCapture();
@@ -44,9 +65,16 @@ export default function SimulationPage() {
     error: textToSpeechError,
   } = useTextToSpeech();
 
+  const applyCapturedTranscript = useCallback((capturedTranscript: string) => {
+    if (capturedTranscript.trim()) {
+      setResponse((current) => mergeTranscript(current, capturedTranscript));
+    }
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setState(loadSimulationState());
+      setHasFeedbackReport(Boolean(loadFeedbackReport()));
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -57,6 +85,32 @@ export default function SimulationPage() {
       stopSpeech();
     };
   }, [stopSpeech]);
+
+  useEffect(() => {
+    if (voiceCapture.stopReason !== "auto" || voiceCaptureStatus !== "recording") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      applyCapturedTranscript(voiceCapture.transcript || voiceCapture.interimTranscript);
+      setVoiceMetrics(voiceCapture.metrics);
+      setVoiceCaptureStatus("ready");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [applyCapturedTranscript, voiceCapture, voiceCaptureStatus]);
+
+  useEffect(() => {
+    if (voiceCapture.supported) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVoiceCaptureStatus("unavailable");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [voiceCapture.supported]);
 
   const handleSpeakMessage = useCallback(
     (message: SimulationState["messages"][number]) => {
@@ -75,7 +129,7 @@ export default function SimulationPage() {
   async function handleStartVoiceCapture() {
     setError(null);
     setVoiceMetrics(null);
-    setVoiceCaptureStatus("recording");
+    setVoiceCaptureStatus(voiceCapture.supported ? "recording" : "unavailable");
     handleStopSpeech();
     await voiceCapture.startCapture();
   }
@@ -83,11 +137,7 @@ export default function SimulationPage() {
   function handleStopVoiceCapture() {
     setVoiceCaptureStatus("analyzing");
     const result = voiceCapture.stopCapture();
-
-    if (result.transcript.trim()) {
-      setResponse((current) => `${current} ${result.transcript}`.trim());
-    }
-
+    applyCapturedTranscript(result.transcript);
     setVoiceMetrics(result.metrics);
     window.setTimeout(() => {
       setVoiceCaptureStatus("ready");
@@ -122,8 +172,11 @@ export default function SimulationPage() {
 
       setState(updatedState);
       saveSimulationState(updatedState);
+      clearFeedbackReport();
+      setHasFeedbackReport(false);
       setResponse("");
       setVoiceMetrics(null);
+      setVoiceCaptureStatus(voiceCapture.supported ? "idle" : "unavailable");
 
       const nextScenarioMessage = updatedState.messages.at(-1);
 
@@ -138,23 +191,39 @@ export default function SimulationPage() {
     }
   }
 
-  function handleEndSimulation() {
+  function completeSimulation(): SimulationState | null {
     if (!state) {
-      return;
+      return null;
     }
 
     const completedState: SimulationState = { ...state, status: "completed" };
     handleStopSpeech();
     setState(completedState);
     saveSimulationState(completedState);
+    return completedState;
+  }
+
+  function handleEndSimulation() {
+    completeSimulation();
+  }
+
+  function handleFinishAndGenerateFeedback() {
+    const completedState = completeSimulation();
+
+    if (!completedState) {
+      return;
+    }
+
+    savePendingFeedbackGeneration();
+    router.push("/feedback");
   }
 
   function handleGenerateFeedback() {
-    if (state) {
-      const completedState: SimulationState = { ...state, status: "completed" };
-      saveSimulationState(completedState);
+    if (!state) {
+      return;
     }
 
+    savePendingFeedbackGeneration();
     router.push("/feedback");
   }
 
@@ -184,6 +253,10 @@ export default function SimulationPage() {
     "Explain one next step",
     "Check understanding",
   ];
+  const visibleTranscript = [voiceCapture.transcript, voiceCapture.interimTranscript]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   return (
     <AppShell>
@@ -257,20 +330,25 @@ export default function SimulationPage() {
                     setResponse(event.target.value);
                     if (!event.target.value.trim()) {
                       setVoiceMetrics(null);
-                      setVoiceCaptureStatus("idle");
+                      setVoiceCaptureStatus(voiceCapture.supported ? "idle" : "unavailable");
                     }
                   }}
                   placeholder="Type what the trainee says or does next."
                   className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                 />
-                {voiceCapture.isRecording && voiceCapture.transcript ? (
+                {voiceCapture.isRecording && visibleTranscript ? (
                   <p className="mt-2 text-xs font-medium text-slate-500">
-                    Live transcript: {voiceCapture.transcript}
+                    Live transcript: {visibleTranscript}
                   </p>
+                ) : null}
+                {voiceCaptureStatus === "idle" ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                    Ready to record. You can also type your response at any time.
+                  </div>
                 ) : null}
                 {voiceCaptureStatus === "recording" ? (
                   <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-                    <span className="font-semibold">Recording started.</span> Speak naturally, then stop recording to review and edit the transcript.
+                    <span className="font-semibold">Recording...</span> Speak naturally, then stop recording to review and edit the transcript.
                   </div>
                 ) : null}
                 {voiceCaptureStatus === "analyzing" ? (
@@ -280,7 +358,12 @@ export default function SimulationPage() {
                 ) : null}
                 {voiceCaptureStatus === "ready" && voiceMetrics ? (
                   <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    Recording stopped. Review the estimated voice delivery pattern and edit your transcript before sending.
+                    Recording stopped. Review your transcript before sending.
+                  </div>
+                ) : null}
+                {voiceCaptureStatus === "unavailable" ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                    Voice input unavailable. Please type instead.
                   </div>
                 ) : null}
                 {voiceMetrics ? (
@@ -368,13 +451,6 @@ export default function SimulationPage() {
                     />
                     Auto-read scenario responses
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleEndSimulation}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
-                  >
-                    End Simulation
-                  </button>
                 </div>
                 {voiceCapture.isRecording ? (
                   <p className="mt-3 text-xs font-medium text-emerald-800">
@@ -382,7 +458,7 @@ export default function SimulationPage() {
                   </p>
                 ) : null}
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Text input always works. Browser voice is optional, and no audio is stored or uploaded in this prototype.
+                  Mobile browsers may stop voice capture automatically after silence. You can review and send the transcript. Text input always works.
                 </p>
               </section>
             ) : (
@@ -457,29 +533,49 @@ export default function SimulationPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-950">
-                Ready to wrap up?
+                {completed ? "Simulation completed" : "Ready to wrap up?"}
               </p>
               <p className="text-xs text-slate-500">
-                Generate feedback from the conversation so far.
+                {completed
+                  ? "Generate or view the feedback report for this completed roleplay."
+                  : "End the roleplay only, or finish and generate feedback now."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               {!completed ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleEndSimulation}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
+                  >
+                    End Simulation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFinishAndGenerateFeedback}
+                    className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                  >
+                    Finish & Generate Feedback
+                  </button>
+                </>
+              ) : hasFeedbackReport ? (
                 <button
                   type="button"
-                  onClick={handleEndSimulation}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
+                  onClick={() => router.push("/feedback")}
+                  className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
                 >
-                  End Simulation
+                  View Feedback
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={handleGenerateFeedback}
-                className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
-              >
-                Generate Feedback
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGenerateFeedback}
+                  className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                >
+                  Generate Feedback
+                </button>
+              )}
             </div>
           </div>
         </div>

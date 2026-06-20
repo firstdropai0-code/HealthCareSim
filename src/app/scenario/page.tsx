@@ -10,7 +10,10 @@ import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
-import { saveSimulationState } from "@/lib/storage/localSimulationStorage";
+import {
+  clearSimulationState,
+  saveSimulationState,
+} from "@/lib/storage/localSimulationStorage";
 import type { Scenario } from "@/types/scenario";
 
 const exampleIdeas = [
@@ -52,6 +55,7 @@ export default function ScenarioCreatorPage() {
       return;
     }
 
+    clearSimulationState();
     saveSimulationState(createInitialSimulationState(scenario));
     router.push("/simulation");
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { VoiceCaptureResult, VoiceMetrics } from "@/types/voice";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
@@ -45,12 +45,29 @@ type WindowWithSpeechRecognition = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
+type VoiceStopReason = "manual" | "auto" | "error" | null;
+
 function average(values: number[]): number | undefined {
   if (values.length === 0) {
     return undefined;
   }
 
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function normalizeTranscript(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function isLikelyMobileBrowser(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent) ||
+    window.matchMedia("(pointer: coarse)").matches
+  );
 }
 
 function detectPitchHz(buffer: Float32Array, sampleRate: number): number | undefined {
@@ -157,16 +174,23 @@ export function useVoiceCapture() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const transcriptRef = useRef("");
+  const interimTranscriptRef = useRef("");
+  const finalSegmentsRef = useRef<string[]>([]);
+  const processedFinalKeysRef = useRef<Set<string>>(new Set());
   const volumesRef = useRef<number[]>([]);
   const pitchesRef = useRef<number[]>([]);
   const pauseCountRef = useRef(0);
   const wasSilentRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
+  const manualStopRef = useRef(false);
+  const captureActiveRef = useRef(false);
 
   const [transcript, setTranscript] = useState("");
+  const [interimTranscript, setInterimTranscript] = useState("");
   const [metrics, setMetrics] = useState<VoiceMetrics | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [stopReason, setStopReason] = useState<VoiceStopReason>(null);
   const [error, setError] = useState<string | null>(null);
 
   const support = useMemo(() => {
@@ -175,6 +199,7 @@ export function useVoiceCapture() {
         speechSupported: false,
         analysisSupported: false,
         supported: false,
+        mobile: false,
       };
     }
 
@@ -192,6 +217,7 @@ export function useVoiceCapture() {
       speechSupported,
       analysisSupported,
       supported: speechSupported || analysisSupported,
+      mobile: isLikelyMobileBrowser(),
     };
   }, []);
 
@@ -208,7 +234,46 @@ export function useVoiceCapture() {
     audioContextRef.current = null;
   }, []);
 
+  const appendFinalTranscript = useCallback((value: string) => {
+    const candidate = value.trim().replace(/\s+/g, " ");
+    const normalizedCandidate = normalizeTranscript(candidate);
+
+    if (!normalizedCandidate) {
+      return;
+    }
+
+    const current = transcriptRef.current.trim();
+    const normalizedCurrent = normalizeTranscript(current);
+    const lastSegment = finalSegmentsRef.current.at(-1) || "";
+
+    if (
+      normalizedCandidate === normalizedCurrent ||
+      normalizedCandidate === normalizeTranscript(lastSegment) ||
+      (normalizedCurrent && normalizedCurrent.endsWith(` ${normalizedCandidate}`))
+    ) {
+      return;
+    }
+
+    let segmentToAppend = candidate;
+
+    if (normalizedCurrent && normalizedCandidate.startsWith(`${normalizedCurrent} `)) {
+      segmentToAppend = candidate.slice(current.length).trim();
+    }
+
+    if (!segmentToAppend) {
+      return;
+    }
+
+    finalSegmentsRef.current.push(segmentToAppend);
+    transcriptRef.current = finalSegmentsRef.current.join(" ").trim();
+    setTranscript(transcriptRef.current);
+  }, []);
+
   const buildResult = useCallback((): VoiceCaptureResult => {
+    if (interimTranscriptRef.current && !transcriptRef.current) {
+      appendFinalTranscript(interimTranscriptRef.current);
+    }
+
     const durationSeconds = startedAtRef.current
       ? Math.max(0.1, (Date.now() - startedAtRef.current) / 1000)
       : 0;
@@ -220,72 +285,142 @@ export function useVoiceCapture() {
       durationSeconds,
     );
 
+    setInterimTranscript("");
+    interimTranscriptRef.current = "";
     setMetrics(nextMetrics);
     return {
       transcript: transcriptRef.current,
       metrics: nextMetrics,
     };
+  }, [appendFinalTranscript]);
+
+  const cleanupRecognition = useCallback((mode: "stop" | "abort") => {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+
+    if (!recognition) {
+      return;
+    }
+
+    try {
+      if (mode === "abort") {
+        recognition.abort();
+      } else {
+        recognition.stop();
+      }
+    } catch {
+      // Browser speech recognition can throw if it already ended.
+    }
   }, []);
 
   const startCapture = useCallback(async () => {
+    manualStopRef.current = true;
+    cleanupRecognition("abort");
+    stopAudioAnalysis();
+
     setError(null);
     setMetrics(null);
     setTranscript("");
+    setInterimTranscript("");
+    setStopReason(null);
     transcriptRef.current = "";
+    interimTranscriptRef.current = "";
+    finalSegmentsRef.current = [];
+    processedFinalKeysRef.current = new Set();
     volumesRef.current = [];
     pitchesRef.current = [];
     pauseCountRef.current = 0;
     wasSilentRef.current = false;
     startedAtRef.current = Date.now();
+    captureActiveRef.current = true;
+    manualStopRef.current = false;
     setIsAnalyzing(false);
 
+    if (!support.supported) {
+      captureActiveRef.current = false;
+      setError("Voice input unavailable. Please type instead.");
+      return;
+    }
+
     if (!support.speechSupported) {
-      setError("Speech recognition is not supported in this browser.");
+      setError("Speech recognition is not supported in this browser. Please type instead.");
     } else {
       const speechWindow = window as WindowWithSpeechRecognition;
       const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
       if (Recognition) {
         const recognition = new Recognition();
-        recognition.continuous = true;
+        recognition.continuous = !support.mobile;
         recognition.interimResults = true;
         recognition.lang = "en-US";
 
         recognition.onresult = (event) => {
-          let finalText = "";
+          let nextInterimTranscript = "";
 
           for (let index = event.resultIndex; index < event.results.length; index += 1) {
-            if (event.results[index].isFinal) {
-              finalText += event.results[index][0].transcript;
+            const result = event.results[index];
+            const resultText = result[0].transcript.trim();
+            const normalizedText = normalizeTranscript(resultText);
+
+            if (!normalizedText) {
+              continue;
+            }
+
+            if (result.isFinal) {
+              const resultKey = `${index}:${normalizedText}`;
+
+              if (!processedFinalKeysRef.current.has(resultKey)) {
+                processedFinalKeysRef.current.add(resultKey);
+                appendFinalTranscript(resultText);
+              }
+            } else {
+              nextInterimTranscript = `${nextInterimTranscript} ${resultText}`.trim();
             }
           }
 
-          const normalizedFinalText = finalText.trim();
-
-          if (normalizedFinalText) {
-            transcriptRef.current = `${transcriptRef.current} ${normalizedFinalText}`.trim();
-            setTranscript(transcriptRef.current);
-          }
+          interimTranscriptRef.current = nextInterimTranscript;
+          setInterimTranscript(nextInterimTranscript);
         };
 
         recognition.onerror = (event) => {
+          const friendlyErrors: Record<string, string> = {
+            "not-allowed": "Microphone permission was blocked. Please type instead.",
+            "no-speech": "Recording stopped after silence. Review your transcript before sending.",
+            aborted: "Recording stopped. Review your transcript before sending.",
+            network: "Speech recognition needs browser speech services. Please type or try again.",
+          };
+
           setError(
             event.error
-              ? `Speech recognition failed: ${event.error}.`
-              : "Speech recognition failed.",
+              ? friendlyErrors[event.error] || `Speech recognition stopped: ${event.error}.`
+              : "Speech recognition stopped. Review your transcript before sending.",
           );
+          setStopReason(event.error === "not-allowed" ? "error" : "auto");
         };
 
         recognition.onend = () => {
-          setIsRecording(false);
+          const wasManualStop = manualStopRef.current;
+          recognitionRef.current = null;
+
+          if (!wasManualStop && captureActiveRef.current) {
+            captureActiveRef.current = false;
+            stopAudioAnalysis();
+            buildResult();
+            setIsRecording(false);
+            setIsAnalyzing(false);
+            setStopReason("auto");
+          }
+
+          manualStopRef.current = false;
         };
 
         recognitionRef.current = recognition;
 
         try {
           recognition.start();
+          setIsRecording(true);
         } catch {
-          setError("Speech recognition could not start. You can still type your response.");
+          setError("Speech recognition could not start. Please type instead.");
           recognitionRef.current = null;
         }
       }
@@ -296,7 +431,6 @@ export function useVoiceCapture() {
         current ||
         "Voice tone analysis is not supported in this browser. You can still type or use basic voice input.",
       );
-      setIsRecording(true);
       return;
     }
 
@@ -349,38 +483,50 @@ export function useVoiceCapture() {
     } catch (captureError) {
       const friendlyMessage =
         captureError instanceof DOMException && captureError.name === "NotAllowedError"
-          ? "Microphone permission was blocked. You can still type your response."
+          ? "Microphone permission was blocked. Please type instead."
           : captureError instanceof Error
             ? captureError.message
-            : "Microphone access failed. You can still type your response.";
+            : "Microphone access failed. Please type instead.";
 
-      setError(
-        friendlyMessage,
-      );
+      setError(friendlyMessage);
       setIsRecording(Boolean(recognitionRef.current));
       setIsAnalyzing(false);
     }
-  }, [support.analysisSupported, support.speechSupported]);
+  }, [appendFinalTranscript, buildResult, cleanupRecognition, stopAudioAnalysis, support]);
 
   const stopCapture = useCallback((): VoiceCaptureResult => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
+    manualStopRef.current = true;
+    captureActiveRef.current = false;
+    cleanupRecognition("stop");
     stopAudioAnalysis();
     setIsRecording(false);
     setIsAnalyzing(false);
+    setStopReason("manual");
     return buildResult();
-  }, [buildResult, stopAudioAnalysis]);
+  }, [buildResult, cleanupRecognition, stopAudioAnalysis]);
+
+  useEffect(() => {
+    return () => {
+      manualStopRef.current = true;
+      captureActiveRef.current = false;
+      cleanupRecognition("abort");
+      stopAudioAnalysis();
+    };
+  }, [cleanupRecognition, stopAudioAnalysis]);
 
   return {
     startCapture,
     stopCapture,
     transcript,
+    interimTranscript,
     metrics,
     isRecording,
     isAnalyzing,
+    stopReason,
     error,
     supported: support.supported,
     speechSupported: support.speechSupported,
     analysisSupported: support.analysisSupported,
+    mobile: support.mobile,
   };
 }
