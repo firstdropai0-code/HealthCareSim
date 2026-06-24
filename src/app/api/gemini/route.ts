@@ -25,8 +25,28 @@ const GEMINI_MODELS = [
   "gemini-3.5-flash",
 ];
 
+class InvalidJsonResponseError extends Error {
+  constructor(message = "AI returned an unreadable response. Please try again.") {
+    super(message);
+    this.name = "InvalidJsonResponseError";
+  }
+}
+
+type GeminiHttpError = Error & {
+  status?: number;
+  model?: string;
+};
+
+type GeminiCallOptions = {
+  retryInvalidJson?: boolean;
+};
+
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function isInvalidJsonResponse(error: unknown): error is InvalidJsonResponseError {
+  return error instanceof InvalidJsonResponseError;
 }
 
 function extractJson(text: string): unknown {
@@ -44,17 +64,54 @@ function extractJson(text: string): unknown {
     const lastBrace = withoutFence.lastIndexOf("}");
 
     if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      throw new Error("AI response did not include valid JSON.");
+      throw new InvalidJsonResponseError();
     }
 
-    return JSON.parse(withoutFence.slice(firstBrace, lastBrace + 1));
+    try {
+      return JSON.parse(withoutFence.slice(firstBrace, lastBrace + 1));
+    } catch {
+      throw new InvalidJsonResponseError();
+    }
   }
 }
 
-type GeminiHttpError = Error & {
-  status?: number;
-  model?: string;
-};
+function buildStrictJsonRetryPrompt(prompt: string): string {
+  return `${prompt}
+
+Your previous response was not parseable JSON.
+Return exactly one valid JSON object and nothing else.
+Do not use markdown fences, comments, trailing commas, undefined, or explanatory text.
+Use double quotes for every JSON key and string value.`;
+}
+
+function buildFallbackScenario(input: string): Scenario {
+  const cleanInput = input.replace(/\s+/g, " ").trim();
+  const titleBase = cleanInput.split(/[.!?]/)[0]?.trim() || "Healthcare communication roleplay";
+
+  return normalizeScenario({
+    id: crypto.randomUUID(),
+    title: titleBase.slice(0, 72),
+    setting: "Healthcare communication setting",
+    summary: cleanInput
+      ? `Communication practice based on: ${cleanInput.slice(0, 120)}`
+      : "Communication practice with a concerned patient or family member.",
+    patientProfile: "Patient or family member under communication stress.",
+    patientEmotion: "concerned",
+    familyEmotion: "anxious",
+    traineeObjective:
+      "Acknowledge emotion, explain what can be shared, and agree on one next step.",
+    communicationChallenge:
+      "Respond calmly when the other person is worried, frustrated, or confused.",
+    startingSituation:
+      cleanInput || "A patient or family member needs a clear, calm update from the trainee.",
+    firstPrompt:
+      "The patient or family member asks for a clear update and seems worried. What do you say next?",
+    suggestedTurns: 4,
+    endingCondition: "The trainee communicates clearly, validates emotion, and checks understanding.",
+    evaluationCriteria: ["Empathy", "Clarity", "Boundaries", "Next steps"],
+    mediaAssets: [],
+  });
+}
 
 function isRetryableGeminiStatus(status?: number): boolean {
   return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
@@ -81,9 +138,9 @@ async function callGeminiModel(prompt: string, model: string): Promise<unknown> 
         },
       ],
       generationConfig: {
-        temperature: 0.55,
+        temperature: 0.35,
         responseMimeType: "application/json",
-        maxOutputTokens: 900,
+        maxOutputTokens: 1400,
       },
     }),
   });
@@ -117,15 +174,19 @@ async function callGeminiModel(prompt: string, model: string): Promise<unknown> 
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!text) {
-    throw new Error("Gemini returned an empty response.");
+    throw new InvalidJsonResponseError("Gemini returned an empty response. Please try again.");
   }
 
   return extractJson(text);
 }
 
-async function callGemini(prompt: string): Promise<unknown> {
+async function callGemini(
+  prompt: string,
+  options: GeminiCallOptions = { retryInvalidJson: true },
+): Promise<unknown> {
   const uniqueModels = Array.from(new Set(GEMINI_MODELS));
   const errors: string[] = [];
+  let sawInvalidJson = false;
 
   for (const model of uniqueModels) {
     try {
@@ -134,10 +195,40 @@ async function callGemini(prompt: string): Promise<unknown> {
       const geminiError = error as GeminiHttpError;
       errors.push(geminiError.message);
 
+      if (isInvalidJsonResponse(error)) {
+        sawInvalidJson = true;
+
+        if (options.retryInvalidJson !== false) {
+          try {
+            return await callGeminiModel(buildStrictJsonRetryPrompt(prompt), model);
+          } catch (retryError) {
+            const retryGeminiError = retryError as GeminiHttpError;
+            errors.push(retryGeminiError.message);
+
+            if (isInvalidJsonResponse(retryError)) {
+              sawInvalidJson = true;
+              continue;
+            }
+
+            if (!isRetryableGeminiStatus(retryGeminiError.status)) {
+              throw retryError;
+            }
+          }
+        }
+
+        continue;
+      }
+
       if (!isRetryableGeminiStatus(geminiError.status)) {
         throw error;
       }
     }
+  }
+
+  if (sawInvalidJson) {
+    throw new InvalidJsonResponseError(
+      "AI returned an unreadable response after retrying. Please try a shorter scenario idea.",
+    );
   }
 
   throw new Error(
@@ -216,7 +307,7 @@ function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
 
   const normalizedMessage = turn.message
     .trim()
-    .replace(/^["'“”‘’]+/, "")
+    .replace(/^["']+/, "")
     .toLowerCase();
   const doctorLikeStarts = [
     "i understand",
@@ -271,8 +362,16 @@ export async function POST(request: Request) {
         return errorResponse("Enter a scenario idea before generating.");
       }
 
-      const result = normalizeScenario(await callGemini(buildScenarioPrompt(input)));
-      return NextResponse.json({ result });
+      try {
+        const result = normalizeScenario(await callGemini(buildScenarioPrompt(input)));
+        return NextResponse.json({ result });
+      } catch (error) {
+        if (isInvalidJsonResponse(error)) {
+          return NextResponse.json({ result: buildFallbackScenario(input) });
+        }
+
+        throw error;
+      }
     }
 
     if (body.action === "nextTurn") {
