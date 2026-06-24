@@ -1,72 +1,83 @@
+import {
+  CollapsibleSection,
+  InfoCard,
+  MetricChip,
+  ReadMoreText,
+} from "@/components/common/VisualCards";
 import type { Scenario } from "@/types/scenario";
 
-function BriefTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <dt className="text-xs font-semibold uppercase text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm leading-6 text-slate-800">{value}</dd>
-    </div>
-  );
-}
+const compactBriefCards = [
+  { key: "patientProfile", label: "Patient", tone: "slate" as const },
+  { key: "patientEmotion", label: "Emotion", tone: "amber" as const },
+  { key: "familyEmotion", label: "Family/Bystander", tone: "blue" as const },
+  { key: "traineeObjective", label: "Trainee Goal", tone: "emerald" as const },
+  { key: "communicationChallenge", label: "Challenge", tone: "rose" as const },
+  { key: "startingSituation", label: "Starting Situation", tone: "indigo" as const },
+] satisfies Array<{
+  key: keyof Scenario;
+  label: string;
+  tone: "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
+}>;
 
 export function ScenarioPreview({ scenario }: { scenario: Scenario }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
-      <div className="bg-emerald-950 px-6 py-5 text-white">
-        <p className="text-xs font-semibold uppercase text-emerald-200">Scenario brief</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight">{scenario.title}</h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-50">{scenario.summary}</p>
-      </div>
-
-      <div className="grid gap-4 p-5 md:grid-cols-3">
-        <BriefTile label="Setting" value={scenario.setting} />
-        <BriefTile label="Patient" value={scenario.patientProfile} />
-        <BriefTile label="Emotion" value={scenario.patientEmotion} />
-      </div>
-
-      <div className="border-y border-slate-200 bg-emerald-50 p-5">
-        <p className="text-xs font-semibold uppercase text-emerald-800">Start here</p>
-        <p className="mt-2 text-base leading-7 text-emerald-950">{scenario.firstPrompt}</p>
-      </div>
-
-      <div className="grid gap-4 p-5 lg:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-lg bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase text-slate-500">Trainee objective</p>
-          <p className="mt-2 text-sm leading-6 text-slate-800">{scenario.traineeObjective}</p>
-        </div>
-        <div className="rounded-lg bg-amber-50 p-4">
-          <p className="text-xs font-semibold uppercase text-amber-700">Communication challenge</p>
-          <p className="mt-2 text-sm leading-6 text-amber-950">
-            {scenario.communicationChallenge}
+    <section className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
+        <div className="bg-emerald-950 px-5 py-5 text-white md:px-6">
+          <p className="text-xs font-semibold uppercase text-emerald-200">Scenario brief</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">{scenario.title}</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
+            <MetricChip label="Turns" value={`${scenario.suggestedTurns}`} tone="blue" />
+          </div>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50">
+            {scenario.summary}
           </p>
         </div>
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5">
+          {compactBriefCards.map((card) => {
+            const value = scenario[card.key];
+
+            return (
+              <InfoCard key={card.key} label={card.label} tone={card.tone}>
+                <ReadMoreText text={String(value || "Not specified")} maxLength={105} />
+              </InfoCard>
+            );
+          })}
+        </div>
       </div>
 
-      <details className="border-t border-slate-200 bg-white">
-        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-slate-700 hover:text-emerald-800">
-          View facilitator details
-        </summary>
-        <dl className="grid gap-4 px-5 pb-5 md:grid-cols-2">
-          <BriefTile label="Family emotion" value={scenario.familyEmotion || "Not specified"} />
-          <BriefTile label="Starting situation" value={scenario.startingSituation} />
-          <BriefTile label="Ending condition" value={scenario.endingCondition} />
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <dt className="text-xs font-semibold uppercase text-slate-500">
-              Evaluation criteria
-            </dt>
-            <dd className="mt-2 flex flex-wrap gap-2">
-              {scenario.evaluationCriteria.map((item) => (
-                <span
-                  key={item}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
-                >
-                  {item}
-                </span>
-              ))}
-            </dd>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <InfoCard label="Starting line" title="Open with this situation" tone="emerald">
+          <ReadMoreText text={scenario.firstPrompt} maxLength={140} />
+        </InfoCard>
+
+        <InfoCard label="Evaluation" title="Checklist" tone="blue">
+          <div className="flex flex-wrap gap-2">
+            {scenario.evaluationCriteria.map((item) => (
+              <MetricChip key={item} label={item} tone="blue" />
+            ))}
+          </div>
+        </InfoCard>
+      </div>
+
+      <CollapsibleSection title="View full scenario details" tone="slate">
+        <dl className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg bg-slate-50 p-3">
+            <dt className="text-xs font-semibold uppercase text-slate-500">Setting</dt>
+            <dd className="mt-1 text-sm text-slate-800">{scenario.setting}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3">
+            <dt className="text-xs font-semibold uppercase text-slate-500">Ending condition</dt>
+            <dd className="mt-1 text-sm text-slate-800">{scenario.endingCondition}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 md:col-span-2">
+            <dt className="text-xs font-semibold uppercase text-slate-500">Full starting situation</dt>
+            <dd className="mt-1 text-sm text-slate-800">{scenario.startingSituation}</dd>
           </div>
         </dl>
-      </details>
+      </CollapsibleSection>
     </section>
   );
 }

@@ -5,6 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
+import {
+  CollapsibleSection,
+  InfoCard,
+  MetricChip,
+  StepProgress,
+  VoiceMetricCard,
+} from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
@@ -19,8 +26,16 @@ import {
   savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
-import type { SimulationState } from "@/types/simulation";
+import type { ScenarioSpeaker, SimulationState } from "@/types/simulation";
 import type { VoiceMetrics } from "@/types/voice";
+
+const speakerLabels: Record<ScenarioSpeaker, string> = {
+  patient: "Patient",
+  family_member: "Family member",
+  nurse: "Nurse",
+  bystander: "Bystander",
+  narrator: "Narrator",
+};
 
 function formatVoiceLabel(value: string): string {
   return value.replace(/_/g, " ");
@@ -41,6 +56,40 @@ function mergeTranscript(current: string, next: string): string {
   }
 
   return `${currentText} ${nextText}`.trim();
+}
+
+function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
+  return (
+    <InfoCard label="Voice delivery" title="Estimated pattern" tone="indigo">
+      <VoiceMetricCard
+        metrics={[
+          { label: "Tone", value: formatVoiceLabel(metrics.toneEstimate), tone: "indigo" },
+          { label: "Pace", value: formatVoiceLabel(metrics.paceLevel), tone: "blue" },
+          { label: "Volume", value: formatVoiceLabel(metrics.volumeLevel), tone: "emerald" },
+          { label: "Confidence", value: metrics.confidence, tone: "amber" },
+        ]}
+      />
+      {metrics.confidence === "low" ? (
+        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-indigo-900">
+          Low confidence estimate. Use the transcript first.
+        </p>
+      ) : null}
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-semibold uppercase text-slate-500 hover:text-slate-800">
+          View voice details
+        </summary>
+        <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+          <span>Pitch: {formatVoiceLabel(metrics.pitchLevel)}</span>
+          <span>Pauses: {formatVoiceLabel(metrics.pausePattern)}</span>
+          {metrics.raw?.wordsPerMinute ? <span>WPM: {Math.round(metrics.raw.wordsPerMinute)}</span> : null}
+          {metrics.raw?.durationSeconds ? <span>Duration: {Math.round(metrics.raw.durationSeconds)}s</span> : null}
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-500">
+          Approximate browser estimate only. No audio is stored or uploaded in this prototype.
+        </p>
+      </details>
+    </InfoCard>
+  );
 }
 
 type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready" | "unavailable";
@@ -247,22 +296,23 @@ export default function SimulationPage() {
   }
 
   const completed = state.status === "completed";
-  const progressPercent = Math.min(100, Math.round((state.currentTurn / state.maxTurns) * 100));
-  const coachCues = [
-    "Name the emotion",
-    "Explain one next step",
-    "Check understanding",
-  ];
+  const coachCues = ["Name emotion", "Share next step", "Check understanding"];
   const visibleTranscript = [voiceCapture.transcript, voiceCapture.interimTranscript]
     .filter(Boolean)
     .join(" ")
     .trim();
+  const latestScenarioMessage = state.messages.findLast(
+    (message) => message.role === "scenario" && message.speaker,
+  );
+  const currentSpeaker = latestScenarioMessage?.speaker
+    ? speakerLabels[latestScenarioMessage.speaker]
+    : "Narrator";
 
   return (
     <AppShell>
       <div className="space-y-5">
         <div className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 bg-emerald-950 p-5 text-white lg:flex-row lg:items-start lg:justify-between">
+          <div className="grid gap-4 bg-emerald-950 p-5 text-white lg:grid-cols-[1fr_300px] lg:items-center">
             <div>
               <p className="text-xs font-semibold uppercase text-emerald-200">Simulation room</p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight">
@@ -272,32 +322,25 @@ export default function SimulationPage() {
                 {state.scenario.summary}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase text-white">
-                Turn {state.currentTurn} / {state.maxTurns}
-              </span>
-              <TensionBadge level={state.tensionLevel} />
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
+                <TensionBadge level={state.tensionLevel} />
+              </div>
+              <StepProgress current={state.currentTurn} total={state.maxTurns} />
             </div>
-          </div>
-          <div className="bg-slate-100">
-            <div
-              className="h-2 bg-emerald-600 transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
-            <section className="min-h-[420px] rounded-lg border border-emerald-900/10 bg-slate-50 p-4 shadow-sm md:p-6">
-              <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <section className="min-h-[420px] rounded-lg border border-emerald-900/10 bg-slate-50 p-4 shadow-sm md:p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
                   <p className="text-xs font-semibold uppercase text-slate-500">Live roleplay</p>
                   <h2 className="text-lg font-semibold text-slate-950">Conversation</h2>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-                  {state.messages.length} messages
-                </span>
+                <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
               </div>
               <ChatMessageList
                 messages={state.messages}
@@ -307,8 +350,9 @@ export default function SimulationPage() {
                 onStopSpeech={handleStopSpeech}
               />
             </section>
+
             {!completed ? (
-              <section className="rounded-lg border border-emerald-900/10 bg-white p-5 shadow-sm">
+              <section className="rounded-lg border border-emerald-900/10 bg-white p-4 shadow-sm md:p-5">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                   <div>
                     <label
@@ -317,6 +361,9 @@ export default function SimulationPage() {
                     >
                       Your next response
                     </label>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Keep it clear: acknowledge, explain, confirm.
+                    </p>
                   </div>
                   <p className="text-xs font-medium text-slate-500">
                     {response.trim().length} characters
@@ -336,62 +383,48 @@ export default function SimulationPage() {
                   placeholder="Type what the trainee says or does next."
                   className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {coachCues.map((cue) => (
+                    <MetricChip key={cue} label={cue} tone="emerald" />
+                  ))}
+                </div>
+
                 {voiceCapture.isRecording && visibleTranscript ? (
-                  <p className="mt-2 text-xs font-medium text-slate-500">
-                    Live transcript: {visibleTranscript}
-                  </p>
-                ) : null}
-                {voiceCaptureStatus === "idle" ? (
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    Ready to record. You can also type your response at any time.
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
+                    <span className="font-semibold">Live transcript:</span> {visibleTranscript}
                   </div>
                 ) : null}
-                {voiceCaptureStatus === "recording" ? (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-                    <span className="font-semibold">Recording...</span> Speak naturally, then stop recording to review and edit the transcript.
-                  </div>
-                ) : null}
-                {voiceCaptureStatus === "analyzing" ? (
-                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-950">
-                    <span className="font-semibold">Recording stopped.</span> Analyzing voice delivery...
-                  </div>
-                ) : null}
-                {voiceCaptureStatus === "ready" && voiceMetrics ? (
-                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    Recording stopped. Review your transcript before sending.
-                  </div>
-                ) : null}
-                {voiceCaptureStatus === "unavailable" ? (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                    Voice input unavailable. Please type instead.
-                  </div>
-                ) : null}
-                {voiceMetrics ? (
-                  <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm font-semibold text-indigo-950">
-                        Estimated voice delivery pattern
-                      </p>
-                      <span className="text-xs font-semibold uppercase text-indigo-700">
-                        Possibly {formatVoiceLabel(voiceMetrics.toneEstimate)} / {voiceMetrics.confidence} confidence
-                      </span>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs font-medium text-indigo-950 sm:grid-cols-4">
-                      <span>Volume: {formatVoiceLabel(voiceMetrics.volumeLevel)}</span>
-                      <span>Pitch: {formatVoiceLabel(voiceMetrics.pitchLevel)}</span>
-                      <span>Pace: {formatVoiceLabel(voiceMetrics.paceLevel)}</span>
-                      <span>Pauses: {formatVoiceLabel(voiceMetrics.pausePattern)}</span>
-                    </div>
-                    {voiceMetrics.confidence === "low" ? (
-                      <p className="mt-3 rounded-md bg-white/70 px-3 py-2 text-xs font-semibold text-indigo-900">
-                        Low confidence estimate. Treat this as a weak signal and rely on the transcript first.
-                      </p>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-[1fr_260px]">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                    {voiceCaptureStatus === "idle" ? "Ready to type or record." : null}
+                    {voiceCaptureStatus === "recording" ? (
+                      <span className="font-semibold text-emerald-900">Recording. Stop to review.</span>
                     ) : null}
-                    <p className="mt-3 text-xs leading-5 text-indigo-800">
-                      This is an approximate browser estimate for training feedback. No audio is stored or uploaded in this prototype.
-                    </p>
+                    {voiceCaptureStatus === "analyzing" ? (
+                      <span className="font-semibold text-indigo-900">Analyzing voice delivery.</span>
+                    ) : null}
+                    {voiceCaptureStatus === "ready" ? "Review the transcript before sending." : null}
+                    {voiceCaptureStatus === "unavailable" ? "Voice unavailable. Text input works." : null}
+                  </div>
+                  <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={autoReadScenario}
+                      onChange={(event) => setAutoReadScenario(event.target.checked)}
+                      className="h-4 w-4 accent-emerald-700"
+                    />
+                    Auto-read replies
+                  </label>
+                </div>
+
+                {voiceMetrics ? (
+                  <div className="mt-3">
+                    <VoiceDeliverySummary metrics={voiceMetrics} />
                   </div>
                 ) : null}
+
                 {voiceCapture.error ? (
                   <p className="mt-2 text-sm text-rose-700">{voiceCapture.error}</p>
                 ) : null}
@@ -400,7 +433,7 @@ export default function SimulationPage() {
                 ) : null}
                 {!voiceCapture.analysisSupported ? (
                   <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Voice tone analysis is not supported in this browser. You can still type or use basic voice input.
+                    Voice tone analysis is unavailable in this browser. You can still type or use basic voice input.
                   </p>
                 ) : null}
                 {error ? (
@@ -416,12 +449,14 @@ export default function SimulationPage() {
                     </button>
                   </div>
                 ) : null}
-                <div className="mt-4 flex flex-wrap items-start gap-3">
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr]">
                   <LoadingButton
                     type="button"
                     loading={loading}
                     disabled={!response.trim() || voiceCapture.isRecording}
                     onClick={handleSend}
+                    className="min-h-12"
                   >
                     Send Response
                   </LoadingButton>
@@ -433,86 +468,56 @@ export default function SimulationPage() {
                         ? handleStopVoiceCapture
                         : handleStartVoiceCapture
                     }
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    className="min-h-12 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                     title={
                       voiceCapture.supported
                         ? "Start voice recording and estimate delivery"
                         : "Voice capture is not supported"
                     }
                   >
-                    {voiceCapture.isRecording ? "Stop recording" : "Start voice recording"}
+                    {voiceCapture.isRecording ? "Stop Recording" : "Record Voice"}
                   </button>
-                  <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={autoReadScenario}
-                      onChange={(event) => setAutoReadScenario(event.target.checked)}
-                      className="h-4 w-4 accent-emerald-700"
-                    />
-                    Auto-read scenario responses
-                  </label>
                 </div>
-                {voiceCapture.isRecording ? (
-                  <p className="mt-3 text-xs font-medium text-emerald-800">
-                    Recording voice. {voiceCapture.isAnalyzing ? "Estimating delivery pattern while you speak." : "Listening for transcript."}
-                  </p>
-                ) : null}
-                <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Mobile browsers may stop voice capture automatically after silence. You can review and send the transcript. Text input always works.
-                </p>
+
+                <CollapsibleSection title="Voice input note" tone="slate">
+                  Mobile browsers may stop voice capture after silence. Review the transcript before sending. Text input always works.
+                </CollapsibleSection>
               </section>
             ) : (
-              <section className="rounded-lg border border-blue-200 bg-blue-50 p-5">
-                <h2 className="text-lg font-semibold text-blue-950">Simulation completed</h2>
-                <p className="mt-2 text-sm leading-6 text-blue-950">
+              <InfoCard label="Complete" title="Simulation completed" tone="blue">
+                <p className="text-sm leading-6">
                   Generate a feedback report focused on communication, empathy, clarity, and pressure handling.
                 </p>
-              </section>
+              </InfoCard>
             )}
           </div>
 
           <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            <section className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
-              <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
-                <p className="text-xs font-semibold uppercase text-slate-500">Training brief</p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">
-                  {state.scenario.setting}
-                </h2>
-              </div>
-              <div className="space-y-3 p-5">
-                <div className="rounded-lg bg-emerald-50 p-4">
-                  <p className="text-xs font-semibold uppercase text-emerald-800">Objective</p>
-                  <p className="mt-2 text-sm leading-6 text-emerald-950">
+            <InfoCard label="Training brief" title={state.scenario.setting} tone="slate">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-emerald-700">Goal</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-800">
                     {state.scenario.traineeObjective}
                   </p>
                 </div>
-                <div className="rounded-lg bg-amber-50 p-4">
-                  <p className="text-xs font-semibold uppercase text-amber-800">Challenge</p>
-                  <p className="mt-2 text-sm leading-6 text-amber-950">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-amber-700">Challenge</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-800">
                     {state.scenario.communicationChallenge}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase text-slate-500">Patient mood</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-900">
-                      {state.scenario.patientEmotion}
-                    </p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs font-semibold uppercase text-slate-500">Status</p>
-                    <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
-                      {state.status.replace("_", " ")}
-                    </p>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <MetricChip label="Patient" value={state.scenario.patientEmotion} tone="amber" />
+                  <MetricChip label="Status" value={state.status.replace("_", " ")} tone="slate" />
                 </div>
               </div>
-            </section>
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase text-slate-500">Response cues</p>
-              <div className="mt-3 space-y-2">
+            </InfoCard>
+
+            <InfoCard label="Response cues" title="Use this pattern" tone="emerald">
+              <div className="grid gap-2">
                 {coachCues.map((cue, index) => (
-                  <div key={cue} className="flex items-center gap-3 rounded-md bg-slate-50 px-3 py-2">
+                  <div key={cue} className="flex items-center gap-3 rounded-lg bg-emerald-50 px-3 py-2">
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-emerald-800 shadow-sm">
                       {index + 1}
                     </span>
@@ -520,50 +525,45 @@ export default function SimulationPage() {
                   </div>
                 ))}
               </div>
-            </section>
-            <details className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              <summary className="cursor-pointer font-semibold">Safety note</summary>
-              <div className="mt-3">
-                <SafetyNotice />
-              </div>
-            </details>
+            </InfoCard>
+
+            <SafetyNotice />
           </aside>
         </div>
+
         <div className="sticky bottom-4 z-10 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-950">
-                {completed ? "Simulation completed" : "Ready to wrap up?"}
+                {completed ? "Simulation completed" : "Wrap up when ready"}
               </p>
               <p className="text-xs text-slate-500">
-                {completed
-                  ? "Generate or view the feedback report for this completed roleplay."
-                  : "End the roleplay only, or finish and generate feedback now."}
+                {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
               {!completed ? (
                 <>
                   <button
                     type="button"
                     onClick={handleEndSimulation}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
                   >
-                    End Simulation
+                    End Only
                   </button>
                   <button
                     type="button"
                     onClick={handleFinishAndGenerateFeedback}
-                    className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                    className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
                   >
-                    Finish & Generate Feedback
+                    Finish & Feedback
                   </button>
                 </>
               ) : hasFeedbackReport ? (
                 <button
                   type="button"
                   onClick={() => router.push("/feedback")}
-                  className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                  className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
                 >
                   View Feedback
                 </button>
@@ -571,7 +571,7 @@ export default function SimulationPage() {
                 <button
                   type="button"
                   onClick={handleGenerateFeedback}
-                  className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                  className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
                 >
                   Generate Feedback
                 </button>
