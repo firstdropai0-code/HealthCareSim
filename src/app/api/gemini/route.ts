@@ -324,6 +324,49 @@ function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
   return doctorLikeStarts.some((phrase) => normalizedMessage.startsWith(phrase));
 }
 
+function buildFallbackFeedback(state: SimulationState): FeedbackReport {
+  const traineeMessages = state.messages.filter((message) => message.role === "trainee");
+  const scenarioMessages = state.messages.filter((message) => message.role === "scenario");
+  const hasVoiceMetrics = traineeMessages.some((message) => message.voiceMetrics);
+
+  return normalizeFeedback({
+    overallScore: 6,
+    summary: "Feedback generated from the saved transcript because the AI response was unreadable.",
+    whatWentWell: [
+      "You completed the roleplay and kept the conversation moving.",
+      "Your response can be reviewed against the patient or family concern.",
+    ],
+    whatCouldImprove: [
+      "Use one clear acknowledgement of emotion before explaining next steps.",
+      "Keep responses short enough for the patient or family member to follow.",
+    ],
+    communicationGaps:
+      scenarioMessages.length > 1
+        ? [
+            "Check whether the patient or family member understood your explanation.",
+            "Name the immediate next communication step before moving on.",
+          ]
+        : ["Continue the conversation for more specific communication feedback."],
+    betterResponses: [
+      "I can see this is worrying, and I want to explain what I can share clearly.",
+      "The next step is to clarify who can update you and when that update will happen.",
+    ],
+    finalAdvice:
+      traineeMessages.length > 0
+        ? "Review your transcript for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
+        : "Add at least one trainee response before generating a detailed communication report.",
+    ...(hasVoiceMetrics
+      ? {
+          voiceDeliveryFeedback: {
+            summary: "Voice feedback is based only on approximate browser-estimated delivery patterns.",
+            strengths: ["Your spoken response was captured for review."],
+            improvements: ["Use a steady pace and pause briefly after key reassurance."],
+          },
+        }
+      : {}),
+  });
+}
+
 function normalizeFeedback(value: unknown): FeedbackReport {
   const report = value as Partial<FeedbackReport>;
 
@@ -405,8 +448,16 @@ export async function POST(request: Request) {
         return errorResponse("Simulation state is required.");
       }
 
-      const result = normalizeFeedback(await callGemini(buildFeedbackPrompt(state)));
-      return NextResponse.json({ result });
+      try {
+        const result = normalizeFeedback(await callGemini(buildFeedbackPrompt(state)));
+        return NextResponse.json({ result });
+      } catch (error) {
+        if (isInvalidJsonResponse(error)) {
+          return NextResponse.json({ result: buildFallbackFeedback(state) });
+        }
+
+        throw error;
+      }
     }
 
     return errorResponse("Unsupported Gemini action.");
