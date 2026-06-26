@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { VoiceCaptureResult, VoiceMetrics } from "@/types/voice";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
@@ -193,16 +193,14 @@ export function useVoiceCapture() {
   const [stopReason, setStopReason] = useState<VoiceStopReason>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const support = useMemo(() => {
-    if (typeof window === "undefined") {
-      return {
-        speechSupported: false,
-        analysisSupported: false,
-        supported: false,
-        mobile: false,
-      };
-    }
+  const [support, setSupport] = useState({
+    speechSupported: false,
+    analysisSupported: false,
+    supported: false,
+    mobile: false,
+  });
 
+  useEffect(() => {
     const AudioContextConstructor =
       window.AudioContext || (window as WindowWithAudio).webkitAudioContext;
     const speechWindow = window as WindowWithSpeechRecognition;
@@ -213,12 +211,12 @@ export function useVoiceCapture() {
       AudioContextConstructor && navigator.mediaDevices?.getUserMedia,
     );
 
-    return {
+    setSupport({
       speechSupported,
       analysisSupported,
       supported: speechSupported || analysisSupported,
       mobile: isLikelyMobileBrowser(),
-    };
+    });
   }, []);
 
   const stopAudioAnalysis = useCallback(() => {

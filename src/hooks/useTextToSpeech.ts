@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SpeakOptions = {
   rate?: number;
@@ -13,9 +13,10 @@ export function useTextToSpeech() {
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supported, setSupported] = useState(false);
 
-  const supported = useMemo(() => {
-    return typeof window !== "undefined" && "speechSynthesis" in window;
+  useEffect(() => {
+    setSupported("speechSynthesis" in window);
   }, []);
 
   const stop = useCallback(() => {

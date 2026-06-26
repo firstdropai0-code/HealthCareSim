@@ -11,10 +11,10 @@ This is not a medical diagnosis tool. It is only for communication training and 
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- Gemini API through a Next.js API route
+- Gemini API through Next.js API routes
 - Browser `localStorage` for the current simulation session
-- Browser Web Speech API for optional voice input
-- Browser SpeechSynthesis API for scenario message playback
+- Browser Web Speech API for optional trainee voice input
+- Gemini TTS for patient, family, nurse, and narrator voice output through `/api/gemini-tts`
 - Browser Web Audio API for approximate voice delivery estimates
 
 ## Local Setup
@@ -34,9 +34,10 @@ Add your Gemini key to `.env.local`:
 ```bash
 GEMINI_API_KEY=your_real_key_here
 GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_TTS_MODEL=gemini-3.1-flash-tts-preview
 ```
 
-`GEMINI_MODEL` is optional. The app defaults to `gemini-2.5-flash-lite` and automatically falls back to `gemini-2.5-flash` and `gemini-3.5-flash` when Gemini returns temporary overload errors.
+`GEMINI_MODEL` is optional. The app defaults to `gemini-2.5-flash-lite` and automatically falls back to `gemini-2.5-flash` and `gemini-3.5-flash` when Gemini returns temporary overload errors. `GEMINI_TTS_MODEL` is optional and defaults to `gemini-3.1-flash-tts-preview` for patient, family, nurse, and narrator voice output.
 
 Run the app locally:
 
@@ -52,9 +53,10 @@ Open `http://localhost:3000`.
 2. Create a new Vercel project from the repository.
 3. In Vercel, open Project Settings, then Environment Variables.
 4. Add `GEMINI_API_KEY` with your Gemini API key.
-5. Deploy.
+5. Optionally add `GEMINI_TTS_MODEL` if you need to change the Gemini TTS preview model.
+6. Deploy.
 
-The API key is only read in `src/app/api/gemini/route.ts` and is never exposed to frontend code.
+The API key is only read in server API routes such as `src/app/api/gemini/route.ts` and `src/app/api/gemini-tts/route.ts`. It is never exposed to frontend code.
 
 ## Current Features
 
@@ -62,7 +64,7 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 - Scenario creator with typed and voice input.
 - Gemini-powered structured scenario generation.
 - Chat-style simulation room with turn count and tension level.
-- Scenario message playback with browser text-to-speech.
+- Scenario message playback with Gemini TTS through `/api/gemini-tts`.
 - Voice capture that can estimate volume, pitch, pace, pauses, and likely tone.
 - Gemini-powered next-turn generation.
 - Feedback report generation focused on communication, empathy, clarity, pressure handling, and optional estimated voice delivery.
@@ -72,14 +74,16 @@ The API key is only read in `src/app/api/gemini/route.ts` and is never exposed t
 ## How to Test This Prototype
 
 1. Create a scenario from one of the sample ideas below or your own communication challenge.
-2. Start the simulation and read the first patient or family prompt.
-3. Type a response, or use **Start voice recording** to capture speech.
-4. Stop recording, review the transcript, and edit it before sending.
-5. Check the estimated voice delivery pattern when available.
-6. Continue for a few turns, then use **Generate Feedback**.
-7. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
+2. Start the simulation and turn on **Voice Simulation Mode**.
+3. Use **Read latest patient message** to confirm Gemini TTS plays the current patient, family, nurse, or narrator message.
+4. Turn on **Auto-read patient messages** if you want new AI scenario turns to play automatically.
+5. Type a response, or use **Start speaking** to capture speech with browser speech recognition.
+6. Stop recording or let mobile speech recognition stop after silence, then review and edit the transcript before sending.
+7. Check the estimated voice delivery pattern when available.
+8. Continue for a few turns, then use **Generate Feedback**.
+9. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
 
-Text input should always work. Browser voice features depend on microphone permission and browser support. On mobile browsers, voice capture may stop automatically after silence; the app keeps the transcript visible so testers can review, edit, and send it manually.
+Text input should always work. Voice input uses browser speech recognition and depends on microphone permission and browser support. Patient, family, nurse, and narrator voice output uses Gemini TTS through `/api/gemini-tts`, with the API key kept server-side. On mobile browsers, voice capture may stop automatically after silence; the app keeps the transcript visible so testers can review, edit, and send it manually.
 
 ## Demo Testing Scenarios
 
@@ -147,12 +151,14 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 ## Voice Prototype Notes
 
 - Voice input uses the browser Web Speech API.
-- Scenario playback uses the browser SpeechSynthesis API.
+- Patient, family, nurse, and narrator playback uses Gemini TTS through `/api/gemini-tts`.
+- The Gemini API key stays server-side and is not sent to the browser.
 - Voice tone analysis uses the browser Web Audio API and simple heuristics.
 - Tone detection is approximate and intended only for communication training feedback.
 - Browser support varies. Chrome and Edge generally provide the best Web Speech support.
 - Mobile speech recognition may auto-stop after a pause; this is expected browser behavior, and text input remains the fallback.
-- No audio is stored, uploaded, or saved by this prototype unless that behavior is explicitly changed later.
+- When recording stops automatically, the transcript remains editable and must be sent manually.
+- Generated TTS audio is played in the browser and is not saved as a file by the app.
 
 ## Future Roadmap
 
@@ -176,6 +182,7 @@ src/
     simulation/page.tsx
     feedback/page.tsx
     api/gemini/route.ts
+    api/gemini-tts/route.ts
   components/
     common/
     feedback/

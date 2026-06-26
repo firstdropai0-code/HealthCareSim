@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SpeechRecognitionConstructor = new () => SpeechRecognition;
 
@@ -50,13 +50,10 @@ export function useSpeechToText(options?: { onTranscript?: (text: string) => voi
   const [transcript, setTranscript] = useState("");
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [supported, setSupported] = useState(false);
 
-  const supported = useMemo(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  useEffect(() => {
+    setSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
   }, []);
 
   useEffect(() => {

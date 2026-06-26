@@ -72,9 +72,9 @@ export function ChatMessageList({
                       isSpeaking ? onStopSpeech?.() : onSpeakMessage(message)
                     }
                     className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 transition hover:border-emerald-500 hover:text-emerald-800"
-                    title={isSpeaking ? "Stop scenario audio" : "Play scenario audio"}
+                    title={isSpeaking ? "Cancel scenario audio" : "Read scenario audio"}
                   >
-                    {isSpeaking ? "Stop audio" : "Play audio"}
+                    {isSpeaking ? "Cancel audio" : "Read aloud"}
                   </button>
                 ) : null}
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
@@ -15,9 +15,9 @@ import {
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
-import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { useVoiceCapture } from "@/hooks/useVoiceCapture";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
+import { speakWithGeminiTts } from "@/lib/ai/geminiTtsClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
   clearFeedbackReport,
@@ -36,6 +36,9 @@ const speakerLabels: Record<ScenarioSpeaker, string> = {
   bystander: "Bystander",
   narrator: "Narrator",
 };
+
+const VOICE_MODE_STORAGE_KEY = "healthcare-sim-voice-mode";
+const AUTO_READ_STORAGE_KEY = "healthcare-sim-auto-read-patient";
 
 function formatVoiceLabel(value: string): string {
   return value.replace(/_/g, " ");
@@ -56,6 +59,26 @@ function mergeTranscript(current: string, next: string): string {
   }
 
   return `${currentText} ${nextText}`.trim();
+}
+
+function getScenarioMessageSpeechKey(message: SimulationState["messages"][number]): string {
+  return `${message.id}:${message.content}`;
+}
+
+function getScenarioSpeechStyle(speaker?: ScenarioSpeaker): string {
+  switch (speaker) {
+    case "patient":
+      return "as a realistic patient in a healthcare communication training simulation";
+    case "family_member":
+      return "as a concerned family member in a healthcare communication training simulation";
+    case "nurse":
+      return "as a calm nurse in a healthcare communication training simulation";
+    case "bystander":
+      return "as a realistic bystander in a healthcare communication training simulation";
+    case "narrator":
+    default:
+      return "as a neutral narrator in a healthcare communication training simulation";
+  }
 }
 
 function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
@@ -92,7 +115,8 @@ function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
   );
 }
 
-type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready" | "unavailable";
+type VoiceCaptureStatus = "idle" | "recording" | "analyzing" | "ready" | "stopped" | "unavailable";
+type VoicePlaybackStatus = "idle" | "speaking";
 
 export default function SimulationPage() {
   const router = useRouter();
@@ -100,19 +124,19 @@ export default function SimulationPage() {
   const [response, setResponse] = useState("");
   const [voiceMetrics, setVoiceMetrics] = useState<VoiceMetrics | null>(null);
   const [voiceCaptureStatus, setVoiceCaptureStatus] = useState<VoiceCaptureStatus>("idle");
+  const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
+  const [voiceSettingsLoaded, setVoiceSettingsLoaded] = useState(false);
   const [autoReadScenario, setAutoReadScenario] = useState(false);
+  const [voicePlaybackStatus, setVoicePlaybackStatus] = useState<VoicePlaybackStatus>("idle");
+  const [voicePlaybackError, setVoicePlaybackError] = useState<string | null>(null);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [hasFeedbackReport, setHasFeedbackReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const audioAbortControllerRef = useRef<AbortController | null>(null);
+  const audioRequestIdRef = useRef(0);
+  const lastSpokenMessageRef = useRef<string | null>(null);
   const voiceCapture = useVoiceCapture();
-  const {
-    speak,
-    stop: stopSpeech,
-    speaking,
-    supported: textToSpeechSupported,
-    error: textToSpeechError,
-  } = useTextToSpeech();
 
   const applyCapturedTranscript = useCallback((capturedTranscript: string) => {
     if (capturedTranscript.trim()) {
@@ -120,20 +144,88 @@ export default function SimulationPage() {
     }
   }, []);
 
+  const handleStopSpeech = useCallback(() => {
+    audioRequestIdRef.current += 1;
+    audioAbortControllerRef.current?.abort();
+    audioAbortControllerRef.current = null;
+    setSpeakingMessageId(null);
+    setVoicePlaybackStatus("idle");
+  }, []);
+
+  const speakScenarioMessage = useCallback(
+    async (message: SimulationState["messages"][number]) => {
+      if (message.role !== "scenario") {
+        return;
+      }
+
+      const requestId = audioRequestIdRef.current + 1;
+      audioRequestIdRef.current = requestId;
+      audioAbortControllerRef.current?.abort();
+
+      const controller = new AbortController();
+      audioAbortControllerRef.current = controller;
+      setVoicePlaybackError(null);
+      setSpeakingMessageId(message.id);
+      setVoicePlaybackStatus("speaking");
+
+      try {
+        await speakWithGeminiTts(message.content, {
+          style: getScenarioSpeechStyle(message.speaker),
+          signal: controller.signal,
+        });
+      } catch (speechError) {
+        if (!controller.signal.aborted && requestId === audioRequestIdRef.current) {
+          setVoicePlaybackError(
+            speechError instanceof Error
+              ? speechError.message
+              : "Voice unavailable, use text mode.",
+          );
+        }
+      } finally {
+        if (requestId === audioRequestIdRef.current) {
+          audioAbortControllerRef.current = null;
+          setSpeakingMessageId(null);
+          setVoicePlaybackStatus("idle");
+        }
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setState(loadSimulationState());
       setHasFeedbackReport(Boolean(loadFeedbackReport()));
+      setVoiceModeEnabled(window.localStorage.getItem(VOICE_MODE_STORAGE_KEY) === "true");
+      setAutoReadScenario(window.localStorage.getItem(AUTO_READ_STORAGE_KEY) === "true");
+      setVoiceSettingsLoaded(true);
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
+    if (!voiceSettingsLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(VOICE_MODE_STORAGE_KEY, String(voiceModeEnabled));
+    window.localStorage.setItem(AUTO_READ_STORAGE_KEY, String(autoReadScenario));
+  }, [autoReadScenario, voiceModeEnabled, voiceSettingsLoaded]);
+
+  useEffect(() => {
+    if (!voiceModeEnabled) {
+      handleStopSpeech();
+    }
+  }, [handleStopSpeech, voiceModeEnabled]);
+
+  useEffect(() => {
     return () => {
-      stopSpeech();
+      audioRequestIdRef.current += 1;
+      audioAbortControllerRef.current?.abort();
+      audioAbortControllerRef.current = null;
     };
-  }, [stopSpeech]);
+  }, []);
 
   useEffect(() => {
     if (voiceCapture.stopReason !== "auto" || voiceCaptureStatus !== "recording") {
@@ -143,11 +235,18 @@ export default function SimulationPage() {
     const timer = window.setTimeout(() => {
       applyCapturedTranscript(voiceCapture.transcript || voiceCapture.interimTranscript);
       setVoiceMetrics(voiceCapture.metrics);
-      setVoiceCaptureStatus("ready");
+      setVoiceCaptureStatus("stopped");
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [applyCapturedTranscript, voiceCapture, voiceCaptureStatus]);
+  }, [
+    applyCapturedTranscript,
+    voiceCapture.interimTranscript,
+    voiceCapture.metrics,
+    voiceCapture.stopReason,
+    voiceCapture.transcript,
+    voiceCaptureStatus,
+  ]);
 
   useEffect(() => {
     if (voiceCapture.supported) {
@@ -161,19 +260,28 @@ export default function SimulationPage() {
     return () => window.clearTimeout(timer);
   }, [voiceCapture.supported]);
 
-  const handleSpeakMessage = useCallback(
-    (message: SimulationState["messages"][number]) => {
-      stopSpeech();
-      setSpeakingMessageId(message.id);
-      speak(message.content);
-    },
-    [speak, stopSpeech],
-  );
+  useEffect(() => {
+    if (!state || !voiceModeEnabled || !autoReadScenario || voiceCapture.isRecording) {
+      return;
+    }
 
-  const handleStopSpeech = useCallback(() => {
-    stopSpeech();
-    setSpeakingMessageId(null);
-  }, [stopSpeech]);
+    const latestScenarioMessage = state.messages.findLast(
+      (message) => message.role === "scenario" && message.speaker,
+    );
+
+    if (!latestScenarioMessage) {
+      return;
+    }
+
+    const speechKey = getScenarioMessageSpeechKey(latestScenarioMessage);
+
+    if (lastSpokenMessageRef.current === speechKey) {
+      return;
+    }
+
+    lastSpokenMessageRef.current = speechKey;
+    void speakScenarioMessage(latestScenarioMessage);
+  }, [autoReadScenario, speakScenarioMessage, state, voiceCapture.isRecording, voiceModeEnabled]);
 
   async function handleStartVoiceCapture() {
     setError(null);
@@ -191,6 +299,15 @@ export default function SimulationPage() {
     window.setTimeout(() => {
       setVoiceCaptureStatus("ready");
     }, 450);
+  }
+
+  function handleReadLatestScenarioMessage(latestScenarioMessage?: SimulationState["messages"][number]) {
+    if (!latestScenarioMessage) {
+      return;
+    }
+
+    lastSpokenMessageRef.current = getScenarioMessageSpeechKey(latestScenarioMessage);
+    void speakScenarioMessage(latestScenarioMessage);
   }
 
   async function handleSend() {
@@ -226,13 +343,6 @@ export default function SimulationPage() {
       setResponse("");
       setVoiceMetrics(null);
       setVoiceCaptureStatus(voiceCapture.supported ? "idle" : "unavailable");
-
-      const nextScenarioMessage = updatedState.messages.at(-1);
-
-      if (autoReadScenario && !voiceCapture.isRecording && nextScenarioMessage?.role === "scenario") {
-        setSpeakingMessageId(nextScenarioMessage.id);
-        speak(nextScenarioMessage.content);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue simulation.");
     } finally {
@@ -307,6 +417,23 @@ export default function SimulationPage() {
   const currentSpeaker = latestScenarioMessage?.speaker
     ? speakerLabels[latestScenarioMessage.speaker]
     : "Narrator";
+  const voiceModeStatus = loading
+    ? "Processing response..."
+    : voicePlaybackStatus === "speaking"
+      ? "Speaking patient..."
+      : voiceCaptureStatus === "recording"
+        ? "Listening..."
+        : voiceCaptureStatus === "analyzing"
+          ? "Analyzing voice delivery."
+          : voiceCaptureStatus === "stopped"
+            ? "Recording stopped. You can review and send your response."
+            : voiceCaptureStatus === "ready"
+              ? "Review the transcript before sending."
+              : voiceCaptureStatus === "unavailable"
+                ? "Voice unavailable, use text mode."
+                : voiceModeEnabled
+                  ? "Voice mode ready."
+                  : "Text mode ready.";
 
   return (
     <AppShell>
@@ -344,9 +471,9 @@ export default function SimulationPage() {
               </div>
               <ChatMessageList
                 messages={state.messages}
-                speechSupported={textToSpeechSupported}
-                speakingMessageId={speaking ? speakingMessageId : null}
-                onSpeakMessage={handleSpeakMessage}
+                speechSupported={voiceModeEnabled}
+                speakingMessageId={voicePlaybackStatus === "speaking" ? speakingMessageId : null}
+                onSpeakMessage={handleReadLatestScenarioMessage}
                 onStopSpeech={handleStopSpeech}
               />
             </section>
@@ -396,27 +523,66 @@ export default function SimulationPage() {
                   </div>
                 ) : null}
 
-                <div className="mt-3 grid gap-3 md:grid-cols-[1fr_260px]">
+                <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_320px]">
                   <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                    {voiceCaptureStatus === "idle" ? "Ready to type or record." : null}
-                    {voiceCaptureStatus === "recording" ? (
-                      <span className="font-semibold text-emerald-900">Recording. Stop to review.</span>
-                    ) : null}
-                    {voiceCaptureStatus === "analyzing" ? (
-                      <span className="font-semibold text-indigo-900">Analyzing voice delivery.</span>
-                    ) : null}
-                    {voiceCaptureStatus === "ready" ? "Review the transcript before sending." : null}
-                    {voiceCaptureStatus === "unavailable" ? "Voice unavailable. Text input works." : null}
+                    <span className="font-semibold text-slate-900">{voiceModeStatus}</span>
                   </div>
-                  <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={autoReadScenario}
-                      onChange={(event) => setAutoReadScenario(event.target.checked)}
-                      className="h-4 w-4 accent-emerald-700"
-                    />
-                    Auto-read replies
-                  </label>
+                  <div className="grid gap-2">
+                    <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={voiceModeEnabled}
+                        onChange={(event) => setVoiceModeEnabled(event.target.checked)}
+                        className="h-4 w-4 accent-emerald-700"
+                      />
+                      Voice Simulation Mode
+                    </label>
+                    <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={autoReadScenario}
+                        disabled={!voiceModeEnabled}
+                        onChange={(event) => setAutoReadScenario(event.target.checked)}
+                        className="h-4 w-4 accent-emerald-700 disabled:accent-slate-300"
+                      />
+                      Auto-read patient messages
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <button
+                    type="button"
+                    disabled={!voiceModeEnabled || !latestScenarioMessage || loading}
+                    onClick={() => handleReadLatestScenarioMessage(latestScenarioMessage)}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    Read latest patient message
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!voiceCapture.supported || voiceCapture.isRecording || loading}
+                    onClick={handleStartVoiceCapture}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    Start speaking
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!voiceCapture.isRecording}
+                    onClick={handleStopVoiceCapture}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    Stop speaking
+                  </button>
+                  <button
+                    type="button"
+                    disabled={voicePlaybackStatus !== "speaking"}
+                    onClick={handleStopSpeech}
+                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-500 hover:text-rose-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                  >
+                    Cancel audio
+                  </button>
                 </div>
 
                 {voiceMetrics ? (
@@ -428,8 +594,8 @@ export default function SimulationPage() {
                 {voiceCapture.error ? (
                   <p className="mt-2 text-sm text-rose-700">{voiceCapture.error}</p>
                 ) : null}
-                {textToSpeechError ? (
-                  <p className="mt-2 text-sm text-rose-700">{textToSpeechError}</p>
+                {voicePlaybackError ? (
+                  <p className="mt-2 text-sm text-rose-700">{voicePlaybackError}</p>
                 ) : null}
                 {!voiceCapture.analysisSupported ? (
                   <p className="mt-2 text-xs leading-5 text-slate-500">
@@ -450,33 +616,16 @@ export default function SimulationPage() {
                   </div>
                 ) : null}
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr]">
+                <div className="mt-4">
                   <LoadingButton
                     type="button"
                     loading={loading}
                     disabled={!response.trim() || voiceCapture.isRecording}
                     onClick={handleSend}
-                    className="min-h-12"
+                    className="min-h-12 w-full"
                   >
                     Send Response
                   </LoadingButton>
-                  <button
-                    type="button"
-                    disabled={!voiceCapture.supported || loading}
-                    onClick={
-                      voiceCapture.isRecording
-                        ? handleStopVoiceCapture
-                        : handleStartVoiceCapture
-                    }
-                    className="min-h-12 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                    title={
-                      voiceCapture.supported
-                        ? "Start voice recording and estimate delivery"
-                        : "Voice capture is not supported"
-                    }
-                  >
-                    {voiceCapture.isRecording ? "Stop Recording" : "Record Voice"}
-                  </button>
                 </div>
 
                 <CollapsibleSection title="Voice input note" tone="slate">
