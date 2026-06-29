@@ -1,4 +1,14 @@
 import { NextResponse } from "next/server";
+import {
+  feedbackReportSchema,
+  nextSimulationTurnSchema,
+  scenarioSchema,
+} from "@/lib/ai/geminiSchemas";
+import {
+  callGeminiJson,
+  buildModelList,
+  isInvalidJsonResponse,
+} from "@/lib/ai/geminiServer";
 import { buildFeedbackPrompt } from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
@@ -19,221 +29,21 @@ type GeminiRequest =
     }
   | { action: "feedback"; payload: { state: SimulationState } };
 
-const GEMINI_MODELS = [
-  process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
+const SCENARIO_MODELS = buildModelList(process.env.GEMINI_SCENARIO_MODEL || "gemini-3.5-flash", []);
+const SIMULATION_MODELS = buildModelList(process.env.GEMINI_SIMULATION_MODEL || "gemini-2.5-flash", [
+  "gemini-2.5-flash-lite",
   "gemini-3.5-flash",
-];
-
-class InvalidJsonResponseError extends Error {
-  constructor(message = "AI returned an unreadable response. Please try again.") {
-    super(message);
-    this.name = "InvalidJsonResponseError";
-  }
-}
-
-type GeminiHttpError = Error & {
-  status?: number;
-  model?: string;
-};
-
-type GeminiCallOptions = {
-  retryInvalidJson?: boolean;
-};
+]);
+const FEEDBACK_MODELS = buildModelList(process.env.GEMINI_FEEDBACK_MODEL || "gemini-3.5-flash", [
+  "gemini-2.5-flash",
+]);
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function isInvalidJsonResponse(error: unknown): error is InvalidJsonResponseError {
-  return error instanceof InvalidJsonResponseError;
-}
-
-function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const withoutFence = trimmed
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
-  try {
-    return JSON.parse(withoutFence);
-  } catch {
-    const firstBrace = withoutFence.indexOf("{");
-    const lastBrace = withoutFence.lastIndexOf("}");
-
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      throw new InvalidJsonResponseError();
-    }
-
-    try {
-      return JSON.parse(withoutFence.slice(firstBrace, lastBrace + 1));
-    } catch {
-      throw new InvalidJsonResponseError();
-    }
-  }
-}
-
-function buildStrictJsonRetryPrompt(prompt: string): string {
-  return `${prompt}
-
-Your previous response was not parseable JSON.
-Return exactly one valid JSON object and nothing else.
-Do not use markdown fences, comments, trailing commas, undefined, or explanatory text.
-Use double quotes for every JSON key and string value.`;
-}
-
-function buildFallbackScenario(input: string): Scenario {
-  const cleanInput = input.replace(/\s+/g, " ").trim();
-  const titleBase = cleanInput.split(/[.!?]/)[0]?.trim() || "Healthcare communication roleplay";
-
-  return normalizeScenario({
-    id: crypto.randomUUID(),
-    title: titleBase.slice(0, 72),
-    setting: "Healthcare communication setting",
-    summary: cleanInput
-      ? `Communication practice based on: ${cleanInput.slice(0, 120)}`
-      : "Communication practice with a concerned patient or family member.",
-    patientProfile: "Patient or family member under communication stress.",
-    patientEmotion: "concerned",
-    familyEmotion: "anxious",
-    traineeObjective:
-      "Acknowledge emotion, explain what can be shared, and agree on one next step.",
-    communicationChallenge:
-      "Respond calmly when the other person is worried, frustrated, or confused.",
-    startingSituation:
-      cleanInput || "A patient or family member needs a clear, calm update from the trainee.",
-    firstPrompt:
-      "The patient or family member asks for a clear update and seems worried. What do you say next?",
-    suggestedTurns: 4,
-    endingCondition: "The trainee communicates clearly, validates emotion, and checks understanding.",
-    evaluationCriteria: ["Empathy", "Clarity", "Boundaries", "Next steps"],
-    mediaAssets: [],
-  });
-}
-
-function isRetryableGeminiStatus(status?: number): boolean {
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
-}
-
-async function callGeminiModel(prompt: string, model: string): Promise<unknown> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured.");
-  }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const response = await fetch(`${endpoint}?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.35,
-        responseMimeType: "application/json",
-        maxOutputTokens: 1400,
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    let detail = "";
-
-    try {
-      const errorData = (await response.json()) as {
-        error?: { message?: string; status?: string };
-      };
-      detail = errorData.error?.message || errorData.error?.status || "";
-    } catch {
-      detail = response.statusText;
-    }
-
-    const geminiError = new Error(
-      `Gemini request failed (${response.status}) on ${model}${detail ? `: ${detail}` : "."}`,
-    ) as GeminiHttpError;
-    geminiError.status = response.status;
-    geminiError.model = model;
-
-    throw geminiError;
-  }
-
-  const data = (await response.json()) as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
-  };
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text) {
-    throw new InvalidJsonResponseError("Gemini returned an empty response. Please try again.");
-  }
-
-  return extractJson(text);
-}
-
-async function callGemini(
-  prompt: string,
-  options: GeminiCallOptions = { retryInvalidJson: true },
-): Promise<unknown> {
-  const uniqueModels = Array.from(new Set(GEMINI_MODELS));
-  const errors: string[] = [];
-  let sawInvalidJson = false;
-
-  for (const model of uniqueModels) {
-    try {
-      return await callGeminiModel(prompt, model);
-    } catch (error) {
-      const geminiError = error as GeminiHttpError;
-      errors.push(geminiError.message);
-
-      if (isInvalidJsonResponse(error)) {
-        sawInvalidJson = true;
-
-        if (options.retryInvalidJson !== false) {
-          try {
-            return await callGeminiModel(buildStrictJsonRetryPrompt(prompt), model);
-          } catch (retryError) {
-            const retryGeminiError = retryError as GeminiHttpError;
-            errors.push(retryGeminiError.message);
-
-            if (isInvalidJsonResponse(retryError)) {
-              sawInvalidJson = true;
-              continue;
-            }
-
-            if (!isRetryableGeminiStatus(retryGeminiError.status)) {
-              throw retryError;
-            }
-          }
-        }
-
-        continue;
-      }
-
-      if (!isRetryableGeminiStatus(geminiError.status)) {
-        throw error;
-      }
-    }
-  }
-
-  if (sawInvalidJson) {
-    throw new InvalidJsonResponseError(
-      "AI returned an unreadable response after retrying. Please try a shorter scenario idea.",
-    );
-  }
-
-  throw new Error(
-    `All Gemini models are currently unavailable. Last error: ${errors.at(-1) || "unknown error"}`,
-  );
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function normalizeScenario(value: unknown): Scenario {
@@ -264,6 +74,35 @@ function normalizeScenario(value: unknown): Scenario {
         : ["Empathy", "Clarity", "Pressure handling", "Shared understanding"],
     mediaAssets: scenario.mediaAssets || [],
   };
+}
+
+function buildFallbackScenario(input: string): Scenario {
+  const cleanInput = input.replace(/\s+/g, " ").trim();
+  const titleBase = cleanInput.split(/[.!?]/)[0]?.trim() || "Healthcare communication roleplay";
+
+  return normalizeScenario({
+    id: crypto.randomUUID(),
+    title: titleBase.slice(0, 72),
+    setting: "Healthcare communication setting",
+    summary: cleanInput
+      ? `Communication practice based on: ${cleanInput.slice(0, 120)}`
+      : "Communication practice with a concerned patient or family member.",
+    patientProfile: "Patient or family member under communication stress.",
+    patientEmotion: "concerned",
+    familyEmotion: "anxious",
+    traineeObjective:
+      "Acknowledge emotion, explain what can be shared, and agree on one next step.",
+    communicationChallenge:
+      "Respond calmly when the other person is worried, frustrated, or confused.",
+    startingSituation:
+      cleanInput || "A patient or family member needs a clear, calm update from the trainee.",
+    firstPrompt:
+      "The patient or family member asks for a clear update and seems worried. What do you say next?",
+    suggestedTurns: 4,
+    endingCondition: "The trainee communicates clearly, validates emotion, and checks understanding.",
+    evaluationCriteria: ["Empathy", "Clarity", "Boundaries", "Next steps"],
+    mediaAssets: [],
+  });
 }
 
 function normalizeTurn(value: unknown): NextSimulationTurn {
@@ -324,6 +163,45 @@ function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
   return doctorLikeStarts.some((phrase) => normalizedMessage.startsWith(phrase));
 }
 
+function buildSafeNarratorTurn(): NextSimulationTurn {
+  return {
+    speaker: "narrator",
+    message:
+      "The patient or family member still seems unsure and waits for a clearer explanation. What do you say next?",
+    tensionLevel: "medium",
+    shouldEnd: false,
+  };
+}
+
+function normalizeFeedback(value: unknown): FeedbackReport {
+  const report = value as Partial<FeedbackReport>;
+
+  if (!report.summary || !report.finalAdvice) {
+    throw new Error("Generated feedback report is missing required fields.");
+  }
+
+  return {
+    overallScore: Math.max(1, Math.min(10, Number(report.overallScore || 6))),
+    summary: report.summary,
+    whatWentWell: normalizeStringArray(report.whatWentWell),
+    whatCouldImprove: normalizeStringArray(report.whatCouldImprove),
+    communicationGaps: normalizeStringArray(report.communicationGaps),
+    betterResponses: normalizeStringArray(report.betterResponses),
+    finalAdvice: report.finalAdvice,
+    source: report.source === "fallback" ? "fallback" : "ai",
+    ...(report.fallbackReason ? { fallbackReason: report.fallbackReason } : {}),
+    ...(report.voiceDeliveryFeedback
+      ? {
+          voiceDeliveryFeedback: {
+            summary: report.voiceDeliveryFeedback.summary || "",
+            strengths: normalizeStringArray(report.voiceDeliveryFeedback.strengths),
+            improvements: normalizeStringArray(report.voiceDeliveryFeedback.improvements),
+          },
+        }
+      : {}),
+  };
+}
+
 function buildFallbackFeedback(state: SimulationState): FeedbackReport {
   const traineeMessages = state.messages.filter((message) => message.role === "trainee");
   const scenarioMessages = state.messages.filter((message) => message.role === "scenario");
@@ -331,7 +209,9 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
 
   return normalizeFeedback({
     overallScore: 6,
-    summary: "Feedback generated from the saved transcript because the AI response was unreadable.",
+    source: "fallback",
+    fallbackReason: "Basic fallback feedback generated because Gemini feedback was unavailable.",
+    summary: "Basic fallback feedback generated because Gemini feedback was unavailable.",
     whatWentWell: [
       "You completed the roleplay and kept the conversation moving.",
       "Your response can be reviewed against the patient or family concern.",
@@ -358,7 +238,7 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
     ...(hasVoiceMetrics
       ? {
           voiceDeliveryFeedback: {
-            summary: "Voice feedback is based only on approximate browser-estimated delivery patterns.",
+            summary: "Voice feedback is based only on approximate delivery estimates.",
             strengths: ["Your spoken response was captured for review."],
             improvements: ["Use a steady pace and pause briefly after key reassurance."],
           },
@@ -367,31 +247,62 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
   });
 }
 
-function normalizeFeedback(value: unknown): FeedbackReport {
-  const report = value as Partial<FeedbackReport>;
+async function generateScenario(input: string): Promise<Scenario> {
+  const prompt = buildScenarioPrompt(input);
+  const result = await callGeminiJson({
+    action: "scenario",
+    prompt,
+    models: SCENARIO_MODELS,
+    temperature: 0.25,
+    maxOutputTokens: 1000,
+    timeoutMs: 25000,
+    schema: scenarioSchema,
+  });
 
-  if (!report.summary || !report.finalAdvice) {
-    throw new Error("Generated feedback report is missing required fields.");
-  }
+  return normalizeScenario(result);
+}
 
-  return {
-    overallScore: Math.max(1, Math.min(10, Number(report.overallScore || 6))),
-    summary: report.summary,
-    whatWentWell: report.whatWentWell || [],
-    whatCouldImprove: report.whatCouldImprove || [],
-    communicationGaps: report.communicationGaps || [],
-    betterResponses: report.betterResponses || [],
-    finalAdvice: report.finalAdvice,
-    ...(report.voiceDeliveryFeedback
-      ? {
-          voiceDeliveryFeedback: {
-            summary: report.voiceDeliveryFeedback.summary || "",
-            strengths: report.voiceDeliveryFeedback.strengths || [],
-            improvements: report.voiceDeliveryFeedback.improvements || [],
-          },
-        }
-      : {}),
-  };
+async function generateTurn(
+  state: SimulationState,
+  traineeResponse: string,
+  voiceMetrics?: VoiceMetrics,
+  roleCorrection?: { rejectedMessage: string },
+): Promise<NextSimulationTurn> {
+  const prompt = buildSimulationPrompt(
+    state,
+    traineeResponse,
+    voiceMetrics,
+    roleCorrection
+      ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
+      : undefined,
+  );
+  const result = await callGeminiJson({
+    action: "nextTurn",
+    prompt,
+    models: SIMULATION_MODELS,
+    temperature: 0.35,
+    maxOutputTokens: 350,
+    timeoutMs: 15000,
+    schema: nextSimulationTurnSchema,
+    retryInvalidJson: !roleCorrection,
+  });
+
+  return normalizeTurn(result);
+}
+
+async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
+  const prompt = buildFeedbackPrompt(state);
+  const result = await callGeminiJson({
+    action: "feedback",
+    prompt,
+    models: FEEDBACK_MODELS,
+    temperature: 0.25,
+    maxOutputTokens: 2200,
+    timeoutMs: 45000,
+    schema: feedbackReportSchema,
+  });
+
+  return normalizeFeedback(result);
 }
 
 export async function POST(request: Request) {
@@ -406,8 +317,7 @@ export async function POST(request: Request) {
       }
 
       try {
-        const result = normalizeScenario(await callGemini(buildScenarioPrompt(input)));
-        return NextResponse.json({ result });
+        return NextResponse.json({ result: await generateScenario(input) });
       } catch (error) {
         if (isInvalidJsonResponse(error)) {
           return NextResponse.json({ result: buildFallbackScenario(input) });
@@ -424,21 +334,23 @@ export async function POST(request: Request) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
-      const firstResult = normalizeTurn(
-        await callGemini(buildSimulationPrompt(state, traineeResponse, voiceMetrics)),
-      );
-      const result = appearsToSpeakAsTrainee(firstResult)
-        ? normalizeTurn(
-            await callGemini(
-              buildSimulationPrompt(state, traineeResponse, voiceMetrics, {
-                roleCorrection: true,
-                rejectedMessage: firstResult.message,
-              }),
-            ),
-          )
-        : firstResult;
+      const firstResult = await generateTurn(state, traineeResponse, voiceMetrics);
 
-      return NextResponse.json({ result });
+      if (!appearsToSpeakAsTrainee(firstResult)) {
+        return NextResponse.json({ result: firstResult });
+      }
+
+      try {
+        const correctedResult = await generateTurn(state, traineeResponse, voiceMetrics, {
+          rejectedMessage: firstResult.message,
+        });
+
+        return NextResponse.json({
+          result: appearsToSpeakAsTrainee(correctedResult) ? buildSafeNarratorTurn() : correctedResult,
+        });
+      } catch {
+        return NextResponse.json({ result: buildSafeNarratorTurn() });
+      }
     }
 
     if (body.action === "feedback") {
@@ -448,24 +360,21 @@ export async function POST(request: Request) {
         return errorResponse("Simulation state is required.");
       }
 
-      try {
-        const result = normalizeFeedback(await callGemini(buildFeedbackPrompt(state)));
-        return NextResponse.json({ result });
-      } catch (error) {
-        if (isInvalidJsonResponse(error)) {
-          return NextResponse.json({ result: buildFallbackFeedback(state) });
-        }
+      if (!state.messages.some((message) => message.role === "trainee" && message.content.trim())) {
+        return errorResponse("Add at least one trainee response before generating feedback.");
+      }
 
-        throw error;
+      try {
+        return NextResponse.json({ result: await generateFeedback(state) });
+      } catch {
+        return NextResponse.json({ result: buildFallbackFeedback(state) });
       }
     }
 
     return errorResponse("Unsupported Gemini action.");
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "The AI request failed. Please try again.";
+      error instanceof Error ? error.message : "The AI request failed. Please try again.";
 
     return errorResponse(message, message.includes("GEMINI_API_KEY") ? 500 : 502);
   }

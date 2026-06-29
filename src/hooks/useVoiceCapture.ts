@@ -211,12 +211,16 @@ export function useVoiceCapture() {
       AudioContextConstructor && navigator.mediaDevices?.getUserMedia,
     );
 
-    setSupport({
-      speechSupported,
-      analysisSupported,
-      supported: speechSupported || analysisSupported,
-      mobile: isLikelyMobileBrowser(),
-    });
+    const timer = window.setTimeout(() => {
+      setSupport({
+        speechSupported,
+        analysisSupported,
+        supported: speechSupported || analysisSupported,
+        mobile: isLikelyMobileBrowser(),
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const stopAudioAnalysis = useCallback(() => {

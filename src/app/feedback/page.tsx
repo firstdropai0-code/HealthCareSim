@@ -61,6 +61,13 @@ export default function FeedbackPage() {
     try {
       const completedState: SimulationState = { ...state, status: "completed" };
       const nextReport = await generateFeedbackReport(completedState);
+
+      if (nextReport.source === "fallback" && report?.source === "ai") {
+        setPendingAutoGenerate(false);
+        clearPendingFeedbackGeneration();
+        return;
+      }
+
       setState(completedState);
       setReport(nextReport);
       setPendingAutoGenerate(false);
@@ -72,7 +79,7 @@ export default function FeedbackPage() {
     } finally {
       setLoading(false);
     }
-  }, [state]);
+  }, [report, state]);
 
   useEffect(() => {
     if (
@@ -160,7 +167,7 @@ export default function FeedbackPage() {
         {loading ? (
           <section className="rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-950">
-              Generating feedback report...
+              Generating AI feedback...
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               The report will focus on communication, empathy, clarity, and pressure handling.
@@ -170,7 +177,7 @@ export default function FeedbackPage() {
           <section className="grid gap-5 rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm lg:grid-cols-[1fr_320px]">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">
-                Ready to generate feedback
+                Ready to generate AI feedback
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 The report is formatted as a quick dashboard first, with detailed notes

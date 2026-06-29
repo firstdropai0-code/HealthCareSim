@@ -7,6 +7,7 @@ import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { VoiceInputButton } from "@/components/common/VoiceInputButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
+import { useGeminiVoiceRecorder } from "@/hooks/useGeminiVoiceRecorder";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
@@ -22,18 +23,48 @@ const exampleIdeas = [
   "A patient is embarrassed and reluctant to ask follow-up questions.",
 ];
 
+function mergeTranscript(current: string, next: string): string {
+  const currentText = current.trim();
+  const nextText = next.trim();
+  const normalizedCurrent = currentText.toLowerCase();
+  const normalizedNext = nextText.toLowerCase();
+
+  if (!nextText || normalizedCurrent.endsWith(normalizedNext)) {
+    return current;
+  }
+
+  if (normalizedCurrent && normalizedNext.startsWith(`${normalizedCurrent} `)) {
+    return nextText;
+  }
+
+  return `${currentText} ${nextText}`.trim();
+}
+
 export default function ScenarioCreatorPage() {
   const router = useRouter();
   const [idea, setIdea] = useState("");
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const geminiVoice = useGeminiVoiceRecorder();
   const handleTranscript = useCallback((text: string) => {
     if (text) {
-      setIdea((current) => `${current} ${text}`.trim());
+      setIdea((current) => mergeTranscript(current, text));
     }
   }, []);
   const speech = useSpeechToText({ onTranscript: handleTranscript });
+
+  const voiceListening = geminiVoice.isRecording || speech.listening;
+  const voiceSupported = geminiVoice.supported || speech.supported;
+  const voiceStatus = geminiVoice.isRecording
+    ? "Recording..."
+    : geminiVoice.isTranscribing
+      ? "Transcribing with Gemini..."
+      : geminiVoice.status === "ready"
+        ? "Transcript ready. Review before sending."
+        : geminiVoice.status === "error" || (!geminiVoice.supported && speech.supported)
+          ? "Gemini voice unavailable. Using text/browser fallback."
+          : null;
 
   async function handleGenerate() {
     setLoading(true);
@@ -48,6 +79,36 @@ export default function ScenarioCreatorPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleStartVoice() {
+    setError(null);
+
+    if (geminiVoice.supported) {
+      const started = await geminiVoice.startRecording("scenario", idea);
+
+      if (started) {
+        return;
+      }
+    }
+
+    speech.startListening();
+  }
+
+  async function handleStopVoice() {
+    if (geminiVoice.isRecording) {
+      const result = await geminiVoice.stopRecording();
+
+      if (result?.transcript) {
+        setIdea((current) => mergeTranscript(current, result.transcript));
+      } else if (speech.supported && !speech.listening) {
+        speech.startListening();
+      }
+
+      return;
+    }
+
+    speech.stopListening();
   }
 
   function handleStartSimulation() {
@@ -132,6 +193,12 @@ export default function ScenarioCreatorPage() {
             className="mt-4 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
           />
 
+          {voiceStatus ? (
+            <p className="mt-2 text-sm font-medium text-slate-700">{voiceStatus}</p>
+          ) : null}
+          {geminiVoice.error ? (
+            <p className="mt-2 text-sm text-rose-700">{geminiVoice.error}</p>
+          ) : null}
           {speech.error ? (
             <p className="mt-2 text-sm text-rose-700">{speech.error}</p>
           ) : null}
@@ -140,16 +207,16 @@ export default function ScenarioCreatorPage() {
             <LoadingButton
               type="button"
               loading={loading}
-              disabled={!idea.trim()}
+              disabled={!idea.trim() || geminiVoice.isTranscribing}
               onClick={handleGenerate}
             >
               Generate Structured Scenario
             </LoadingButton>
             <VoiceInputButton
-              supported={speech.supported}
-              listening={speech.listening}
-              onStart={speech.startListening}
-              onStop={speech.stopListening}
+              supported={voiceSupported}
+              listening={voiceListening}
+              onStart={handleStartVoice}
+              onStop={handleStopVoice}
             />
             {idea ? (
               <button
@@ -158,6 +225,8 @@ export default function ScenarioCreatorPage() {
                   setIdea("");
                   setScenario(null);
                   setError(null);
+                  geminiVoice.reset();
+                  speech.setTranscript("");
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-500"
               >

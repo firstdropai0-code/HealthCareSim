@@ -27,7 +27,7 @@ export function buildSimulationPrompt(
   voiceMetrics?: VoiceMetrics,
   options?: SimulationPromptOptions,
 ): string {
-  const recentMessages = state.messages.slice(-4).map((message) => ({
+  const recentMessages = state.messages.slice(-6).map((message) => ({
     role: message.role,
     ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
     content: message.content,
@@ -48,8 +48,7 @@ Role boundary:
 - Do not use first-person doctor-like phrases such as "I understand you're concerned", "I can tell you", "I will check", "We are monitoring", "I can't share specific details", "Would you like me to...", "Let me...", or "I'm going to..." unless the speaker is clearly "nurse" or "narrator".
 
 Scenario summary: ${state.scenario.summary}
-Patient profile: ${state.scenario.patientProfile}
-Communication challenge: ${state.scenario.communicationChallenge}
+Scenario context: ${state.scenario.patientProfile}; ${state.scenario.communicationChallenge}
 Current turn: ${state.currentTurn}
 Remaining turns: ${Math.max(state.maxTurns - state.currentTurn, 0)}
 Current tension level: ${state.tensionLevel}

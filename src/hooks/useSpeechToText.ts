@@ -53,7 +53,11 @@ export function useSpeechToText(options?: { onTranscript?: (text: string) => voi
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
-    setSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+    const timer = window.setTimeout(() => {
+      setSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {

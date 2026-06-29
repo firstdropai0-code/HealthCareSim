@@ -6,6 +6,8 @@ export type FeedbackReport = {
   communicationGaps: string[];
   betterResponses: string[];
   finalAdvice: string;
+  source?: "ai" | "fallback";
+  fallbackReason?: string;
   voiceDeliveryFeedback?: {
     summary: string;
     strengths: string[];

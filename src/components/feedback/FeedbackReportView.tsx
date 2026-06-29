@@ -71,6 +71,11 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
 
   return (
     <div className="space-y-5">
+      {report.source === "fallback" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+          {report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}
+        </div>
+      ) : null}
       <section className="grid gap-5 rounded-lg border border-emerald-900/10 bg-white p-4 shadow-sm lg:grid-cols-[240px_1fr] lg:p-5">
         <ScoreCard score={score} label={scoreLabel(score)} />
 

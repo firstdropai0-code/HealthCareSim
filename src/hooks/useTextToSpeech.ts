@@ -16,7 +16,11 @@ export function useTextToSpeech() {
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
-    setSupported("speechSynthesis" in window);
+    const timer = window.setTimeout(() => {
+      setSupported("speechSynthesis" in window);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   const stop = useCallback(() => {

@@ -34,7 +34,7 @@ function formatVoiceMetrics(metrics?: VoiceMetrics): string {
     `Pitch: ${formatLabel(metrics.pitchLevel)}`,
     `Pace: ${formatLabel(metrics.paceLevel)}`,
     `Pauses: ${formatLabel(metrics.pausePattern)}`,
-    "No audio was stored or uploaded by this prototype.",
+    "Audio is uploaded only for immediate transcription and is not stored by this prototype.",
   ].join("\n");
 }
 
@@ -70,7 +70,7 @@ ${formatList(report.voiceDeliveryFeedback.improvements)}
   return `FirstDropAI Feedback Report
 
 Scenario: ${state.scenario.title}
-Generated: ${new Date().toLocaleString()}
+Generated: ${new Date().toLocaleString()}${report.source === "fallback" ? `\nFeedback source: ${report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}` : ""}
 
 Conversation Transcript
 ${transcript}

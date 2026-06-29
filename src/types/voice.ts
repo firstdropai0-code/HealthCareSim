@@ -26,3 +26,11 @@ export type VoiceCaptureResult = {
   transcript: string;
   metrics: VoiceMetrics;
 };
+
+export type VoiceTranscriptionResult = {
+  transcript: string;
+  emotionEstimate: "calm" | "anxious" | "angry" | "sad" | "confused" | "neutral" | "unknown";
+  paceEstimate: "slow" | "normal" | "fast" | "unknown";
+  clarityEstimate: "clear" | "mixed" | "unclear" | "unknown";
+  confidence: "low" | "medium" | "high";
+};

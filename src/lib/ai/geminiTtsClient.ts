@@ -1,11 +1,49 @@
+import type { ScenarioSpeaker, TensionLevel } from "@/types/simulation";
+
 type GeminiTtsOptions = {
   voiceName?: string;
   style?: string;
   signal?: AbortSignal;
+  cacheKey?: string;
+  speaker?: ScenarioSpeaker;
+  tensionLevel?: TensionLevel;
+  patientEmotion?: string;
+  familyEmotion?: string;
 };
+
+type ActivePlayback = {
+  audio: HTMLAudioElement;
+  objectUrl: string;
+  stop: () => void;
+};
+
+const audioCache = new Map<string, Promise<Blob>>();
+let activePlayback: ActivePlayback | null = null;
 
 function abortError(): Error {
   return new Error("Gemini TTS playback was cancelled.");
+}
+
+function buildCacheKey(text: string, options: GeminiTtsOptions): string {
+  return [
+    options.cacheKey || "",
+    text,
+    options.voiceName || "",
+    options.style || "",
+    options.speaker || "",
+    options.tensionLevel || "",
+    options.patientEmotion || "",
+    options.familyEmotion || "",
+  ].join("|");
+}
+
+function stopActivePlayback() {
+  if (!activePlayback) {
+    return;
+  }
+
+  activePlayback.stop();
+  activePlayback = null;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -15,6 +53,47 @@ async function readErrorMessage(response: Response): Promise<string> {
   } catch {
     return "Gemini TTS request failed.";
   }
+}
+
+async function fetchAudioBlob(text: string, options: GeminiTtsOptions): Promise<Blob> {
+  const response = await fetch("/api/gemini-tts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      voiceName: options.voiceName,
+      style: options.style,
+      speaker: options.speaker,
+      tensionLevel: options.tensionLevel,
+      patientEmotion: options.patientEmotion,
+      familyEmotion: options.familyEmotion,
+    }),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return response.blob();
+}
+
+function getCachedAudioBlob(text: string, options: GeminiTtsOptions): Promise<Blob> {
+  const cacheKey = buildCacheKey(text, options);
+  const cached = audioCache.get(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  const pending = fetchAudioBlob(text, options).catch((error) => {
+    audioCache.delete(cacheKey);
+    throw error;
+  });
+  audioCache.set(cacheKey, pending);
+  return pending;
 }
 
 export async function speakWithGeminiTts(
@@ -31,24 +110,8 @@ export async function speakWithGeminiTts(
     throw abortError();
   }
 
-  const response = await fetch("/api/gemini-tts", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      text: trimmedText,
-      voiceName: options.voiceName,
-      style: options.style,
-    }),
-    signal: options.signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-
-  const audioBlob = await response.blob();
+  stopActivePlayback();
+  const audioBlob = await getCachedAudioBlob(trimmedText, options);
 
   if (options.signal?.aborted) {
     throw abortError();
@@ -66,6 +129,9 @@ export async function speakWithGeminiTts(
       audio.load();
       URL.revokeObjectURL(objectUrl);
       options.signal?.removeEventListener("abort", handleAbort);
+      if (activePlayback?.audio === audio) {
+        activePlayback = null;
+      }
     };
 
     const finish = (handler: () => void) => {
@@ -80,6 +146,12 @@ export async function speakWithGeminiTts(
 
     const handleAbort = () => {
       finish(() => reject(abortError()));
+    };
+
+    activePlayback = {
+      audio,
+      objectUrl,
+      stop: handleAbort,
     };
 
     audio.onended = () => {
