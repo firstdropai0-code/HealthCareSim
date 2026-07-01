@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { voiceTranscriptionSchema } from "@/lib/ai/geminiSchemas";
-import { buildModelList, callGeminiJson } from "@/lib/ai/geminiServer";
+import { buildModelList, callGeminiJson, isInvalidJsonResponse } from "@/lib/ai/geminiServer";
 import type { VoiceTranscriptionResult } from "@/types/voice";
 
 export const runtime = "nodejs";
@@ -134,9 +134,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ result: normalizeTranscription(result) });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Gemini transcription failed. Please type instead.";
+      error instanceof Error && error.message.includes("GEMINI_API_KEY")
+        ? "GEMINI_API_KEY is not configured."
+        : isInvalidJsonResponse(error)
+          ? "Gemini could not transcribe the audio. Please try again or type your response."
+          : "Gemini could not transcribe the audio. Please try again or type your response.";
 
     return jsonError(message, message.includes("GEMINI_API_KEY") ? 500 : 502);
   }
 }
-

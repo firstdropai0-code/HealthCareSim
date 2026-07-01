@@ -16,7 +16,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { useGeminiVoiceRecorder } from "@/hooks/useGeminiVoiceRecorder";
-import { useVoiceCapture } from "@/hooks/useVoiceCapture";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { speakWithGeminiTts } from "@/lib/ai/geminiTtsClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
@@ -45,23 +44,6 @@ function formatVoiceLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
-function mergeTranscript(current: string, next: string): string {
-  const currentText = current.trim();
-  const nextText = next.trim();
-  const normalizedCurrent = currentText.toLowerCase();
-  const normalizedNext = nextText.toLowerCase();
-
-  if (!nextText || normalizedCurrent.endsWith(normalizedNext)) {
-    return current;
-  }
-
-  if (normalizedCurrent && normalizedNext.startsWith(`${normalizedCurrent} `)) {
-    return nextText;
-  }
-
-  return `${currentText} ${nextText}`.trim();
-}
-
 function getScenarioMessageSpeechKey(message: SimulationState["messages"][number]): string {
   return `${message.id}:${message.content}`;
 }
@@ -82,10 +64,7 @@ function getScenarioSpeechStyle(speaker?: ScenarioSpeaker): string {
   }
 }
 
-function mapTranscriptionToVoiceMetrics(
-  transcription: VoiceTranscriptionResult,
-  existingMetrics?: VoiceMetrics | null,
-): VoiceMetrics {
+function mapTranscriptionToVoiceMetrics(transcription: VoiceTranscriptionResult): VoiceMetrics {
   const toneMap: Record<VoiceTranscriptionResult["emotionEstimate"], VoiceMetrics["toneEstimate"]> = {
     calm: "calm",
     anxious: "tense",
@@ -95,18 +74,18 @@ function mapTranscriptionToVoiceMetrics(
     neutral: "unknown",
     unknown: "unknown",
   };
-  const paceLevel = transcription.paceEstimate === "unknown" ? "normal" : transcription.paceEstimate;
 
   return {
-    volumeLevel: existingMetrics?.volumeLevel || "normal",
-    pitchLevel: existingMetrics?.pitchLevel || "not_detected",
-    paceLevel,
-    pausePattern: existingMetrics?.pausePattern || "smooth",
+    volumeLevel: "normal",
+    pitchLevel: "not_detected",
+    paceLevel: transcription.paceEstimate === "unknown" ? "normal" : transcription.paceEstimate,
+    pausePattern: "smooth",
+    clarityLevel: transcription.clarityEstimate,
     toneEstimate: toneMap[transcription.emotionEstimate],
     confidence: transcription.confidence,
-    raw: existingMetrics?.raw,
   };
 }
+
 function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
   return (
     <InfoCard label="Voice delivery" title="Estimated pattern" tone="indigo">
@@ -114,7 +93,7 @@ function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
         metrics={[
           { label: "Tone", value: formatVoiceLabel(metrics.toneEstimate), tone: "indigo" },
           { label: "Pace", value: formatVoiceLabel(metrics.paceLevel), tone: "blue" },
-          { label: "Volume", value: formatVoiceLabel(metrics.volumeLevel), tone: "emerald" },
+          { label: "Clarity", value: formatVoiceLabel(metrics.clarityLevel || "unknown"), tone: "emerald" },
           { label: "Confidence", value: metrics.confidence, tone: "amber" },
         ]}
       />
@@ -134,21 +113,13 @@ function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
           {metrics.raw?.durationSeconds ? <span>Duration: {Math.round(metrics.raw.durationSeconds)}s</span> : null}
         </div>
         <p className="mt-3 text-xs leading-5 text-slate-500">
-          Approximate browser estimate only. Audio is uploaded only for immediate transcription and is not stored.
+          Gemini estimate from transcribed audio. Audio is uploaded only for immediate transcription and is not stored.
         </p>
       </details>
     </InfoCard>
   );
 }
 
-type VoiceCaptureStatus =
-  | "idle"
-  | "recording"
-  | "transcribing"
-  | "analyzing"
-  | "ready"
-  | "stopped"
-  | "unavailable";
 type VoicePlaybackStatus = "idle" | "speaking";
 
 export default function SimulationPage() {
@@ -156,7 +127,6 @@ export default function SimulationPage() {
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
   const [voiceMetrics, setVoiceMetrics] = useState<VoiceMetrics | null>(null);
-  const [voiceCaptureStatus, setVoiceCaptureStatus] = useState<VoiceCaptureStatus>("idle");
   const [voiceModeEnabled, setVoiceModeEnabled] = useState(false);
   const [voiceSettingsLoaded, setVoiceSettingsLoaded] = useState(false);
   const [autoReadScenario, setAutoReadScenario] = useState(false);
@@ -169,14 +139,7 @@ export default function SimulationPage() {
   const audioAbortControllerRef = useRef<AbortController | null>(null);
   const audioRequestIdRef = useRef(0);
   const lastSpokenMessageRef = useRef<string | null>(null);
-  const voiceCapture = useVoiceCapture();
   const geminiVoice = useGeminiVoiceRecorder();
-
-  const applyCapturedTranscript = useCallback((capturedTranscript: string) => {
-    if (capturedTranscript.trim()) {
-      setResponse((current) => mergeTranscript(current, capturedTranscript));
-    }
-  }, []);
 
   const handleStopSpeech = useCallback(() => {
     audioRequestIdRef.current += 1;
@@ -272,41 +235,10 @@ export default function SimulationPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (voiceCapture.stopReason !== "auto" || voiceCaptureStatus !== "recording") {
-      return;
-    }
 
-    const timer = window.setTimeout(() => {
-      applyCapturedTranscript(voiceCapture.transcript || voiceCapture.interimTranscript);
-      setVoiceMetrics(voiceCapture.metrics);
-      setVoiceCaptureStatus("stopped");
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    applyCapturedTranscript,
-    voiceCapture.interimTranscript,
-    voiceCapture.metrics,
-    voiceCapture.stopReason,
-    voiceCapture.transcript,
-    voiceCaptureStatus,
-  ]);
 
   useEffect(() => {
-    if (geminiVoice.supported || voiceCapture.supported) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setVoiceCaptureStatus("unavailable");
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [geminiVoice.supported, voiceCapture.supported]);
-
-  useEffect(() => {
-    if (!state || !voiceModeEnabled || !autoReadScenario || voiceCapture.isRecording || geminiVoice.isRecording) {
+    if (!state || !voiceModeEnabled || !autoReadScenario || geminiVoice.isRecording) {
       return;
     }
 
@@ -331,7 +263,6 @@ export default function SimulationPage() {
     geminiVoice.isRecording,
     speakScenarioMessage,
     state,
-    voiceCapture.isRecording,
     voiceModeEnabled,
   ]);
 
@@ -339,54 +270,23 @@ export default function SimulationPage() {
     setError(null);
     setVoiceMetrics(null);
     handleStopSpeech();
-
-    if (geminiVoice.supported) {
-      setVoiceCaptureStatus("recording");
-      const started = await geminiVoice.startRecording(
-        "simulation",
-        `${state?.scenario.title || ""}. ${state?.scenario.summary || ""}`,
-      );
-
-      if (started) {
-        return;
-      }
-    }
-
-    setVoiceCaptureStatus(voiceCapture.supported ? "recording" : "unavailable");
-    await voiceCapture.startCapture();
+    await geminiVoice.startRecording(
+      "simulation",
+      `${state?.scenario.title || ""}. ${state?.scenario.summary || ""}`,
+    );
   }
 
   async function handleStopVoiceCapture() {
-    if (geminiVoice.isRecording) {
-      setVoiceCaptureStatus("transcribing");
-      const result = await geminiVoice.stopRecording();
+    const result = await geminiVoice.stopRecording();
+    const transcript = result?.transcript.trim() || geminiVoice.liveTranscript.trim();
 
-      if (result?.transcript) {
-        applyCapturedTranscript(result.transcript);
-        setVoiceMetrics(mapTranscriptionToVoiceMetrics(result, voiceCapture.metrics));
-        setVoiceCaptureStatus("ready");
-        return;
-      }
-
-      if (voiceCapture.supported) {
-        setVoiceCaptureStatus("recording");
-        await voiceCapture.startCapture();
-        return;
-      }
-
-      setVoiceCaptureStatus("unavailable");
+    if (!transcript) {
       return;
     }
 
-    setVoiceCaptureStatus("analyzing");
-    const result = voiceCapture.stopCapture();
-    applyCapturedTranscript(result.transcript);
-    setVoiceMetrics(result.metrics);
-    window.setTimeout(() => {
-      setVoiceCaptureStatus("ready");
-    }, 450);
+    setResponse(transcript);
+    setVoiceMetrics(result ? mapTranscriptionToVoiceMetrics(result) : null);
   }
-
   function handleReadLatestScenarioMessage(latestScenarioMessage?: SimulationState["messages"][number]) {
     if (!latestScenarioMessage) {
       return;
@@ -428,7 +328,7 @@ export default function SimulationPage() {
       setHasFeedbackReport(false);
       setResponse("");
       setVoiceMetrics(null);
-      setVoiceCaptureStatus(geminiVoice.supported || voiceCapture.supported ? "idle" : "unavailable");
+      geminiVoice.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue simulation.");
     } finally {
@@ -493,10 +393,6 @@ export default function SimulationPage() {
 
   const completed = state.status === "completed";
   const coachCues = ["Name emotion", "Share next step", "Check understanding"];
-  const visibleTranscript = [voiceCapture.transcript, voiceCapture.interimTranscript]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
   const latestScenarioMessage = state.messages.findLast(
     (message) => message.role === "scenario" && message.speaker,
   );
@@ -507,21 +403,19 @@ export default function SimulationPage() {
     ? "Processing response..."
     : voicePlaybackStatus === "speaking"
       ? "Speaking patient..."
-      : voiceCaptureStatus === "recording"
-        ? "Recording..."
-        : voiceCaptureStatus === "transcribing"
-          ? "Transcribing with Gemini..."
-          : voiceCaptureStatus === "analyzing"
-            ? "Analyzing voice delivery."
-            : voiceCaptureStatus === "stopped"
-              ? "Recording stopped. You can review and send your response."
-            : voiceCaptureStatus === "ready"
-              ? "Transcript ready. Review before sending."
-              : voiceCaptureStatus === "unavailable"
-                ? "Gemini voice unavailable. Using text/browser fallback."
-                : voiceModeEnabled
-                  ? "Voice mode ready."
-                  : "Text mode ready.";
+      : geminiVoice.isRecording
+        ? geminiVoice.liveTranscript
+          ? "Updating live captions..."
+          : "Recording with Gemini..."
+        : geminiVoice.isTranscribing
+          ? "Finalizing Gemini transcript..."
+          : geminiVoice.status === "ready"
+            ? "Transcript ready. Review before sending."
+            : geminiVoice.status === "unavailable"
+              ? "Gemini voice is unavailable. You can type your response."
+              : voiceModeEnabled
+                ? "Gemini voice ready."
+                : "Text mode ready.";
 
   return (
     <AppShell>
@@ -592,7 +486,7 @@ export default function SimulationPage() {
                     setResponse(event.target.value);
                     if (!event.target.value.trim()) {
                       setVoiceMetrics(null);
-                      setVoiceCaptureStatus(geminiVoice.supported || voiceCapture.supported ? "idle" : "unavailable");
+                      geminiVoice.reset();
                     }
                   }}
                   placeholder="Type what the trainee says or does next."
@@ -605,12 +499,11 @@ export default function SimulationPage() {
                   ))}
                 </div>
 
-                {voiceCapture.isRecording && visibleTranscript ? (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950">
-                    <span className="font-semibold">Live transcript:</span> {visibleTranscript}
+                {geminiVoice.liveTranscript ? (
+                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-950">
+                    <span className="font-semibold">Gemini live captions:</span> {geminiVoice.liveTranscript}
                   </div>
                 ) : null}
-
                 <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_320px]">
                   <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
                     <span className="font-semibold text-slate-900">{voiceModeStatus}</span>
@@ -649,7 +542,7 @@ export default function SimulationPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!voiceModeEnabled || (!geminiVoice.supported && !voiceCapture.supported) || geminiVoice.isRecording || geminiVoice.isTranscribing || voiceCapture.isRecording || loading}
+                    disabled={!voiceModeEnabled || !geminiVoice.supported || geminiVoice.isRecording || geminiVoice.isTranscribing || loading}
                     onClick={handleStartVoiceCapture}
                     className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                   >
@@ -657,7 +550,7 @@ export default function SimulationPage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!geminiVoice.isRecording && !voiceCapture.isRecording}
+                    disabled={!geminiVoice.isRecording}
                     onClick={handleStopVoiceCapture}
                     className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                   >
@@ -682,16 +575,8 @@ export default function SimulationPage() {
                 {geminiVoice.error ? (
                   <p className="mt-2 text-sm text-rose-700">{geminiVoice.error}</p>
                 ) : null}
-                {voiceCapture.error ? (
-                  <p className="mt-2 text-sm text-rose-700">{voiceCapture.error}</p>
-                ) : null}
                 {voicePlaybackError ? (
                   <p className="mt-2 text-sm text-rose-700">{voicePlaybackError}</p>
-                ) : null}
-                {!voiceCapture.analysisSupported ? (
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Voice tone analysis is unavailable in this browser. You can still type or use basic voice input.
-                  </p>
                 ) : null}
                 {error ? (
                   <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -711,7 +596,7 @@ export default function SimulationPage() {
                   <LoadingButton
                     type="button"
                     loading={loading}
-                    disabled={!response.trim() || geminiVoice.isTranscribing || voiceCapture.isRecording}
+                    disabled={!response.trim() || geminiVoice.isTranscribing || geminiVoice.isRecording}
                     onClick={handleSend}
                     className="min-h-12 w-full"
                   >
@@ -720,7 +605,7 @@ export default function SimulationPage() {
                 </div>
 
                 <CollapsibleSection title="Voice input note" tone="slate">
-                  Mobile browsers may stop voice capture after silence. Review the transcript before sending. Text input always works.
+                  Gemini voice fills the response box after transcription. Review and edit before sending. Text input always works.
                 </CollapsibleSection>
               </section>
             ) : (

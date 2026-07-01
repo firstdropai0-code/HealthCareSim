@@ -33,6 +33,7 @@ function formatVoiceMetrics(metrics?: VoiceMetrics): string {
     `Volume: ${formatLabel(metrics.volumeLevel)}`,
     `Pitch: ${formatLabel(metrics.pitchLevel)}`,
     `Pace: ${formatLabel(metrics.paceLevel)}`,
+    `Clarity: ${formatLabel(metrics.clarityLevel || "unknown")}`,
     `Pauses: ${formatLabel(metrics.pausePattern)}`,
     "Audio is uploaded only for immediate transcription and is not stored by this prototype.",
   ].join("\n");

@@ -16,6 +16,7 @@ function summarizeVoiceMetrics(metrics?: VoiceMetrics): string {
     pitch: metrics.pitchLevel,
     pace: metrics.paceLevel,
     pauses: metrics.pausePattern,
+    clarity: metrics.clarityLevel,
     toneEstimate: metrics.toneEstimate,
     confidence: metrics.confidence,
   });

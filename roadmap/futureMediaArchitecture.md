@@ -61,4 +61,4 @@ This MVP only stores future media placeholders in the `MediaAsset` type. Media f
 
 - Gemini Live API is a better fit for true real-time voice conversations because it supports WebSockets and native audio streaming.
 - Add Live API in a separate PR because it changes the app architecture around streaming sessions, connection state, and interruption handling.
-- This stabilization pass should keep the record-transcribe-respond-TTS flow working first before introducing a larger live audio architecture.
+- The current implementation uses chunked MediaRecorder uploads for Gemini live captions plus final full-audio transcription; Live API should replace that in a separate architecture change.

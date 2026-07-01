@@ -150,7 +150,9 @@ async function callGeminiModel(
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const parts = promptOverride
-    ? [{ text: promptOverride }]
+    ? options.parts?.length
+      ? options.parts.map((part) => ("text" in part ? { text: promptOverride } : part))
+      : [{ text: promptOverride }]
     : options.parts || [{ text: options.prompt }];
 
   try {

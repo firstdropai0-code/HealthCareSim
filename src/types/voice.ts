@@ -3,6 +3,7 @@ export type VoiceMetrics = {
   pitchLevel: "low" | "normal" | "high" | "not_detected";
   paceLevel: "slow" | "normal" | "fast";
   pausePattern: "smooth" | "some_pauses" | "many_pauses";
+  clarityLevel?: "clear" | "mixed" | "unclear" | "unknown";
   toneEstimate:
     | "calm"
     | "confident"
@@ -32,5 +33,11 @@ export type VoiceTranscriptionResult = {
   emotionEstimate: "calm" | "anxious" | "angry" | "sad" | "confused" | "neutral" | "unknown";
   paceEstimate: "slow" | "normal" | "fast" | "unknown";
   clarityEstimate: "clear" | "mixed" | "unclear" | "unknown";
+  confidence: "low" | "medium" | "high";
+};
+
+export type VoicePartialTranscriptionResult = {
+  partialTranscript: string;
+  isUseful: boolean;
   confidence: "low" | "medium" | "high";
 };

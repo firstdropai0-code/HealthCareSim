@@ -20,13 +20,13 @@ export function VoiceInputButton({
         disabled={!supported}
         onClick={listening ? onStop : onStart}
         className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-        title={supported ? "Use voice input" : "Speech recognition is not supported"}
+        title={supported ? "Use Gemini voice input" : "Gemini voice needs microphone recording support"}
       >
-        {listening ? "Stop voice" : "Use voice"}
+        {listening ? "Stop speaking" : "Start speaking"}
       </button>
       {!supported ? (
         <p className="max-w-sm text-xs leading-5 text-slate-500">
-          Voice input requires Chrome or Edge with microphone permission. This browser does not expose the Web Speech API.
+          Gemini voice needs microphone permission and MediaRecorder support. You can still type instead.
         </p>
       ) : null}
     </div>

@@ -134,3 +134,15 @@ export const voiceTranscriptionSchema: GeminiSchema = {
     },
   },
 };
+export const voicePartialTranscriptionSchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["partialTranscript", "isUseful", "confidence"],
+  properties: {
+    partialTranscript: { type: "STRING" },
+    isUseful: { type: "BOOLEAN" },
+    confidence: {
+      type: "STRING",
+      enum: ["low", "medium", "high"],
+    },
+  },
+};

@@ -12,6 +12,7 @@ export function buildFeedbackPrompt(state: SimulationState): string {
             pitch: message.voiceMetrics.pitchLevel,
             pace: message.voiceMetrics.paceLevel,
             pauses: message.voiceMetrics.pausePattern,
+            clarity: message.voiceMetrics.clarityLevel,
             toneEstimate: message.voiceMetrics.toneEstimate,
             confidence: message.voiceMetrics.confidence,
           },

@@ -13,9 +13,9 @@ This is not a medical diagnosis tool. It is only for communication training and 
 - Tailwind CSS
 - Gemini API through Next.js API routes
 - Browser `localStorage` for the current simulation session
-- Browser Web Speech API for optional trainee voice input
+- Gemini speech-to-text through Next.js API routes for scenario and trainee voice input
 - Gemini TTS for patient, family, nurse, and narrator voice output through `/api/gemini-tts`
-- Browser Web Audio API for approximate voice delivery estimates
+- Gemini-derived voice delivery estimates from uploaded audio
 
 ## Local Setup
 
@@ -77,13 +77,13 @@ The API key is only read in server API routes such as `src/app/api/gemini/route.
 2. Start the simulation and turn on **Voice Simulation Mode**.
 3. Use **Read latest patient message** to confirm Gemini TTS plays the current patient, family, nurse, or narrator message.
 4. Turn on **Auto-read patient messages** if you want new AI scenario turns to play automatically.
-5. Type a response, or use **Start speaking** to capture speech with browser speech recognition.
-6. Stop recording or let mobile speech recognition stop after silence, then review and edit the transcript before sending.
+5. Type a response, or use **Start speaking** to record audio for Gemini live captions and transcription.
+6. Stop recording, wait for Gemini to finalize the transcript, then review and edit before sending.
 7. Check the estimated voice delivery pattern when available.
 8. Continue for a few turns, then use **Generate Feedback**.
 9. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
 
-Text input should always work. Voice input uses browser speech recognition and depends on microphone permission and browser support. Patient, family, nurse, and narrator voice output uses Gemini TTS through `/api/gemini-tts`, with the API key kept server-side. On mobile browsers, voice capture may stop automatically after silence; the app keeps the transcript visible so testers can review, edit, and send it manually.
+Text input should always work. Voice input uses browser MediaRecorder only to capture microphone audio, then Gemini handles live captions, final transcription, and voice delivery estimates through server API routes. Patient, family, nurse, and narrator voice output uses Gemini TTS through `/api/gemini-tts`, with the API key kept server-side. The transcript remains editable and must be sent manually.
 
 ## Demo Testing Scenarios
 
@@ -150,14 +150,14 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 
 ## Voice Prototype Notes
 
-- Voice input uses the browser Web Speech API.
+- Voice input uses MediaRecorder for microphone capture and Gemini for live captions and final transcription.
 - Patient, family, nurse, and narrator playback uses Gemini TTS through `/api/gemini-tts`.
 - The Gemini API key stays server-side and is not sent to the browser.
-- Voice tone analysis uses the browser Web Audio API and simple heuristics.
-- Tone detection is approximate and intended only for communication training feedback.
-- Browser support varies. Chrome and Edge generally provide the best Web Speech support.
-- Mobile speech recognition may auto-stop after a pause; this is expected browser behavior, and text input remains the fallback.
-- When recording stops automatically, the transcript remains editable and must be sent manually.
+- Voice delivery estimates come from Gemini audio transcription output.
+- Tone, pace, clarity, and confidence estimates are approximate and intended only for communication training feedback.
+- Browser support depends on microphone permission and MediaRecorder support.
+- If Gemini cannot transcribe audio, users can retry or type; text input remains the fallback.
+- When recording stops, the transcript remains editable and must be sent manually.
 - Generated TTS audio is played in the browser and is not saved as a file by the app.
 
 ## Future Roadmap
@@ -190,9 +190,8 @@ src/
     scenario/
     simulation/
   hooks/
-    useSpeechToText.ts
+    useGeminiVoiceRecorder.ts
     useTextToSpeech.ts
-    useVoiceCapture.ts
   lib/
     ai/
     export/
