@@ -7,6 +7,7 @@ import {
 import {
   callGeminiJson,
   buildModelList,
+  isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
 import { buildFeedbackPrompt } from "@/lib/prompts/feedbackPrompt";
@@ -29,13 +30,18 @@ type GeminiRequest =
     }
   | { action: "feedback"; payload: { state: SimulationState } };
 
-const SCENARIO_MODELS = buildModelList(process.env.GEMINI_SCENARIO_MODEL || "gemini-3.5-flash", []);
-const SIMULATION_MODELS = buildModelList(process.env.GEMINI_SIMULATION_MODEL || "gemini-2.5-flash", [
-  "gemini-2.5-flash-lite",
-  "gemini-3.5-flash",
-]);
-const FEEDBACK_MODELS = buildModelList(process.env.GEMINI_FEEDBACK_MODEL || "gemini-3.5-flash", [
+const SCENARIO_TIMEOUT_MS = 22_000;
+const NEXT_TURN_TIMEOUT_MS = 16_000;
+const FEEDBACK_TIMEOUT_MS = 22_000;
+
+const SCENARIO_MODELS = buildModelList(process.env.GEMINI_SCENARIO_MODEL || "gemini-2.5-flash-lite", [
   "gemini-2.5-flash",
+]);
+const SIMULATION_MODELS = buildModelList(process.env.GEMINI_SIMULATION_MODEL || "gemini-2.5-flash-lite", [
+  "gemini-2.5-flash",
+]);
+const FEEDBACK_MODELS = buildModelList(process.env.GEMINI_FEEDBACK_MODEL || "gemini-2.5-flash", [
+  "gemini-2.5-flash-lite",
 ]);
 
 function errorResponse(message: string, status = 400) {
@@ -255,7 +261,7 @@ async function generateScenario(input: string): Promise<Scenario> {
     models: SCENARIO_MODELS,
     temperature: 0.25,
     maxOutputTokens: 1000,
-    timeoutMs: 25000,
+    timeoutMs: SCENARIO_TIMEOUT_MS,
     schema: scenarioSchema,
   });
 
@@ -282,7 +288,7 @@ async function generateTurn(
     models: SIMULATION_MODELS,
     temperature: 0.35,
     maxOutputTokens: 350,
-    timeoutMs: 15000,
+    timeoutMs: NEXT_TURN_TIMEOUT_MS,
     schema: nextSimulationTurnSchema,
     retryInvalidJson: !roleCorrection,
   });
@@ -298,7 +304,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
     models: FEEDBACK_MODELS,
     temperature: 0.25,
     maxOutputTokens: 2200,
-    timeoutMs: 45000,
+    timeoutMs: FEEDBACK_TIMEOUT_MS,
     schema: feedbackReportSchema,
   });
 
@@ -373,9 +379,18 @@ export async function POST(request: Request) {
 
     return errorResponse("Unsupported Gemini action.");
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "The AI request failed. Please try again.";
+    if (error instanceof SyntaxError) {
+      return errorResponse("Request body must be valid JSON.");
+    }
 
-    return errorResponse(message, message.includes("GEMINI_API_KEY") ? 500 : 502);
+    if (isGeminiCapacityError(error)) {
+      return errorResponse(error.message, 503);
+    }
+
+    if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
+      return errorResponse("GEMINI_API_KEY is not configured.", 500);
+    }
+
+    return errorResponse("The AI request failed. Please try again.", 502);
   }
 }

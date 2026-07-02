@@ -7,6 +7,15 @@ export class InvalidJsonResponseError extends Error {
   }
 }
 
+export class GeminiCapacityError extends Error {
+  status = 503;
+
+  constructor(message = "The simulator is busy right now - please retry in a moment.") {
+    super(message);
+    this.name = "GeminiCapacityError";
+  }
+}
+
 export type GeminiServerAction = "scenario" | "nextTurn" | "feedback" | "transcription" | "tts";
 
 export type GeminiContentPart =
@@ -48,12 +57,49 @@ export type GeminiHttpError = Error & {
   model?: string;
 };
 
+const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
+const TRANSIENT_MESSAGE_PATTERNS = ["overloaded", "high demand", "unavailable"];
+const FALLBACK_ELIGIBLE_MESSAGE_PATTERNS = [
+  "not found",
+  "not supported",
+  "unsupported",
+  "not enabled",
+  "not available",
+  "modality",
+  "responsemodalities",
+  "response modality",
+  "responsemime",
+  "response mime",
+  "responseschema",
+  "response schema",
+  "schema",
+];
+const DEFAULT_MAX_SAME_MODEL_RETRIES = 3;
+const DEFAULT_RETRY_BASE_MS = 800;
+const RETRY_JITTER_MS = 400;
+const MODEL_COOLDOWN_MS = 30_000;
+const modelCooldowns = new Map<string, number>();
+
 export function isInvalidJsonResponse(error: unknown): error is InvalidJsonResponseError {
   return error instanceof InvalidJsonResponseError;
 }
 
+export function isGeminiCapacityError(error: unknown): error is GeminiCapacityError {
+  return error instanceof GeminiCapacityError;
+}
+
 export function isRetryableGeminiStatus(status?: number): boolean {
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status !== undefined && TRANSIENT_STATUSES.has(status);
+}
+
+export function isTransientGeminiError(error: unknown): boolean {
+  const geminiError = error as GeminiHttpError;
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    isRetryableGeminiStatus(geminiError.status) ||
+    TRANSIENT_MESSAGE_PATTERNS.some((pattern) => message.includes(pattern))
+  );
 }
 
 export function uniqueModels(models: Array<string | undefined>): string[] {
@@ -116,6 +162,64 @@ export async function sleep(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getRetryConfig(): { maxSameModelRetries: number; baseDelayMs: number } {
+  return {
+    maxSameModelRetries: parsePositiveInteger(
+      process.env.AI_MAX_RETRIES,
+      DEFAULT_MAX_SAME_MODEL_RETRIES,
+    ),
+    baseDelayMs: parsePositiveInteger(process.env.AI_RETRY_BASE_MS, DEFAULT_RETRY_BASE_MS),
+  };
+}
+
+function getRetryDelayMs(attempt: number, baseDelayMs: number): number {
+  return baseDelayMs * 2 ** (attempt - 1) + Math.floor(Math.random() * (RETRY_JITTER_MS + 1));
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "";
+}
+
+function markModelSuccess(model: string): void {
+  modelCooldowns.delete(model);
+}
+
+function markSoftFailure(model: string): void {
+  modelCooldowns.set(model, Date.now() + MODEL_COOLDOWN_MS);
+}
+
+function selectAttemptModels(models: string[]): string[] {
+  const unique = uniqueModels(models);
+  const now = Date.now();
+  const available = unique.filter((model) => (modelCooldowns.get(model) || 0) <= now);
+
+  return available.length ? available : unique;
+}
+
+function isFallbackEligibleGeminiError(error: unknown): boolean {
+  const geminiError = error as GeminiHttpError;
+  const message = getErrorMessage(error).toLowerCase();
+
+  if (geminiError.status === 404 || geminiError.status === 501) {
+    return true;
+  }
+
+  if (geminiError.status !== 400 && geminiError.status !== 422) {
+    return false;
+  }
+
+  return FALLBACK_ELIGIBLE_MESSAGE_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
 async function parseGeminiError(response: Response): Promise<string> {
@@ -212,49 +316,93 @@ async function callGeminiModel(
   }
 }
 
+async function callModelWithTransientRetries(
+  options: GeminiCallOptions,
+  model: string,
+  promptOverride?: string,
+): Promise<unknown> {
+  const { maxSameModelRetries, baseDelayMs } = getRetryConfig();
+
+  for (let attempt = 1; attempt <= maxSameModelRetries; attempt += 1) {
+    try {
+      return await callGeminiModel(options, model, promptOverride);
+    } catch (error) {
+      if (!isTransientGeminiError(error) || attempt === maxSameModelRetries) {
+        throw error;
+      }
+
+      await sleep(getRetryDelayMs(attempt, baseDelayMs));
+    }
+  }
+
+  throw new Error(`Gemini ${options.action} request failed on ${model}.`);
+}
+
 export async function callGeminiJson(options: GeminiCallOptions): Promise<unknown> {
-  const models = uniqueModels(options.models);
+  const models = selectAttemptModels(options.models);
   const errors: string[] = [];
   let sawInvalidJson = false;
+  let sawCapacityError = false;
+  let lastError: unknown;
 
-  for (const [index, model] of models.entries()) {
+  for (const model of models) {
     try {
-      return await callGeminiModel(options, model);
+      const result = await callModelWithTransientRetries(options, model);
+      markModelSuccess(model);
+      return result;
     } catch (error) {
-      const geminiError = error as GeminiHttpError;
-      errors.push(geminiError.message);
+      lastError = error;
+      errors.push(getErrorMessage(error));
 
       if (isInvalidJsonResponse(error)) {
         sawInvalidJson = true;
 
         if (options.retryInvalidJson !== false) {
           try {
-            return await callGeminiModel(options, model, buildStrictJsonRetryPrompt(options.prompt));
+            const result = await callModelWithTransientRetries(
+              options,
+              model,
+              buildStrictJsonRetryPrompt(options.prompt),
+            );
+            markModelSuccess(model);
+            return result;
           } catch (retryError) {
-            const retryGeminiError = retryError as GeminiHttpError;
-            errors.push(retryGeminiError.message);
+            lastError = retryError;
+            errors.push(getErrorMessage(retryError));
 
             if (isInvalidJsonResponse(retryError)) {
               sawInvalidJson = true;
               continue;
             }
 
-            if (!isRetryableGeminiStatus(retryGeminiError.status)) {
-              throw retryError;
+            if (isTransientGeminiError(retryError)) {
+              sawCapacityError = true;
+              markSoftFailure(model);
+              continue;
             }
+
+            if (isFallbackEligibleGeminiError(retryError)) {
+              continue;
+            }
+
+            throw retryError;
           }
         }
 
         continue;
       }
 
-      if (!isRetryableGeminiStatus(geminiError.status)) {
-        throw error;
+      if (isTransientGeminiError(error)) {
+        sawCapacityError = true;
+        markSoftFailure(model);
+        continue;
       }
 
-      if (index < models.length - 1) {
-        await sleep(250 * 2 ** index);
+      if (isFallbackEligibleGeminiError(error)) {
+        continue;
       }
+
+      throw error;
     }
   }
 
@@ -264,9 +412,13 @@ export async function callGeminiJson(options: GeminiCallOptions): Promise<unknow
     );
   }
 
-  throw new Error(
-    `All Gemini ${options.action} models are currently unavailable. Last error: ${
-      errors.at(-1) || "unknown error"
-    }`,
-  );
+  if (sawCapacityError) {
+    throw new GeminiCapacityError();
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error(`Gemini ${options.action} request failed. Last error: ${errors.at(-1) || "unknown error"}`);
 }

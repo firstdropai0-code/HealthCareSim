@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  isRetryableGeminiStatus,
+  GeminiCapacityError,
+  isTransientGeminiError,
   parseCommaSeparatedModels,
   sleep,
   uniqueModels,
@@ -13,7 +14,10 @@ const DEFAULT_TTS_MODEL = "gemini-3.1-flash-tts-preview";
 const DEFAULT_TTS_FALLBACK_MODEL = "gemini-2.5-flash-preview-tts";
 const DEFAULT_VOICE = "Kore";
 const MAX_TEXT_LENGTH = 1500;
-const TTS_TIMEOUT_MS = 25000;
+const TTS_TIMEOUT_MS = 15_000;
+const DEFAULT_TTS_MAX_SAME_MODEL_RETRIES = 3;
+const DEFAULT_TTS_RETRY_BASE_MS = 800;
+const TTS_RETRY_JITTER_MS = 400;
 const WAV_SAMPLE_RATE = 24000;
 const WAV_CHANNELS = 1;
 const WAV_BITS_PER_SAMPLE = 16;
@@ -67,6 +71,29 @@ type GeminiTtsError = Error & {
 
 function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getTtsRetryConfig(): { maxSameModelRetries: number; baseDelayMs: number } {
+  return {
+    maxSameModelRetries: parsePositiveInteger(
+      process.env.AI_MAX_RETRIES,
+      DEFAULT_TTS_MAX_SAME_MODEL_RETRIES,
+    ),
+    baseDelayMs: parsePositiveInteger(process.env.AI_RETRY_BASE_MS, DEFAULT_TTS_RETRY_BASE_MS),
+  };
+}
+
+function getTtsRetryDelayMs(attempt: number, baseDelayMs: number): number {
+  return baseDelayMs * 2 ** (attempt - 1) + Math.floor(Math.random() * (TTS_RETRY_JITTER_MS + 1));
 }
 
 function sanitizeText(value: unknown): string | null {
@@ -285,28 +312,42 @@ async function generateTtsAudio(
     DEFAULT_TTS_FALLBACK_MODEL,
   ]);
   const errors: string[] = [];
+  let sawCapacityError = false;
+  const { maxSameModelRetries, baseDelayMs } = getTtsRetryConfig();
 
-  for (const [index, model] of models.entries()) {
-    try {
-      const audio = await fetchTtsFromModel(model, apiKey, text, voiceName, body);
+  for (const model of models) {
+    for (let attempt = 1; attempt <= maxSameModelRetries; attempt += 1) {
+      try {
+        const audio = await fetchTtsFromModel(model, apiKey, text, voiceName, body);
 
-      if (audio.base64Audio) {
-        return audio;
+        if (audio.base64Audio) {
+          return audio;
+        }
+
+        errors.push(`Gemini TTS response from ${model} did not include audio.`);
+        break;
+      } catch (error) {
+        const ttsError = error as GeminiTtsError;
+        errors.push(ttsError.message);
+
+        if (!isTransientGeminiError(error)) {
+          throw error;
+        }
+
+        if (attempt < maxSameModelRetries) {
+          await sleep(getTtsRetryDelayMs(attempt, baseDelayMs));
+          continue;
+        }
+
+        sawCapacityError = true;
       }
 
-      errors.push(`Gemini TTS response from ${model} did not include audio.`);
-    } catch (error) {
-      const ttsError = error as GeminiTtsError;
-      errors.push(ttsError.message);
-
-      if (!isRetryableGeminiStatus(ttsError.status)) {
-        throw error;
-      }
+      break;
     }
+  }
 
-    if (index < models.length - 1) {
-      await sleep(250 * 2 ** index);
-    }
+  if (sawCapacityError) {
+    throw new GeminiCapacityError();
   }
 
   throw new Error(errors.at(-1) || "Gemini TTS response did not include audio.");
@@ -347,13 +388,18 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof SyntaxError
-        ? "Request body must be valid JSON."
-        : error instanceof Error
-          ? error.message
-          : "Gemini TTS failed. Please try again.";
+    if (error instanceof SyntaxError) {
+      return jsonError("Request body must be valid JSON.");
+    }
 
-    return jsonError(message, message.includes("GEMINI_API_KEY") ? 500 : 502);
+    if (error instanceof GeminiCapacityError) {
+      return jsonError(error.message, 503);
+    }
+
+    if (error instanceof Error && error.message.includes("GEMINI_API_KEY")) {
+      return jsonError("GEMINI_API_KEY is not configured.", 500);
+    }
+
+    return jsonError("Gemini TTS failed. Please try again.", 502);
   }
 }
