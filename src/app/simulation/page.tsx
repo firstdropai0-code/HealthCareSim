@@ -98,21 +98,21 @@ function VoiceDeliverySummary({ metrics }: { metrics: VoiceMetrics }) {
         ]}
       />
       {metrics.confidence === "low" ? (
-        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-indigo-900">
+        <p className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-semibold text-indigo-900">
           Low confidence estimate. Use the transcript first.
         </p>
       ) : null}
       <details className="mt-3">
-        <summary className="cursor-pointer text-xs font-semibold uppercase text-slate-500 hover:text-slate-800">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]">
           View voice details
         </summary>
-        <div className="mt-3 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+        <div className="mt-3 grid gap-2 text-xs text-[var(--color-ink-muted)] sm:grid-cols-2">
           <span>Pitch: {formatVoiceLabel(metrics.pitchLevel)}</span>
           <span>Pauses: {formatVoiceLabel(metrics.pausePattern)}</span>
           {metrics.raw?.wordsPerMinute ? <span>WPM: {Math.round(metrics.raw.wordsPerMinute)}</span> : null}
           {metrics.raw?.durationSeconds ? <span>Duration: {Math.round(metrics.raw.durationSeconds)}s</span> : null}
         </div>
-        <p className="mt-3 text-xs leading-5 text-slate-500">
+        <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
           Gemini estimate from transcribed audio. Audio is uploaded only for immediate transcription and is not stored.
         </p>
       </details>
@@ -375,14 +375,14 @@ export default function SimulationPage() {
   if (!state) {
     return (
       <AppShell>
-        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-950">No active simulation</h1>
-          <p className="mt-3 text-sm text-slate-600">
+        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
+          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">No active simulation</h1>
+          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">
             Create a structured scenario before entering the simulation room.
           </p>
           <Link
             href="/scenario"
-            className="mt-6 inline-flex rounded-lg bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900"
+            className="mt-6 inline-flex min-h-11 items-center rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)]"
           >
             Create scenario
           </Link>
@@ -419,15 +419,15 @@ export default function SimulationPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5">
-        <div className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
-          <div className="grid gap-4 bg-emerald-950 p-5 text-white lg:grid-cols-[1fr_300px] lg:items-center">
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
+          <div className="grid gap-5 bg-[var(--color-primary-ink)] p-5 text-white lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center sm:p-6">
             <div>
-              <p className="text-xs font-semibold uppercase text-emerald-200">Simulation room</p>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Simulation room</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
                 {state.scenario.title}
               </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-50">
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-teal-50">
                 {state.scenario.summary}
               </p>
             </div>
@@ -441,13 +441,13 @@ export default function SimulationPage() {
           </div>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-5">
-            <section className="min-h-[420px] rounded-lg border border-emerald-900/10 bg-slate-50 p-4 shadow-sm md:p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="space-y-6">
+            <section className="min-h-[440px] rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 shadow-[var(--shadow-card)] md:p-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Live roleplay</p>
-                  <h2 className="text-lg font-semibold text-slate-950">Conversation</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Live roleplay</p>
+                  <h2 className="text-lg font-semibold text-[var(--color-ink)]">Conversation</h2>
                 </div>
                 <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
               </div>
@@ -461,20 +461,20 @@ export default function SimulationPage() {
             </section>
 
             {!completed ? (
-              <section className="rounded-lg border border-emerald-900/10 bg-white p-4 shadow-sm md:p-5">
+              <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] md:p-5">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                   <div>
                     <label
                       htmlFor="trainee-response"
-                      className="text-sm font-semibold text-slate-900"
+                      className="text-sm font-semibold text-[var(--color-ink)]"
                     >
                       Your next response
                     </label>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
                       Keep it clear: acknowledge, explain, confirm.
                     </p>
                   </div>
-                  <p className="text-xs font-medium text-slate-500">
+                  <p className="text-xs font-medium text-[var(--color-ink-soft)]">
                     {response.trim().length} characters
                   </p>
                 </div>
@@ -490,7 +490,7 @@ export default function SimulationPage() {
                     }
                   }}
                   placeholder="Type what the trainee says or does next."
-                  className="mt-3 w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-900 outline-none transition focus:border-emerald-700 focus:ring-4 focus:ring-emerald-100"
+                  className="mt-3 w-full resize-y rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-4 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-teal-100"
                 />
 
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -500,31 +500,31 @@ export default function SimulationPage() {
                 </div>
 
                 {geminiVoice.liveTranscript ? (
-                  <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-950">
+                  <div className="mt-3 rounded-2xl border border-teal-200 bg-[var(--color-primary-soft)] px-3 py-2 text-xs leading-5 text-[var(--color-primary-ink)]">
                     <span className="font-semibold">Gemini live captions:</span> {geminiVoice.liveTranscript}
                   </div>
                 ) : null}
                 <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_320px]">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
-                    <span className="font-semibold text-slate-900">{voiceModeStatus}</span>
+                  <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-muted)] px-3 py-3 text-sm text-[var(--color-ink-muted)]">
+                    <span className="font-semibold text-[var(--color-ink)]">{voiceModeStatus}</span>
                   </div>
                   <div className="grid gap-2">
-                    <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                    <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-sm">
                       <input
                         type="checkbox"
                         checked={voiceModeEnabled}
                         onChange={(event) => setVoiceModeEnabled(event.target.checked)}
-                        className="h-4 w-4 accent-emerald-700"
+                        className="h-4 w-4 accent-[var(--color-primary)]"
                       />
                       Voice Simulation Mode
                     </label>
-                    <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                    <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-sm">
                       <input
                         type="checkbox"
                         checked={autoReadScenario}
                         disabled={!voiceModeEnabled}
                         onChange={(event) => setAutoReadScenario(event.target.checked)}
-                        className="h-4 w-4 accent-emerald-700 disabled:accent-slate-300"
+                        className="h-4 w-4 accent-[var(--color-primary)] disabled:accent-slate-300"
                       />
                       Auto-read patient messages
                     </label>
@@ -536,7 +536,7 @@ export default function SimulationPage() {
                     type="button"
                     disabled={!voiceModeEnabled || !latestScenarioMessage || loading}
                     onClick={() => handleReadLatestScenarioMessage(latestScenarioMessage)}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:shadow-none"
                   >
                     Read latest patient message
                   </button>
@@ -544,7 +544,7 @@ export default function SimulationPage() {
                     type="button"
                     disabled={!voiceModeEnabled || !geminiVoice.supported || geminiVoice.isRecording || geminiVoice.isTranscribing || loading}
                     onClick={handleStartVoiceCapture}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:shadow-none"
                   >
                     Start speaking
                   </button>
@@ -552,7 +552,7 @@ export default function SimulationPage() {
                     type="button"
                     disabled={!geminiVoice.isRecording}
                     onClick={handleStopVoiceCapture}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)] disabled:translate-y-0 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:shadow-none"
                   >
                     Stop speaking
                   </button>
@@ -560,7 +560,7 @@ export default function SimulationPage() {
                     type="button"
                     disabled={voicePlaybackStatus !== "speaking"}
                     onClick={handleStopSpeech}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-500 hover:text-rose-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-rose-500 hover:text-rose-700 disabled:translate-y-0 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:shadow-none"
                   >
                     Cancel audio
                   </button>
@@ -573,18 +573,18 @@ export default function SimulationPage() {
                 ) : null}
 
                 {geminiVoice.error ? (
-                  <p className="mt-2 text-sm text-rose-700">{geminiVoice.error}</p>
+                  <p className="mt-2 rounded-2xl bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">{geminiVoice.error}</p>
                 ) : null}
                 {voicePlaybackError ? (
-                  <p className="mt-2 text-sm text-rose-700">{voicePlaybackError}</p>
+                  <p className="mt-2 rounded-2xl bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">{voicePlaybackError}</p>
                 ) : null}
                 {error ? (
-                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                  <div className="mt-3 rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
                     {error}
                     <button
                       type="button"
                       onClick={handleSend}
-                        disabled={!response.trim() || loading || geminiVoice.isTranscribing}
+                      disabled={!response.trim() || loading || geminiVoice.isTranscribing}
                       className="ml-3 font-semibold underline disabled:text-rose-300"
                     >
                       Retry
@@ -617,18 +617,18 @@ export default function SimulationPage() {
             )}
           </div>
 
-          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
             <InfoCard label="Training brief" title={state.scenario.setting} tone="slate">
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-emerald-700">Goal</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary-strong)]">Goal</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
                     {state.scenario.traineeObjective}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase text-amber-700">Challenge</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Challenge</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
                     {state.scenario.communicationChallenge}
                   </p>
                 </div>
@@ -642,11 +642,11 @@ export default function SimulationPage() {
             <InfoCard label="Response cues" title="Use this pattern" tone="emerald">
               <div className="grid gap-2">
                 {coachCues.map((cue, index) => (
-                  <div key={cue} className="flex items-center gap-3 rounded-lg bg-emerald-50 px-3 py-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-emerald-800 shadow-sm">
+                  <div key={cue} className="flex items-center gap-3 rounded-2xl bg-[var(--color-primary-soft)] px-3 py-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-[var(--color-primary-ink)] shadow-sm">
                       {index + 1}
                     </span>
-                    <span className="text-sm font-medium text-slate-700">{cue}</span>
+                    <span className="text-sm font-medium text-[var(--color-ink)]">{cue}</span>
                   </div>
                 ))}
               </div>
@@ -656,13 +656,13 @@ export default function SimulationPage() {
           </aside>
         </div>
 
-        <div className="sticky bottom-4 z-10 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+        <div className="sticky bottom-4 z-10 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[rgba(255,255,255,0.92)] p-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-950">
+              <p className="text-sm font-semibold text-[var(--color-ink)]">
                 {completed ? "Simulation completed" : "Wrap up when ready"}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[var(--color-ink-soft)]">
                 {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
               </p>
             </div>
@@ -672,14 +672,14 @@ export default function SimulationPage() {
                   <button
                     type="button"
                     onClick={handleEndSimulation}
-                    className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-400 hover:text-rose-700"
+                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
                   >
                     End Simulation
                   </button>
                   <button
                     type="button"
                     onClick={handleFinishAndGenerateFeedback}
-                    className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                    className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
                   >
                     Finish & Generate Feedback
                   </button>
@@ -688,7 +688,7 @@ export default function SimulationPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/feedback")}
-                  className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                  className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
                 >
                   View Feedback
                 </button>
@@ -696,7 +696,7 @@ export default function SimulationPage() {
                 <button
                   type="button"
                   onClick={handleGenerateFeedback}
-                  className="min-h-11 rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                  className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
                 >
                   Generate Feedback
                 </button>
