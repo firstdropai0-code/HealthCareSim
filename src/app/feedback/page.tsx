@@ -109,9 +109,9 @@ export default function FeedbackPage() {
   if (!hasLoaded) {
     return (
       <AppShell>
-        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-950">Loading feedback</h1>
-          <p className="mt-3 text-sm text-slate-600">Preparing the feedback page.</p>
+        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
+          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">Loading feedback</h1>
+          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Preparing the feedback page.</p>
         </section>
       </AppShell>
     );
@@ -120,14 +120,14 @@ export default function FeedbackPage() {
   if (!state) {
     return (
       <AppShell>
-        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-950">No simulation to review</h1>
-          <p className="mt-3 text-sm text-slate-600">
+        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
+          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">No simulation to review</h1>
+          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">
             Run a simulation before generating a feedback report.
           </p>
           <Link
             href="/scenario"
-            className="mt-6 inline-flex rounded-lg bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900"
+            className="mt-6 inline-flex min-h-11 items-center rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)]"
           >
             Create scenario
           </Link>
@@ -140,19 +140,19 @@ export default function FeedbackPage() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <p className="text-sm font-semibold uppercase text-emerald-700">
+          <p className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
             Feedback report
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
             {state.scenario.title}
           </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
             Feedback is limited to communication behaviors and training performance.
           </p>
         </div>
         <SafetyNotice />
         {error ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <div className="rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
             {error}
             <button
               type="button"
@@ -165,21 +165,21 @@ export default function FeedbackPage() {
           </div>
         ) : null}
         {loading ? (
-          <section className="rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-950">
+          <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)]">
+            <h2 className="text-xl font-semibold text-[var(--color-ink)]">
               Generating AI feedback...
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
               The report will focus on communication, empathy, clarity, and pressure handling.
             </p>
           </section>
         ) : !report ? (
-          <section className="grid gap-5 rounded-lg border border-emerald-900/10 bg-white p-6 shadow-sm lg:grid-cols-[1fr_320px]">
+          <section className="grid gap-5 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)] lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">
+              <h2 className="text-xl font-semibold text-[var(--color-ink)]">
                 Ready to generate AI feedback
               </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
                 The report is formatted as a quick dashboard first, with detailed notes
                 available underneath.
               </p>
@@ -192,14 +192,14 @@ export default function FeedbackPage() {
                 Generate Feedback
               </LoadingButton>
             </div>
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase text-slate-500">
+            <div className="rounded-2xl bg-[var(--color-surface-muted)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
                 Report sections
               </p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              <div className="mt-3 grid gap-2 text-sm text-[var(--color-ink-muted)]">
                 {["Score", "Quick read", "Strengths", "Improve next", "Practice responses"].map(
                   (section) => (
-                    <div key={section} className="rounded-md bg-white px-3 py-2">
+                    <div key={section} className="rounded-2xl bg-white px-3 py-2 shadow-sm">
                       {section}
                     </div>
                   ),
@@ -214,14 +214,14 @@ export default function FeedbackPage() {
               <button
                 type="button"
                 onClick={() => exportFeedback(state, report)}
-                className="rounded-lg bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-900"
+                className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
               >
                 Export feedback as .txt
               </button>
               <button
                 type="button"
                 onClick={handleRestart}
-                className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-600 hover:text-emerald-800"
+                className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)]"
               >
                 Restart
               </button>

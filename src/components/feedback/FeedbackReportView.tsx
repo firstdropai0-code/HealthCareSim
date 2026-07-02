@@ -37,19 +37,19 @@ function FeedbackItemGrid({
     <InfoCard label={label} title={`${items.length} notes`} tone={tone}>
       <div className="grid gap-2">
         {visibleItems.map((item) => (
-          <div key={item} className="rounded-lg bg-slate-50 px-3 py-2 text-slate-800">
+          <div key={item} className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]">
             <ReadMoreText text={item} maxLength={115} />
           </div>
         ))}
       </div>
       {hiddenItems.length > 0 ? (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-semibold uppercase text-slate-500 hover:text-slate-800">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]">
             Show {hiddenItems.length} more
           </summary>
           <div className="mt-2 grid gap-2">
             {hiddenItems.map((item) => (
-              <div key={item} className="rounded-lg bg-slate-50 px-3 py-2 text-slate-800">
+              <div key={item} className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]">
                 <ReadMoreText text={item} maxLength={115} />
               </div>
             ))}
@@ -72,11 +72,11 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
   return (
     <div className="space-y-5">
       {report.source === "fallback" ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+        <div className="rounded-2xl border border-amber-200 bg-[var(--color-warning-soft)] px-4 py-3 text-sm font-semibold text-amber-950">
           {report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}
         </div>
       ) : null}
-      <section className="grid gap-5 rounded-lg border border-emerald-900/10 bg-white p-4 shadow-sm lg:grid-cols-[240px_1fr] lg:p-5">
+      <section className="grid gap-5 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] lg:grid-cols-[240px_1fr] lg:p-5">
         <ScoreCard score={score} label={scoreLabel(score)} />
 
         <div className="space-y-4">
@@ -103,7 +103,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
       <InfoCard label="Example" title="Better response examples" tone="blue">
         <div className="grid gap-3 md:grid-cols-2">
           {report.betterResponses.map((item) => (
-            <blockquote key={item} className="rounded-lg bg-blue-50 px-3 py-3 text-blue-950">
+            <blockquote key={item} className="rounded-2xl bg-[var(--color-info-soft)] px-3 py-3 text-blue-950">
               <ReadMoreText text={item} maxLength={140} />
             </blockquote>
           ))}
@@ -116,7 +116,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
             <MetricChip label="Estimate only" tone="indigo" />
             <MetricChip label="Training guidance" tone="blue" />
           </div>
-          <div className="mt-3 rounded-lg bg-indigo-50 px-3 py-3 text-indigo-950">
+          <div className="mt-3 rounded-2xl bg-indigo-50 px-3 py-3 text-indigo-950">
             <ReadMoreText text={voiceFeedback.summary} maxLength={145} />
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
