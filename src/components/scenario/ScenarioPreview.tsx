@@ -22,15 +22,15 @@ const compactBriefCards = [
 export function ScenarioPreview({ scenario }: { scenario: Scenario }) {
   return (
     <section className="space-y-4">
-      <div className="overflow-hidden rounded-lg border border-emerald-900/10 bg-white shadow-sm">
-        <div className="bg-emerald-950 px-5 py-5 text-white md:px-6">
-          <p className="text-xs font-semibold uppercase text-emerald-200">Scenario brief</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight">{scenario.title}</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
+      <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
+        <div className="bg-[var(--color-primary-ink)] px-5 py-5 text-white md:px-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Scenario brief</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{scenario.title}</h2>
+          <div className="mt-4 flex flex-wrap gap-2">
             <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
             <MetricChip label="Turns" value={`${scenario.suggestedTurns}`} tone="blue" />
           </div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-emerald-50">
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-teal-50">
             {scenario.summary}
           </p>
         </div>
@@ -64,17 +64,17 @@ export function ScenarioPreview({ scenario }: { scenario: Scenario }) {
 
       <CollapsibleSection title="View full scenario details" tone="slate">
         <dl className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg bg-slate-50 p-3">
-            <dt className="text-xs font-semibold uppercase text-slate-500">Setting</dt>
-            <dd className="mt-1 text-sm text-slate-800">{scenario.setting}</dd>
+          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3">
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Setting</dt>
+            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.setting}</dd>
           </div>
-          <div className="rounded-lg bg-slate-50 p-3">
-            <dt className="text-xs font-semibold uppercase text-slate-500">Ending condition</dt>
-            <dd className="mt-1 text-sm text-slate-800">{scenario.endingCondition}</dd>
+          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3">
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Ending condition</dt>
+            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.endingCondition}</dd>
           </div>
-          <div className="rounded-lg bg-slate-50 p-3 md:col-span-2">
-            <dt className="text-xs font-semibold uppercase text-slate-500">Full starting situation</dt>
-            <dd className="mt-1 text-sm text-slate-800">{scenario.startingSituation}</dd>
+          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3 md:col-span-2">
+            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Full starting situation</dt>
+            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.startingSituation}</dd>
           </div>
         </dl>
       </CollapsibleSection>
