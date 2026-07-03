@@ -1,40 +1,19 @@
 import type { SimulationState } from "@/types/simulation";
-import type { VoiceMetrics } from "@/types/voice";
 
 type SimulationPromptOptions = {
   roleCorrection?: boolean;
   rejectedMessage?: string;
 };
 
-function summarizeVoiceMetrics(metrics?: VoiceMetrics): string {
-  if (!metrics) {
-    return "None provided.";
-  }
-
-  return JSON.stringify({
-    volume: metrics.volumeLevel,
-    pitch: metrics.pitchLevel,
-    pace: metrics.paceLevel,
-    pauses: metrics.pausePattern,
-    clarity: metrics.clarityLevel,
-    toneEstimate: metrics.toneEstimate,
-    confidence: metrics.confidence,
-  });
-}
-
 export function buildSimulationPrompt(
   state: SimulationState,
   traineeResponse: string,
-  voiceMetrics?: VoiceMetrics,
   options?: SimulationPromptOptions,
 ): string {
   const recentMessages = state.messages.slice(-6).map((message) => ({
     role: message.role,
     ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
     content: message.content,
-    ...(message.role === "trainee" && message.voiceMetrics
-      ? { voiceDeliveryEstimate: summarizeVoiceMetrics(message.voiceMetrics) }
-      : {}),
   }));
 
   return `Continue this healthcare communication roleplay scenario.
@@ -55,7 +34,6 @@ Remaining turns: ${Math.max(state.maxTurns - state.currentTurn, 0)}
 Current tension level: ${state.tensionLevel}
 Recent messages: ${JSON.stringify(recentMessages)}
 Latest trainee response: ${traineeResponse}
-Latest voice delivery estimate: ${summarizeVoiceMetrics(voiceMetrics)}
 ${options?.roleCorrection ? `Rejected previous response for speaking like the doctor/trainee: ${options.rejectedMessage || "not provided"}` : ""}
 
 Rules:
@@ -65,12 +43,8 @@ Rules:
 - If speaking as family_member, patient, or bystander, use their concerns, questions, frustration, anxiety, confusion, or requests.
 - If speaking as narrator, describe what happens and ask what the trainee does next.
 - If the trainee response was unclear, the patient/family/narrator should react to that lack of clarity. Do not correct it by speaking as the doctor.
-- Consider both what the trainee said and the estimated delivery pattern.
-- Treat voice delivery as a light communication cue, never as the main reason for the next turn.
-- Do not change tension based on one voice metric alone.
-- Increase tension only if the trainee is dismissive, vague, unclear, or if several medium/high-confidence delivery cues suggest rushed, loud, tense, or frustrated communication.
-- Reduce tension if the trainee is calm, empathetic, transparent, clear, and delivery appears steady.
-- Voice estimates are approximate; low-confidence metrics are weak signals and may be ignored.
+- Increase tension only if the trainee is dismissive, vague, unclear, or escalates the concern.
+- Reduce tension if the trainee is calm, empathetic, transparent, and clear.
 - Ask what the trainee says or does next unless the scenario should end.
 - Do not provide diagnosis, medication, treatment instructions, triage advice, or clinical decision-making advice.
 - Bad response: "I understand you're concerned. I can tell you your parent is stable."

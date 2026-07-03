@@ -16,11 +16,7 @@ export class GeminiCapacityError extends Error {
   }
 }
 
-export type GeminiServerAction = "scenario" | "nextTurn" | "feedback" | "transcription" | "tts";
-
-export type GeminiContentPart =
-  | { text: string }
-  | { inlineData: { mimeType: string; data: string } };
+export type GeminiServerAction = "scenario" | "nextTurn" | "feedback";
 
 type GeminiCallOptions = {
   action: GeminiServerAction;
@@ -30,7 +26,6 @@ type GeminiCallOptions = {
   maxOutputTokens?: number;
   timeoutMs: number;
   schema?: GeminiSchema;
-  parts?: GeminiContentPart[];
   retryInvalidJson?: boolean;
 };
 
@@ -39,14 +34,6 @@ type GeminiGenerateResponse = {
     content?: {
       parts?: Array<{
         text?: string;
-        inlineData?: {
-          data?: string;
-          mimeType?: string;
-        };
-        inline_data?: {
-          data?: string;
-          mime_type?: string;
-        };
       }>;
     };
   }>;
@@ -58,27 +45,9 @@ export type GeminiHttpError = Error & {
 };
 
 const TRANSIENT_STATUSES = new Set([429, 500, 502, 503, 504]);
-const TRANSIENT_MESSAGE_PATTERNS = ["overloaded", "high demand", "unavailable"];
-const FALLBACK_ELIGIBLE_MESSAGE_PATTERNS = [
-  "not found",
-  "not supported",
-  "unsupported",
-  "not enabled",
-  "not available",
-  "modality",
-  "responsemodalities",
-  "response modality",
-  "responsemime",
-  "response mime",
-  "responseschema",
-  "response schema",
-  "schema",
-];
-const DEFAULT_MAX_SAME_MODEL_RETRIES = 3;
+const DEFAULT_MAX_ATTEMPTS = 2;
 const DEFAULT_RETRY_BASE_MS = 800;
 const RETRY_JITTER_MS = 400;
-const MODEL_COOLDOWN_MS = 30_000;
-const modelCooldowns = new Map<string, number>();
 
 export function isInvalidJsonResponse(error: unknown): error is InvalidJsonResponseError {
   return error instanceof InvalidJsonResponseError;
@@ -94,16 +63,8 @@ export function isRetryableGeminiStatus(status?: number): boolean {
 
 export function isTransientGeminiError(error: unknown): boolean {
   const geminiError = error as GeminiHttpError;
-  const message = getErrorMessage(error).toLowerCase();
 
-  return (
-    isRetryableGeminiStatus(geminiError.status) ||
-    TRANSIENT_MESSAGE_PATTERNS.some((pattern) => message.includes(pattern))
-  );
-}
-
-export function uniqueModels(models: Array<string | undefined>): string[] {
-  return Array.from(new Set(models.map((model) => model?.trim()).filter(Boolean) as string[]));
+  return isRetryableGeminiStatus(geminiError.status);
 }
 
 export function extractJson(text: string): unknown {
@@ -141,23 +102,6 @@ Do not use markdown fences, comments, trailing commas, undefined, or explanatory
 Use double quotes for every JSON key and string value.`;
 }
 
-export function buildModelList(
-  primary: string | undefined,
-  fallbackModels: string[],
-  legacyFallback = process.env.GEMINI_MODEL,
-): string[] {
-  return uniqueModels([primary, ...fallbackModels, legacyFallback]);
-}
-
-export function parseCommaSeparatedModels(value: string | undefined): string[] {
-  return value
-    ? value
-        .split(",")
-        .map((model) => model.trim())
-        .filter(Boolean)
-    : [];
-}
-
 export async function sleep(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -173,53 +117,17 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function getRetryConfig(): { maxSameModelRetries: number; baseDelayMs: number } {
+function getRetryConfig(): { maxAttempts: number; baseDelayMs: number } {
+  const configuredAttempts = parsePositiveInteger(process.env.AI_MAX_RETRIES, DEFAULT_MAX_ATTEMPTS);
+
   return {
-    maxSameModelRetries: parsePositiveInteger(
-      process.env.AI_MAX_RETRIES,
-      DEFAULT_MAX_SAME_MODEL_RETRIES,
-    ),
+    maxAttempts: Math.min(configuredAttempts, DEFAULT_MAX_ATTEMPTS),
     baseDelayMs: parsePositiveInteger(process.env.AI_RETRY_BASE_MS, DEFAULT_RETRY_BASE_MS),
   };
 }
 
 function getRetryDelayMs(attempt: number, baseDelayMs: number): number {
   return baseDelayMs * 2 ** (attempt - 1) + Math.floor(Math.random() * (RETRY_JITTER_MS + 1));
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "";
-}
-
-function markModelSuccess(model: string): void {
-  modelCooldowns.delete(model);
-}
-
-function markSoftFailure(model: string): void {
-  modelCooldowns.set(model, Date.now() + MODEL_COOLDOWN_MS);
-}
-
-function selectAttemptModels(models: string[]): string[] {
-  const unique = uniqueModels(models);
-  const now = Date.now();
-  const available = unique.filter((model) => (modelCooldowns.get(model) || 0) <= now);
-
-  return available.length ? available : unique;
-}
-
-function isFallbackEligibleGeminiError(error: unknown): boolean {
-  const geminiError = error as GeminiHttpError;
-  const message = getErrorMessage(error).toLowerCase();
-
-  if (geminiError.status === 404 || geminiError.status === 501) {
-    return true;
-  }
-
-  if (geminiError.status !== 400 && geminiError.status !== 422) {
-    return false;
-  }
-
-  return FALLBACK_ELIGIBLE_MESSAGE_PATTERNS.some((pattern) => message.includes(pattern));
 }
 
 async function parseGeminiError(response: Response): Promise<string> {
@@ -253,11 +161,6 @@ async function callGeminiModel(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const parts = promptOverride
-    ? options.parts?.length
-      ? options.parts.map((part) => ("text" in part ? { text: promptOverride } : part))
-      : [{ text: promptOverride }]
-    : options.parts || [{ text: options.prompt }];
 
   try {
     const response = await fetch(`${endpoint}?key=${apiKey}`, {
@@ -269,7 +172,7 @@ async function callGeminiModel(
         contents: [
           {
             role: "user",
-            parts,
+            parts: [{ text: promptOverride || options.prompt }],
           },
         ],
         generationConfig: {
@@ -321,13 +224,13 @@ async function callModelWithTransientRetries(
   model: string,
   promptOverride?: string,
 ): Promise<unknown> {
-  const { maxSameModelRetries, baseDelayMs } = getRetryConfig();
+  const { maxAttempts, baseDelayMs } = getRetryConfig();
 
-  for (let attempt = 1; attempt <= maxSameModelRetries; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await callGeminiModel(options, model, promptOverride);
     } catch (error) {
-      if (!isTransientGeminiError(error) || attempt === maxSameModelRetries) {
+      if (!isTransientGeminiError(error) || attempt === maxAttempts) {
         throw error;
       }
 
@@ -339,86 +242,45 @@ async function callModelWithTransientRetries(
 }
 
 export async function callGeminiJson(options: GeminiCallOptions): Promise<unknown> {
-  const models = selectAttemptModels(options.models);
-  const errors: string[] = [];
-  let sawInvalidJson = false;
-  let sawCapacityError = false;
-  let lastError: unknown;
+  const model = options.models[0]?.trim();
 
-  for (const model of models) {
-    try {
-      const result = await callModelWithTransientRetries(options, model);
-      markModelSuccess(model);
-      return result;
-    } catch (error) {
-      lastError = error;
-      errors.push(getErrorMessage(error));
+  if (!model) {
+    throw new Error(`Gemini ${options.action} request is missing a model.`);
+  }
 
-      if (isInvalidJsonResponse(error)) {
-        sawInvalidJson = true;
+  try {
+    return await callModelWithTransientRetries(options, model);
+  } catch (error) {
+    if (isInvalidJsonResponse(error)) {
+      if (options.retryInvalidJson === false) {
+        throw error;
+      }
 
-        if (options.retryInvalidJson !== false) {
-          try {
-            const result = await callModelWithTransientRetries(
-              options,
-              model,
-              buildStrictJsonRetryPrompt(options.prompt),
-            );
-            markModelSuccess(model);
-            return result;
-          } catch (retryError) {
-            lastError = retryError;
-            errors.push(getErrorMessage(retryError));
-
-            if (isInvalidJsonResponse(retryError)) {
-              sawInvalidJson = true;
-              continue;
-            }
-
-            if (isTransientGeminiError(retryError)) {
-              sawCapacityError = true;
-              markSoftFailure(model);
-              continue;
-            }
-
-            if (isFallbackEligibleGeminiError(retryError)) {
-              continue;
-            }
-
-            throw retryError;
-          }
+      try {
+        return await callModelWithTransientRetries(
+          options,
+          model,
+          buildStrictJsonRetryPrompt(options.prompt),
+        );
+      } catch (retryError) {
+        if (isInvalidJsonResponse(retryError)) {
+          throw new InvalidJsonResponseError(
+            "AI returned an unreadable response after retrying. Please try a shorter input.",
+          );
         }
 
-        continue;
-      }
+        if (isTransientGeminiError(retryError)) {
+          throw new GeminiCapacityError();
+        }
 
-      if (isTransientGeminiError(error)) {
-        sawCapacityError = true;
-        markSoftFailure(model);
-        continue;
+        throw retryError;
       }
-
-      if (isFallbackEligibleGeminiError(error)) {
-        continue;
-      }
-
-      throw error;
     }
-  }
 
-  if (sawInvalidJson) {
-    throw new InvalidJsonResponseError(
-      "AI returned an unreadable response after retrying. Please try a shorter input.",
-    );
-  }
+    if (isTransientGeminiError(error)) {
+      throw new GeminiCapacityError();
+    }
 
-  if (sawCapacityError) {
-    throw new GeminiCapacityError();
+    throw error;
   }
-
-  if (lastError instanceof Error) {
-    throw lastError;
-  }
-
-  throw new Error(`Gemini ${options.action} request failed. Last error: ${errors.at(-1) || "unknown error"}`);
 }

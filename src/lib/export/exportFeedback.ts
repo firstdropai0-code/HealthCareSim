@@ -1,6 +1,5 @@
 import type { FeedbackReport } from "@/types/feedback";
 import type { SimulationState } from "@/types/simulation";
-import type { VoiceMetrics } from "@/types/voice";
 
 function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
@@ -18,55 +17,13 @@ function formatRoleLabel(message: SimulationState["messages"][number]): string {
   return message.role.toUpperCase();
 }
 
-function formatVoiceMetrics(metrics?: VoiceMetrics): string {
-  if (!metrics) {
-    return "";
-  }
-
-  const confidenceText =
-    metrics.confidence === "low"
-      ? "low confidence estimate"
-      : `${metrics.confidence} confidence`;
-
-  return [
-    `Estimated voice delivery pattern: possibly ${formatLabel(metrics.toneEstimate)} (${confidenceText})`,
-    `Volume: ${formatLabel(metrics.volumeLevel)}`,
-    `Pitch: ${formatLabel(metrics.pitchLevel)}`,
-    `Pace: ${formatLabel(metrics.paceLevel)}`,
-    `Clarity: ${formatLabel(metrics.clarityLevel || "unknown")}`,
-    `Pauses: ${formatLabel(metrics.pausePattern)}`,
-    "Audio is uploaded only for immediate transcription and is not stored by this prototype.",
-  ].join("\n");
-}
-
 export function buildFeedbackExportText(
   state: SimulationState,
   report: FeedbackReport,
 ): string {
   const transcript = state.messages
-    .map((message) => {
-      const role = formatRoleLabel(message);
-      const voiceMetrics =
-        message.role === "trainee" ? formatVoiceMetrics(message.voiceMetrics) : "";
-
-      return voiceMetrics
-        ? `[${role}] ${message.content}\n${voiceMetrics}`
-        : `[${role}] ${message.content}`;
-    })
+    .map((message) => `[${formatRoleLabel(message)}] ${message.content}`)
     .join("\n\n");
-  const voiceDelivery = report.voiceDeliveryFeedback
-    ? `
-Voice Delivery Feedback
-Based on estimated voice delivery patterns, not medical or personal judgement.
-${report.voiceDeliveryFeedback.summary}
-
-Voice Delivery Strengths
-${formatList(report.voiceDeliveryFeedback.strengths)}
-
-Voice Delivery Improvements
-${formatList(report.voiceDeliveryFeedback.improvements)}
-`
-    : "";
 
   return `FirstDropAI Feedback Report
 
@@ -93,7 +50,6 @@ ${formatList(report.communicationGaps)}
 
 Better Response Examples
 ${formatList(report.betterResponses)}
-${voiceDelivery}
 
 Final Advice
 ${report.finalAdvice}

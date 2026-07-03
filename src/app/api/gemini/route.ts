@@ -6,7 +6,6 @@ import {
 } from "@/lib/ai/geminiSchemas";
 import {
   callGeminiJson,
-  buildModelList,
   isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
@@ -20,29 +19,15 @@ import type {
   ScenarioSpeaker,
   SimulationState,
 } from "@/types/simulation";
-import type { VoiceMetrics } from "@/types/voice";
 
 type GeminiRequest =
   | { action: "generateScenario"; payload: { input: string } }
-  | {
-      action: "nextTurn";
-      payload: { state: SimulationState; traineeResponse: string; voiceMetrics?: VoiceMetrics };
-    }
+  | { action: "nextTurn"; payload: { state: SimulationState; traineeResponse: string } }
   | { action: "feedback"; payload: { state: SimulationState } };
 
 const SCENARIO_TIMEOUT_MS = 22_000;
-const NEXT_TURN_TIMEOUT_MS = 16_000;
+const NEXT_TURN_TIMEOUT_MS = 35_000;
 const FEEDBACK_TIMEOUT_MS = 22_000;
-
-const SCENARIO_MODELS = buildModelList(process.env.GEMINI_SCENARIO_MODEL || "gemini-2.5-flash-lite", [
-  "gemini-2.5-flash",
-]);
-const SIMULATION_MODELS = buildModelList(process.env.GEMINI_SIMULATION_MODEL || "gemini-2.5-flash-lite", [
-  "gemini-2.5-flash",
-]);
-const FEEDBACK_MODELS = buildModelList(process.env.GEMINI_FEEDBACK_MODEL || "gemini-2.5-flash", [
-  "gemini-2.5-flash-lite",
-]);
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -196,22 +181,12 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     finalAdvice: report.finalAdvice,
     source: report.source === "fallback" ? "fallback" : "ai",
     ...(report.fallbackReason ? { fallbackReason: report.fallbackReason } : {}),
-    ...(report.voiceDeliveryFeedback
-      ? {
-          voiceDeliveryFeedback: {
-            summary: report.voiceDeliveryFeedback.summary || "",
-            strengths: normalizeStringArray(report.voiceDeliveryFeedback.strengths),
-            improvements: normalizeStringArray(report.voiceDeliveryFeedback.improvements),
-          },
-        }
-      : {}),
   };
 }
 
 function buildFallbackFeedback(state: SimulationState): FeedbackReport {
   const traineeMessages = state.messages.filter((message) => message.role === "trainee");
   const scenarioMessages = state.messages.filter((message) => message.role === "scenario");
-  const hasVoiceMetrics = traineeMessages.some((message) => message.voiceMetrics);
 
   return normalizeFeedback({
     overallScore: 6,
@@ -241,15 +216,6 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
       traineeMessages.length > 0
         ? "Review your transcript for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
         : "Add at least one trainee response before generating a detailed communication report.",
-    ...(hasVoiceMetrics
-      ? {
-          voiceDeliveryFeedback: {
-            summary: "Voice feedback is based only on approximate delivery estimates.",
-            strengths: ["Your spoken response was captured for review."],
-            improvements: ["Use a steady pace and pause briefly after key reassurance."],
-          },
-        }
-      : {}),
   });
 }
 
@@ -258,7 +224,7 @@ async function generateScenario(input: string): Promise<Scenario> {
   const result = await callGeminiJson({
     action: "scenario",
     prompt,
-    models: SCENARIO_MODELS,
+    models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.25,
     maxOutputTokens: 1000,
     timeoutMs: SCENARIO_TIMEOUT_MS,
@@ -271,13 +237,11 @@ async function generateScenario(input: string): Promise<Scenario> {
 async function generateTurn(
   state: SimulationState,
   traineeResponse: string,
-  voiceMetrics?: VoiceMetrics,
   roleCorrection?: { rejectedMessage: string },
 ): Promise<NextSimulationTurn> {
   const prompt = buildSimulationPrompt(
     state,
     traineeResponse,
-    voiceMetrics,
     roleCorrection
       ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
       : undefined,
@@ -285,7 +249,7 @@ async function generateTurn(
   const result = await callGeminiJson({
     action: "nextTurn",
     prompt,
-    models: SIMULATION_MODELS,
+    models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.35,
     maxOutputTokens: 350,
     timeoutMs: NEXT_TURN_TIMEOUT_MS,
@@ -301,7 +265,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
   const result = await callGeminiJson({
     action: "feedback",
     prompt,
-    models: FEEDBACK_MODELS,
+    models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.25,
     maxOutputTokens: 2200,
     timeoutMs: FEEDBACK_TIMEOUT_MS,
@@ -334,20 +298,20 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "nextTurn") {
-      const { state, traineeResponse, voiceMetrics } = body.payload;
+      const { state, traineeResponse } = body.payload;
 
       if (!state || !traineeResponse?.trim()) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
-      const firstResult = await generateTurn(state, traineeResponse, voiceMetrics);
+      const firstResult = await generateTurn(state, traineeResponse);
 
       if (!appearsToSpeakAsTrainee(firstResult)) {
         return NextResponse.json({ result: firstResult });
       }
 
       try {
-        const correctedResult = await generateTurn(state, traineeResponse, voiceMetrics, {
+        const correctedResult = await generateTurn(state, traineeResponse, {
           rejectedMessage: firstResult.message,
         });
 
@@ -394,3 +358,4 @@ export async function POST(request: Request) {
     return errorResponse("The AI request failed. Please try again.", 502);
   }
 }
+

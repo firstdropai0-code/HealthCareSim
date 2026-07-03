@@ -8,9 +8,4 @@ export type FeedbackReport = {
   finalAdvice: string;
   source?: "ai" | "fallback";
   fallbackReason?: string;
-  voiceDeliveryFeedback?: {
-    summary: string;
-    strengths: string[];
-    improvements: string[];
-  };
 };

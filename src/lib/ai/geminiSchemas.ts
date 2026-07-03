@@ -92,57 +92,5 @@ export const feedbackReportSchema: GeminiSchema = {
     communicationGaps: stringArraySchema,
     betterResponses: stringArraySchema,
     finalAdvice: { type: "STRING" },
-    voiceDeliveryFeedback: {
-      type: "OBJECT",
-      nullable: true,
-      required: ["summary", "strengths", "improvements"],
-      properties: {
-        summary: { type: "STRING" },
-        strengths: stringArraySchema,
-        improvements: stringArraySchema,
-      },
-    },
-  },
-};
-
-export const voiceTranscriptionSchema: GeminiSchema = {
-  type: "OBJECT",
-  required: [
-    "transcript",
-    "emotionEstimate",
-    "paceEstimate",
-    "clarityEstimate",
-    "confidence",
-  ],
-  properties: {
-    transcript: { type: "STRING" },
-    emotionEstimate: {
-      type: "STRING",
-      enum: ["calm", "anxious", "angry", "sad", "confused", "neutral", "unknown"],
-    },
-    paceEstimate: {
-      type: "STRING",
-      enum: ["slow", "normal", "fast", "unknown"],
-    },
-    clarityEstimate: {
-      type: "STRING",
-      enum: ["clear", "mixed", "unclear", "unknown"],
-    },
-    confidence: {
-      type: "STRING",
-      enum: ["low", "medium", "high"],
-    },
-  },
-};
-export const voicePartialTranscriptionSchema: GeminiSchema = {
-  type: "OBJECT",
-  required: ["partialTranscript", "isUseful", "confidence"],
-  properties: {
-    partialTranscript: { type: "STRING" },
-    isUseful: { type: "BOOLEAN" },
-    confidence: {
-      type: "STRING",
-      enum: ["low", "medium", "high"],
-    },
   },
 };

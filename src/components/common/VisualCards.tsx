@@ -211,23 +211,3 @@ export function ScoreCard({
   );
 }
 
-export function VoiceMetricCard({
-  metrics,
-}: {
-  metrics: Array<{ label: string; value: string; tone?: Tone }>;
-}) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {metrics.map((metric) => {
-        const styles = toneStyles[metric.tone ?? "indigo"];
-
-        return (
-          <div key={metric.label} className={`rounded-2xl px-3 py-2 ${styles.fill}`}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em]">{metric.label}</p>
-            <p className="mt-1 text-sm font-semibold capitalize">{metric.value}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

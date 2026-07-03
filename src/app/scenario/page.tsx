@@ -4,10 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
-import { VoiceInputButton } from "@/components/common/VoiceInputButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
-import { useGeminiVoiceRecorder } from "@/hooks/useGeminiVoiceRecorder";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
 import {
@@ -28,21 +26,6 @@ export default function ScenarioCreatorPage() {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const geminiVoice = useGeminiVoiceRecorder();
-
-  const voiceStatus = geminiVoice.isRecording
-    ? geminiVoice.liveTranscript
-      ? "Updating live captions..."
-      : "Recording with Gemini... live captions are shown below."
-    : geminiVoice.isTranscribing
-      ? "Finalizing Gemini transcript..."
-      : geminiVoice.status === "ready"
-        ? "Transcript ready. Review before generating."
-        : geminiVoice.status === "unavailable"
-          ? "Gemini voice is unavailable. You can type your idea."
-          : geminiVoice.supported
-            ? "Gemini voice ready."
-            : null;
 
   async function handleGenerate() {
     setLoading(true);
@@ -56,20 +39,6 @@ export default function ScenarioCreatorPage() {
       setError(err instanceof Error ? err.message : "Unable to generate scenario.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleStartVoice() {
-    setError(null);
-    await geminiVoice.startRecording("scenario", idea);
-  }
-
-  async function handleStopVoice() {
-    const result = await geminiVoice.stopRecording();
-    const transcript = result?.transcript.trim() || geminiVoice.liveTranscript.trim();
-
-    if (transcript) {
-      setIdea(transcript);
     }
   }
 
@@ -155,33 +124,15 @@ export default function ScenarioCreatorPage() {
             className="mt-4 w-full resize-y rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-4 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-teal-100"
           />
 
-          {voiceStatus ? (
-            <p className="mt-3 rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)]">{voiceStatus}</p>
-          ) : null}
-          {geminiVoice.liveTranscript ? (
-            <div className="mt-3 rounded-2xl border border-teal-200 bg-[var(--color-primary-soft)] px-3 py-2 text-xs leading-5 text-[var(--color-primary-ink)]">
-              <span className="font-semibold">Gemini live captions:</span> {geminiVoice.liveTranscript}
-            </div>
-          ) : null}
-          {geminiVoice.error ? (
-            <p className="mt-2 rounded-2xl bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">{geminiVoice.error}</p>
-          ) : null}
-
           <div className="mt-5 flex flex-wrap items-start gap-3">
             <LoadingButton
               type="button"
               loading={loading}
-              disabled={!idea.trim() || geminiVoice.isTranscribing}
+              disabled={!idea.trim()}
               onClick={handleGenerate}
             >
               Generate Structured Scenario
             </LoadingButton>
-            <VoiceInputButton
-              supported={geminiVoice.supported}
-              listening={geminiVoice.isRecording}
-              onStart={handleStartVoice}
-              onStop={handleStopVoice}
-            />
             {idea ? (
               <button
                 type="button"
@@ -189,7 +140,6 @@ export default function ScenarioCreatorPage() {
                   setIdea("");
                   setScenario(null);
                   setError(null);
-                  geminiVoice.reset();
                 }}
                 className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-slate-500"
               >

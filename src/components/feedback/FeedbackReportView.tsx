@@ -1,13 +1,12 @@
 import {
   CollapsibleSection,
   InfoCard,
-  MetricChip,
   ReadMoreText,
   ScoreCard,
 } from "@/components/common/VisualCards";
 import type { FeedbackReport } from "@/types/feedback";
 
-type FeedbackTone = "emerald" | "amber" | "rose" | "blue" | "indigo";
+type FeedbackTone = "emerald" | "amber" | "rose" | "blue";
 
 function scoreLabel(score: number): string {
   if (score >= 8) {
@@ -67,7 +66,6 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
     report.whatCouldImprove[0] ||
     report.communicationGaps[0] ||
     "Use clearer structure in the next response.";
-  const voiceFeedback = report.voiceDeliveryFeedback;
 
   return (
     <div className="space-y-5">
@@ -109,30 +107,6 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
           ))}
         </div>
       </InfoCard>
-
-      {voiceFeedback ? (
-        <InfoCard label="Voice" title="Voice delivery feedback" tone="indigo">
-          <div className="flex flex-wrap gap-2">
-            <MetricChip label="Estimate only" tone="indigo" />
-            <MetricChip label="Training guidance" tone="blue" />
-          </div>
-          <div className="mt-3 rounded-2xl bg-indigo-50 px-3 py-3 text-indigo-950">
-            <ReadMoreText text={voiceFeedback.summary} maxLength={145} />
-          </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <FeedbackItemGrid
-              label="Delivery strengths"
-              items={voiceFeedback.strengths}
-              tone="emerald"
-            />
-            <FeedbackItemGrid
-              label="Delivery focus"
-              items={voiceFeedback.improvements}
-              tone="amber"
-            />
-          </div>
-        </InfoCard>
-      ) : null}
 
       <CollapsibleSection title="Final advice" tone="slate">
         <ReadMoreText text={report.finalAdvice} maxLength={170} />

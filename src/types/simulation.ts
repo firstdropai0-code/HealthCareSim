@@ -1,5 +1,4 @@
 import type { Scenario } from "./scenario";
-import type { VoiceMetrics } from "./voice";
 
 export type SimulationMessageRole = "system" | "scenario" | "trainee" | "feedback";
 export type ScenarioSpeaker = "patient" | "family_member" | "nurse" | "bystander" | "narrator";
@@ -11,7 +10,6 @@ export type SimulationMessage = {
   role: SimulationMessageRole;
   content: string;
   timestamp: string;
-  voiceMetrics?: VoiceMetrics;
   speaker?: ScenarioSpeaker;
 };
 
