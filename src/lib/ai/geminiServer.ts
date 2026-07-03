@@ -180,6 +180,7 @@ async function callGeminiModel(
           ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
           responseMimeType: "application/json",
           ...(options.schema ? { responseSchema: options.schema } : {}),
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
       signal: controller.signal,

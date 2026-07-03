@@ -251,7 +251,7 @@ async function generateTurn(
     prompt,
     models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.35,
-    maxOutputTokens: 350,
+    maxOutputTokens: 512,
     timeoutMs: NEXT_TURN_TIMEOUT_MS,
     schema: nextSimulationTurnSchema,
     retryInvalidJson: !roleCorrection,
@@ -304,7 +304,13 @@ export async function POST(request: Request) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
-      const firstResult = await generateTurn(state, traineeResponse);
+      let firstResult: NextSimulationTurn;
+
+      try {
+        firstResult = await generateTurn(state, traineeResponse);
+      } catch {
+        return NextResponse.json({ result: buildSafeNarratorTurn() });
+      }
 
       if (!appearsToSpeakAsTrainee(firstResult)) {
         return NextResponse.json({ result: firstResult });
@@ -358,5 +364,3 @@ export async function POST(request: Request) {
     return errorResponse("The AI request failed. Please try again.", 502);
   }
 }
-
-
