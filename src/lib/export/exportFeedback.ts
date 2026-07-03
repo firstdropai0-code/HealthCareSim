@@ -21,7 +21,7 @@ export function buildFeedbackExportText(
   state: SimulationState,
   report: FeedbackReport,
 ): string {
-  const transcript = state.messages
+  const conversationLog = state.messages
     .map((message) => `[${formatRoleLabel(message)}] ${message.content}`)
     .join("\n\n");
 
@@ -30,8 +30,8 @@ export function buildFeedbackExportText(
 Scenario: ${state.scenario.title}
 Generated: ${new Date().toLocaleString()}${report.source === "fallback" ? `\nFeedback source: ${report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}` : ""}
 
-Conversation Transcript
-${transcript}
+Conversation Log
+${conversationLog}
 
 Overall Score
 ${report.overallScore}/10
@@ -66,3 +66,4 @@ export function exportFeedback(state: SimulationState, report: FeedbackReport): 
   anchor.click();
   URL.revokeObjectURL(url);
 }
+

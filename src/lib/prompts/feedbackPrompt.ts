@@ -1,7 +1,7 @@
 import type { SimulationState } from "@/types/simulation";
 
 export function buildFeedbackPrompt(state: SimulationState): string {
-  const transcript = state.messages.map((message) => ({
+  const conversationLog = state.messages.map((message) => ({
     role: message.role,
     ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
     content: message.content,
@@ -13,7 +13,7 @@ Scenario title: ${state.scenario.title}
 Scenario summary: ${state.scenario.summary}
 Trainee objective: ${state.scenario.traineeObjective}
 Evaluation criteria: ${state.scenario.evaluationCriteria.join(", ")}
-Transcript: ${JSON.stringify(transcript)}
+Conversation log: ${JSON.stringify(conversationLog)}
 
 Rules:
 - Evaluate communication, empathy, clarity, stress handling, and scenario management.
@@ -36,3 +36,4 @@ Rules:
   "finalAdvice": "string"
 }`;
 }
+

@@ -214,7 +214,7 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
     ],
     finalAdvice:
       traineeMessages.length > 0
-        ? "Review your transcript for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
+        ? "Review your conversation log for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
         : "Add at least one trainee response before generating a detailed communication report.",
   });
 }
@@ -358,4 +358,5 @@ export async function POST(request: Request) {
     return errorResponse("The AI request failed. Please try again.", 502);
   }
 }
+
 

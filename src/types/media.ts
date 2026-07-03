@@ -1,4 +1,4 @@
-export type MediaAssetType = "image" | "video" | "audio" | "avatar" | "document";
+export type MediaAssetType = "image" | "video" | "avatar" | "document";
 
 export type MediaAsset = {
   id: string;
@@ -7,3 +7,4 @@ export type MediaAsset = {
   prompt?: string;
   description?: string;
 };
+
