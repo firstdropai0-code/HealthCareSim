@@ -1,5 +1,12 @@
 import type { SimulationState } from "@/types/simulation";
 
+export type SimulationPromptMessage = { role: "user" | "model"; text: string };
+
+export type SimulationPromptPayload = {
+  systemInstruction: string;
+  messages: SimulationPromptMessage[];
+};
+
 type SimulationPromptOptions = {
   roleCorrection?: boolean;
   rejectedMessage?: string;
@@ -9,14 +16,32 @@ export function buildSimulationPrompt(
   state: SimulationState,
   traineeResponse: string,
   options?: SimulationPromptOptions,
-): string {
-  const recentMessages = state.messages.slice(-6).map((message) => ({
-    role: message.role,
-    ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
-    content: message.content,
-  }));
+): SimulationPromptPayload {
+  const messages = state.messages
+    .filter((message) => message.role === "scenario" || message.role === "trainee")
+    .slice(-8)
+    .map<SimulationPromptMessage>((message) => {
+      if (message.role === "scenario") {
+        return {
+          role: "model",
+          text: `${message.speaker || "narrator"}: ${message.content}`,
+        };
+      }
 
-  return `Continue this healthcare communication roleplay scenario.
+      return {
+        role: "user",
+        text: message.content,
+      };
+    });
+
+  messages.push({ role: "user", text: traineeResponse });
+
+  const roleCorrectionNote = options?.roleCorrection
+    ? `\n\nSystem note: The previous reply was rejected because it spoke as the doctor/trainee instead of the patient, family, nurse, bystander, or narrator. Rejected reply: ${options.rejectedMessage || "not provided"}`
+    : "";
+
+  return {
+    systemInstruction: `Continue this healthcare communication roleplay scenario.
 
 Role boundary:
 - The trainee is the doctor or healthcare professional.
@@ -31,12 +56,10 @@ Scenario summary: ${state.scenario.summary}
 Scenario context: ${state.scenario.patientProfile}; ${state.scenario.communicationChallenge}
 Current turn: ${state.currentTurn}
 Remaining turns: ${Math.max(state.maxTurns - state.currentTurn, 0)}
-Current tension level: ${state.tensionLevel}
-Recent messages: ${JSON.stringify(recentMessages)}
-Latest trainee response: ${traineeResponse}
-${options?.roleCorrection ? `Rejected previous response for speaking like the doctor/trainee: ${options.rejectedMessage || "not provided"}` : ""}
+Current tension level: ${state.tensionLevel}${roleCorrectionNote}
 
 Rules:
+- Continue from the chronological messages. Model messages are your prior patient/family/nurse/bystander/narrator lines. User messages are the trainee doctor's lines.
 - Keep the next scenario message short, realistic, and spoken from the patient/family/situation perspective.
 - message: 1 to 3 sentences, under 55 words.
 - speaker must identify who is speaking or narrating: patient, family_member, nurse, bystander, or narrator.
@@ -57,5 +80,7 @@ Rules:
   "message": "string",
   "tensionLevel": "low" | "medium" | "high",
   "shouldEnd": false
-}`;
+}`,
+    messages,
+  };
 }

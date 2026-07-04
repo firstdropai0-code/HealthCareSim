@@ -11,7 +11,11 @@ import {
 } from "@/lib/ai/geminiServer";
 import { buildFeedbackPrompt } from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
-import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
+import {
+  buildSimulationPrompt,
+  type SimulationPromptMessage,
+  type SimulationPromptPayload,
+} from "@/lib/prompts/simulationPrompt";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type {
@@ -22,7 +26,15 @@ import type {
 
 type GeminiRequest =
   | { action: "generateScenario"; payload: { input: string } }
-  | { action: "nextTurn"; payload: { state: SimulationState; traineeResponse: string } }
+  | {
+      action: "nextTurn";
+      payload: {
+        state: SimulationState;
+        traineeResponse: string;
+        systemInstruction?: string;
+        messages?: SimulationPromptMessage[];
+      };
+    }
   | { action: "feedback"; payload: { state: SimulationState } };
 
 const SCENARIO_TIMEOUT_MS = 22_000;
@@ -35,6 +47,28 @@ function errorResponse(message: string, status = 400) {
 
 function normalizeStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeSimulationPromptPayload(
+  systemInstruction: unknown,
+  messages: unknown,
+): SimulationPromptPayload | undefined {
+  if (typeof systemInstruction !== "string" || !Array.isArray(messages)) {
+    return undefined;
+  }
+
+  const normalizedMessages = messages.filter(
+    (message): message is SimulationPromptMessage =>
+      Boolean(message) &&
+      typeof message === "object" &&
+      ((message as SimulationPromptMessage).role === "user" ||
+        (message as SimulationPromptMessage).role === "model") &&
+      typeof (message as SimulationPromptMessage).text === "string",
+  );
+
+  return normalizedMessages.length > 0
+    ? { systemInstruction, messages: normalizedMessages }
+    : undefined;
 }
 
 function normalizeScenario(value: unknown): Scenario {
@@ -237,18 +271,25 @@ async function generateScenario(input: string): Promise<Scenario> {
 async function generateTurn(
   state: SimulationState,
   traineeResponse: string,
+  promptPayload?: SimulationPromptPayload,
   roleCorrection?: { rejectedMessage: string },
 ): Promise<NextSimulationTurn> {
-  const prompt = buildSimulationPrompt(
-    state,
-    traineeResponse,
-    roleCorrection
-      ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
-      : undefined,
-  );
+  const prompt =
+    roleCorrection || !promptPayload
+      ? buildSimulationPrompt(
+          state,
+          traineeResponse,
+          roleCorrection
+            ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
+            : undefined,
+        )
+      : promptPayload;
+
   const result = await callGeminiJson({
     action: "nextTurn",
-    prompt,
+    prompt: prompt.systemInstruction,
+    systemInstruction: prompt.systemInstruction,
+    messages: prompt.messages,
     models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.35,
     maxOutputTokens: 512,
@@ -298,16 +339,17 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "nextTurn") {
-      const { state, traineeResponse } = body.payload;
+      const { state, traineeResponse, systemInstruction, messages } = body.payload;
 
       if (!state || !traineeResponse?.trim()) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
+      const promptPayload = normalizeSimulationPromptPayload(systemInstruction, messages);
       let firstResult: NextSimulationTurn;
 
       try {
-        firstResult = await generateTurn(state, traineeResponse);
+        firstResult = await generateTurn(state, traineeResponse, promptPayload);
       } catch {
         return NextResponse.json({ result: buildSafeNarratorTurn() });
       }
@@ -317,7 +359,7 @@ export async function POST(request: Request) {
       }
 
       try {
-        const correctedResult = await generateTurn(state, traineeResponse, {
+        const correctedResult = await generateTurn(state, traineeResponse, undefined, {
           rejectedMessage: firstResult.message,
         });
 

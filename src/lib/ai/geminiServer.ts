@@ -21,6 +21,8 @@ export type GeminiServerAction = "scenario" | "nextTurn" | "feedback";
 type GeminiCallOptions = {
   action: GeminiServerAction;
   prompt: string;
+  systemInstruction?: string;
+  messages?: Array<{ role: "user" | "model"; text: string }>;
   models: string[];
   temperature: number;
   maxOutputTokens?: number;
@@ -38,6 +40,25 @@ type GeminiGenerateResponse = {
     };
   }>;
 };
+
+type GeminiRequestBody = {
+  systemInstruction?: { parts: Array<{ text: string }> };
+  contents: Array<{
+    role: "user" | "model";
+    parts: Array<{ text: string }>;
+  }>;
+  generationConfig: {
+    temperature: number;
+    maxOutputTokens?: number;
+    responseMimeType: "application/json";
+    responseSchema?: GeminiSchema;
+    thinkingConfig: { thinkingBudget: number };
+  };
+};
+
+type GeminiCallOverride =
+  | { prompt: string; messages?: never }
+  | { prompt?: never; messages: Array<{ role: "user" | "model"; text: string }> };
 
 export type GeminiHttpError = Error & {
   status?: number;
@@ -102,6 +123,21 @@ Do not use markdown fences, comments, trailing commas, undefined, or explanatory
 Use double quotes for every JSON key and string value.`;
 }
 
+function buildStrictJsonRetryMessages(
+  messages: Array<{ role: "user" | "model"; text: string }>,
+): Array<{ role: "user" | "model"; text: string }> {
+  return [
+    ...messages,
+    {
+      role: "user",
+      text: `Your previous response was not parseable JSON.
+Return exactly one valid JSON object and nothing else.
+Do not use markdown fences, comments, trailing commas, undefined, or explanatory text.
+Use double quotes for every JSON key and string value.`,
+    },
+  ];
+}
+
 export async function sleep(ms: number): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -147,10 +183,48 @@ function getText(data: GeminiGenerateResponse): string | undefined {
     .find((part) => part.text)?.text;
 }
 
+function buildGeminiRequestBody(
+  options: GeminiCallOptions,
+  override?: GeminiCallOverride,
+): GeminiRequestBody {
+  const generationConfig: GeminiRequestBody["generationConfig"] = {
+    temperature: options.temperature,
+    ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+    responseMimeType: "application/json",
+    ...(options.schema ? { responseSchema: options.schema } : {}),
+    thinkingConfig: { thinkingBudget: 0 },
+  };
+
+  if (options.messages) {
+    const messages = override?.messages || options.messages;
+
+    return {
+      ...(options.systemInstruction
+        ? { systemInstruction: { parts: [{ text: options.systemInstruction }] } }
+        : {}),
+      contents: messages.map((message) => ({
+        role: message.role,
+        parts: [{ text: message.text }],
+      })),
+      generationConfig,
+    };
+  }
+
+  return {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: override?.prompt || options.prompt }],
+      },
+    ],
+    generationConfig,
+  };
+}
+
 async function callGeminiModel(
   options: GeminiCallOptions,
   model: string,
-  promptOverride?: string,
+  override?: GeminiCallOverride,
 ): Promise<unknown> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -168,21 +242,7 @@ async function callGeminiModel(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: promptOverride || options.prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: options.temperature,
-          ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-          responseMimeType: "application/json",
-          ...(options.schema ? { responseSchema: options.schema } : {}),
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      body: JSON.stringify(buildGeminiRequestBody(options, override)),
       signal: controller.signal,
     });
 
@@ -223,13 +283,13 @@ async function callGeminiModel(
 async function callModelWithTransientRetries(
   options: GeminiCallOptions,
   model: string,
-  promptOverride?: string,
+  override?: GeminiCallOverride,
 ): Promise<unknown> {
   const { maxAttempts, baseDelayMs } = getRetryConfig();
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await callGeminiModel(options, model, promptOverride);
+      return await callGeminiModel(options, model, override);
     } catch (error) {
       if (!isTransientGeminiError(error) || attempt === maxAttempts) {
         throw error;
@@ -261,7 +321,9 @@ export async function callGeminiJson(options: GeminiCallOptions): Promise<unknow
         return await callModelWithTransientRetries(
           options,
           model,
-          buildStrictJsonRetryPrompt(options.prompt),
+          options.messages
+            ? { messages: buildStrictJsonRetryMessages(options.messages) }
+            : { prompt: buildStrictJsonRetryPrompt(options.prompt) },
         );
       } catch (retryError) {
         if (isInvalidJsonResponse(retryError)) {

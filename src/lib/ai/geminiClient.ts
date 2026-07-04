@@ -1,3 +1,4 @@
+import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
@@ -30,9 +31,13 @@ export function generateNextSimulationTurn(
   state: SimulationState,
   traineeResponse: string,
 ): Promise<NextSimulationTurn> {
+  const prompt = buildSimulationPrompt(state, traineeResponse);
+
   return callGemini<NextSimulationTurn>("nextTurn", {
     state,
     traineeResponse,
+    systemInstruction: prompt.systemInstruction,
+    messages: prompt.messages,
   });
 }
 
