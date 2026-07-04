@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
 
@@ -66,28 +68,77 @@ export function compactText(text: string, maxLength = 150): string {
   return `${cleanText.slice(0, maxLength).trim()}...`;
 }
 
+const collapsedTextStyle: CSSProperties = {
+  display: "-webkit-box",
+  WebkitLineClamp: 6,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
+};
+
 export function ReadMoreText({
   text,
-  maxLength = 150,
+  maxLength: _maxLength = 150,
 }: {
   text: string;
   maxLength?: number;
 }) {
   const cleanText = text.trim();
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hasClampedOverflow, setHasClampedOverflow] = useState(false);
 
-  if (cleanText.length <= maxLength) {
-    return <p className="text-sm leading-6">{cleanText}</p>;
-  }
+  useEffect(() => {
+    const element = textRef.current;
+
+    if (!element) {
+      return undefined;
+    }
+
+    setIsExpanded(false);
+
+    const measureOverflow = () => {
+      const originalStyle = element.getAttribute("style");
+
+      element.style.display = "-webkit-box";
+      element.style.setProperty("-webkit-line-clamp", "6");
+      element.style.setProperty("-webkit-box-orient", "vertical");
+      element.style.overflow = "hidden";
+      setHasClampedOverflow(element.scrollHeight > element.clientHeight + 1);
+
+      if (originalStyle === null) {
+        element.removeAttribute("style");
+      } else {
+        element.setAttribute("style", originalStyle);
+      }
+    };
+
+    const frame = window.requestAnimationFrame(measureOverflow);
+    window.addEventListener("resize", measureOverflow);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measureOverflow);
+    };
+  }, [cleanText]);
 
   return (
     <div className="space-y-2">
-      <p className="text-sm leading-6">{compactText(cleanText, maxLength)}</p>
-      <details>
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]">
-          Show more
-        </summary>
-        <p className="mt-2 text-sm leading-6">{cleanText}</p>
-      </details>
+      <p
+        ref={textRef}
+        className="text-sm leading-6"
+        style={isExpanded ? undefined : collapsedTextStyle}
+      >
+        {cleanText}
+      </p>
+      {hasClampedOverflow ? (
+        <button
+          type="button"
+          onClick={() => setIsExpanded((current) => !current)}
+          className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]"
+        >
+          {isExpanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
     </div>
   );
 }

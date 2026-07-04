@@ -1,5 +1,4 @@
 import {
-  CollapsibleSection,
   InfoCard,
   ReadMoreText,
   ScoreCard,
@@ -29,32 +28,15 @@ function FeedbackItemGrid({
   items: string[];
   tone: FeedbackTone;
 }) {
-  const visibleItems = items.slice(0, 3);
-  const hiddenItems = items.slice(3);
-
   return (
     <InfoCard label={label} title={`${items.length} notes`} tone={tone}>
       <div className="grid gap-2">
-        {visibleItems.map((item) => (
+        {items.map((item) => (
           <div key={item} className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]">
             <ReadMoreText text={item} maxLength={115} />
           </div>
         ))}
       </div>
-      {hiddenItems.length > 0 ? (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]">
-            Show {hiddenItems.length} more
-          </summary>
-          <div className="mt-2 grid gap-2">
-            {hiddenItems.map((item) => (
-              <div key={item} className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]">
-                <ReadMoreText text={item} maxLength={115} />
-              </div>
-            ))}
-          </div>
-        </details>
-      ) : null}
     </InfoCard>
   );
 }
@@ -108,9 +90,9 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
         </div>
       </InfoCard>
 
-      <CollapsibleSection title="Final advice" tone="slate">
+      <InfoCard label="Final advice" title="Carry forward" tone="slate">
         <ReadMoreText text={report.finalAdvice} maxLength={170} />
-      </CollapsibleSection>
+      </InfoCard>
     </div>
   );
 }

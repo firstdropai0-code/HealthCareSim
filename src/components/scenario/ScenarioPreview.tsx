@@ -1,5 +1,4 @@
 import {
-  CollapsibleSection,
   InfoCard,
   MetricChip,
   ReadMoreText,
@@ -48,7 +47,7 @@ export function ScenarioPreview({ scenario }: { scenario: Scenario }) {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px_320px]">
         <InfoCard label="Starting line" title="Open with this situation" tone="emerald">
           <ReadMoreText text={scenario.firstPrompt} maxLength={140} />
         </InfoCard>
@@ -60,24 +59,11 @@ export function ScenarioPreview({ scenario }: { scenario: Scenario }) {
             ))}
           </div>
         </InfoCard>
-      </div>
 
-      <CollapsibleSection title="View full scenario details" tone="slate">
-        <dl className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3">
-            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Setting</dt>
-            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.setting}</dd>
-          </div>
-          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3">
-            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Ending condition</dt>
-            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.endingCondition}</dd>
-          </div>
-          <div className="rounded-2xl bg-[var(--color-surface-muted)] p-3 md:col-span-2">
-            <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Full starting situation</dt>
-            <dd className="mt-1 text-sm text-[var(--color-ink)]">{scenario.startingSituation}</dd>
-          </div>
-        </dl>
-      </CollapsibleSection>
+        <InfoCard label="Ending condition" title="Close when" tone="slate">
+          <ReadMoreText text={scenario.endingCondition} maxLength={140} />
+        </InfoCard>
+      </div>
     </section>
   );
 }
