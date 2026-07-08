@@ -29,6 +29,15 @@ Trainee objective: ${state.scenario.traineeObjective}
 Evaluation criteria: ${state.scenario.evaluationCriteria.join(", ")}
 Conversation log: ${JSON.stringify(conversationLog)}
 
+Scoring rubric for overallScore (integer 1-10) -- score strictly from what was actually said, do not default to a comfortable middle number:
+- 9-10: Consistently empathetic, clear, and professional throughout; the ending condition was met cleanly.
+- 7-8: Solid communication overall with only minor gaps (e.g. slightly vague once, one missed acknowledgement).
+- 5-6: Adequate but noticeably weak in places -- rushed, vague, or failed to acknowledge emotion at least once.
+- 3-4: Frequently dismissive, unclear, sarcastic, curt, or unprofessional; failed to de-escalate a tense moment.
+- 1-2: Hostile, mocking, taunting, or refuses to engage constructively; actively worsens the situation.
+- Any single clearly hostile, sarcastic, mocking, dismissive, or taunting trainee line (for example: telling a distressed patient or family member to "go ahead" and call a lawyer/media/complaint line in a dismissive or daring tone, or otherwise provoking rather than de-escalating) caps overallScore at 3 for the whole conversation, even if other turns were fine.
+- The overallScore value in the JSON shape below is a placeholder for formatting only -- it is not an example of a typical or expected score. Compute it strictly from the rubric above and the actual conversation.
+
 Rules:
 - Evaluate communication, empathy, clarity, stress handling, and scenario management.
 - Do not deeply judge medical correctness.
@@ -41,7 +50,7 @@ Rules:
 - betterResponses should be phrased as direct example lines the trainee could say.
 - Return only valid JSON matching this shape:
 {
-  "overallScore": 8,
+  "overallScore": 1,
   "summary": "string",
   "whatWentWell": ["string"],
   "whatCouldImprove": ["string"],
