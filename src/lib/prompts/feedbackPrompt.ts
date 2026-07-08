@@ -10,13 +10,16 @@ export function getExtraEvaluationCriteria(state: SimulationState): string[] {
   );
 }
 
-export function buildFeedbackPrompt(state: SimulationState): string {
-  const conversationLog = state.messages.map((message) => ({
+function buildConversationLog(state: SimulationState) {
+  return state.messages.map((message) => ({
     role: message.role,
     ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
     content: message.content,
   }));
-  const extraCriteria = getExtraEvaluationCriteria(state);
+}
+
+export function buildFeedbackPrompt(state: SimulationState): string {
+  const conversationLog = buildConversationLog(state);
 
   return `Evaluate this healthcare communication training simulation.
 
@@ -36,11 +39,6 @@ Rules:
 - Each array should contain 2 to 4 short items.
 - Each item should be one clear sentence under 22 words.
 - betterResponses should be phrased as direct example lines the trainee could say.
-${
-  extraCriteria.length > 0
-    ? `- The trainer added these extra evaluation criteria beyond the default set: ${extraCriteria.join(", ")}. For customCriteriaFeedback, return exactly one entry per extra criterion listed here (same "criterion" text), each with a one-sentence "assessment" of how well the trainee met it in this conversation.`
-    : `- No extra evaluation criteria were added beyond the default set, so return customCriteriaFeedback as an empty array.`
-}
 - Return only valid JSON matching this shape:
 {
   "overallScore": 8,
@@ -49,8 +47,27 @@ ${
   "whatCouldImprove": ["string"],
   "communicationGaps": ["string"],
   "betterResponses": ["string"],
-  "finalAdvice": "string",
-  "customCriteriaFeedback": [{ "criterion": "string", "assessment": "string" }]
+  "finalAdvice": "string"
 }`;
 }
 
+export function buildCustomCriteriaPrompt(state: SimulationState, extraCriteria: string[]): string {
+  const conversationLog = buildConversationLog(state);
+
+  return `You are assessing a healthcare communication training conversation against specific
+custom evaluation criteria that a trainer added on top of the scenario's default checklist.
+
+Scenario title: ${state.scenario.title}
+Conversation log: ${JSON.stringify(conversationLog)}
+
+Criteria to assess (assess ONLY these, in this exact order):
+${extraCriteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")}
+
+Rules:
+- Do not deeply judge medical correctness. Focus on communication behavior only.
+- Return exactly ${extraCriteria.length} entr${extraCriteria.length === 1 ? "y" : "ies"} in customCriteriaFeedback, one per criterion listed above, in the same order.
+- Each "criterion" value must exactly match the criterion text given above.
+- Each "assessment" must be one clear sentence under 25 words judging how well the trainee met that specific criterion in the conversation.
+- Return only valid JSON matching this shape:
+{ "customCriteriaFeedback": [{ "criterion": "string", "assessment": "string" }] }`;
+}

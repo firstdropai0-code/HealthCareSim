@@ -85,7 +85,6 @@ export const feedbackReportSchema: GeminiSchema = {
     "communicationGaps",
     "betterResponses",
     "finalAdvice",
-    "customCriteriaFeedback",
   ],
   properties: {
     overallScore: { type: "INTEGER" },
@@ -95,28 +94,26 @@ export const feedbackReportSchema: GeminiSchema = {
     communicationGaps: stringArraySchema,
     betterResponses: stringArraySchema,
     finalAdvice: { type: "STRING" },
-    customCriteriaFeedback: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          criterion: { type: "STRING" },
-          assessment: { type: "STRING" },
-        },
-      },
-    },
   },
 };
 
-export function buildFeedbackReportSchema(customCriteriaCount: number): GeminiSchema {
+export function buildCustomCriteriaSchema(count: number): GeminiSchema {
   return {
-    ...feedbackReportSchema,
+    type: "OBJECT",
+    required: ["customCriteriaFeedback"],
     properties: {
-      ...feedbackReportSchema.properties,
       customCriteriaFeedback: {
-        ...feedbackReportSchema.properties!.customCriteriaFeedback,
-        minItems: customCriteriaCount,
-        maxItems: customCriteriaCount,
+        type: "ARRAY",
+        minItems: count,
+        maxItems: count,
+        items: {
+          type: "OBJECT",
+          required: ["criterion", "assessment"],
+          properties: {
+            criterion: { type: "STRING" },
+            assessment: { type: "STRING" },
+          },
+        },
       },
     },
   };

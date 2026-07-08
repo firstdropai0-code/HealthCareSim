@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  buildFeedbackReportSchema,
+  buildCustomCriteriaSchema,
+  feedbackReportSchema,
   nextSimulationTurnSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
@@ -9,7 +10,11 @@ import {
   isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
-import { buildFeedbackPrompt, getExtraEvaluationCriteria } from "@/lib/prompts/feedbackPrompt";
+import {
+  buildCustomCriteriaPrompt,
+  buildFeedbackPrompt,
+  getExtraEvaluationCriteria,
+} from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import {
   buildSimulationPrompt,
@@ -268,18 +273,7 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
       traineeMessages.length > 0
         ? "Review your conversation log for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
         : "Add at least one trainee response before generating a detailed communication report.",
-    customCriteriaFeedback: (state.scenario.defaultEvaluationCriteria
-      ? state.scenario.evaluationCriteria.filter(
-          (item) =>
-            !state.scenario.defaultEvaluationCriteria!.some(
-              (defaultItem) => defaultItem.trim().toLowerCase() === item.trim().toLowerCase(),
-            ),
-        )
-      : []
-    ).map((criterion) => ({
-      criterion,
-      assessment: "Add another trainee response so this custom criterion can be assessed in detail.",
-    })),
+    customCriteriaFeedback: getExtraEvaluationCriteria(state).map(fallbackCustomCriterionAssessment),
   });
 }
 
@@ -331,20 +325,64 @@ async function generateTurn(
   return normalizeTurn(result);
 }
 
+function fallbackCustomCriterionAssessment(criterion: string): { criterion: string; assessment: string } {
+  return {
+    criterion,
+    assessment: "Add another trainee response so this custom criterion can be assessed in detail.",
+  };
+}
+
+async function generateCustomCriteriaFeedback(
+  state: SimulationState,
+  extraCriteria: string[],
+): Promise<FeedbackReport["customCriteriaFeedback"]> {
+  try {
+    const prompt = buildCustomCriteriaPrompt(state, extraCriteria);
+    const result = (await callGeminiJson({
+      action: "feedback",
+      prompt,
+      models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
+      temperature: 0.2,
+      maxOutputTokens: 700,
+      timeoutMs: FEEDBACK_TIMEOUT_MS,
+      schema: buildCustomCriteriaSchema(extraCriteria.length),
+    })) as { customCriteriaFeedback?: unknown };
+
+    const parsed = normalizeCustomCriteriaFeedback(result?.customCriteriaFeedback) || [];
+
+    // Force the criterion label to the trainer's own text and only borrow the
+    // AI's assessment, so a mismatched/reordered model response can never
+    // desync the section from what's actually on the checklist.
+    return extraCriteria.map((criterion, index) => ({
+      criterion,
+      assessment: parsed[index]?.assessment || fallbackCustomCriterionAssessment(criterion).assessment,
+    }));
+  } catch (error) {
+    console.error("Custom criteria feedback generation failed, using fallback text:", error);
+    return extraCriteria.map((criterion) => fallbackCustomCriterionAssessment(criterion));
+  }
+}
+
 async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
   const prompt = buildFeedbackPrompt(state);
-  const customCriteriaCount = getExtraEvaluationCriteria(state).length;
-  const result = await callGeminiJson({
-    action: "feedback",
-    prompt,
-    models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
-    temperature: 0.25,
-    maxOutputTokens: 2200,
-    timeoutMs: FEEDBACK_TIMEOUT_MS,
-    schema: buildFeedbackReportSchema(customCriteriaCount),
-  });
+  const extraCriteria = getExtraEvaluationCriteria(state);
 
-  return normalizeFeedback(result);
+  const [mainResult, customCriteriaFeedback] = await Promise.all([
+    callGeminiJson({
+      action: "feedback",
+      prompt,
+      models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
+      temperature: 0.25,
+      maxOutputTokens: 2200,
+      timeoutMs: FEEDBACK_TIMEOUT_MS,
+      schema: feedbackReportSchema,
+    }),
+    extraCriteria.length > 0
+      ? generateCustomCriteriaFeedback(state, extraCriteria)
+      : Promise.resolve([]),
+  ]);
+
+  return { ...normalizeFeedback(mainResult), customCriteriaFeedback };
 }
 
 export async function POST(request: Request) {
