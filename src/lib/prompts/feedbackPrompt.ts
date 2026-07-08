@@ -1,6 +1,6 @@
 import type { SimulationState } from "@/types/simulation";
 
-function getExtraEvaluationCriteria(state: SimulationState): string[] {
+export function getExtraEvaluationCriteria(state: SimulationState): string[] {
   const defaults = new Set(
     (state.scenario.defaultEvaluationCriteria || []).map((item) => item.trim().toLowerCase()),
   );

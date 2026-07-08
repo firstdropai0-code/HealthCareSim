@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  feedbackReportSchema,
+  buildFeedbackReportSchema,
   nextSimulationTurnSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
@@ -9,7 +9,7 @@ import {
   isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
-import { buildFeedbackPrompt } from "@/lib/prompts/feedbackPrompt";
+import { buildFeedbackPrompt, getExtraEvaluationCriteria } from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import {
   buildSimulationPrompt,
@@ -333,6 +333,7 @@ async function generateTurn(
 
 async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
   const prompt = buildFeedbackPrompt(state);
+  const customCriteriaCount = getExtraEvaluationCriteria(state).length;
   const result = await callGeminiJson({
     action: "feedback",
     prompt,
@@ -340,7 +341,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
     temperature: 0.25,
     maxOutputTokens: 2200,
     timeoutMs: FEEDBACK_TIMEOUT_MS,
-    schema: feedbackReportSchema,
+    schema: buildFeedbackReportSchema(customCriteriaCount),
   });
 
   return normalizeFeedback(result);

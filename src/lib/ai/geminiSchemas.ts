@@ -6,6 +6,8 @@ export type GeminiSchema = {
   required?: string[];
   enum?: string[];
   nullable?: boolean;
+  minItems?: number;
+  maxItems?: number;
 };
 
 const stringArraySchema: GeminiSchema = {
@@ -83,6 +85,7 @@ export const feedbackReportSchema: GeminiSchema = {
     "communicationGaps",
     "betterResponses",
     "finalAdvice",
+    "customCriteriaFeedback",
   ],
   properties: {
     overallScore: { type: "INTEGER" },
@@ -104,3 +107,17 @@ export const feedbackReportSchema: GeminiSchema = {
     },
   },
 };
+
+export function buildFeedbackReportSchema(customCriteriaCount: number): GeminiSchema {
+  return {
+    ...feedbackReportSchema,
+    properties: {
+      ...feedbackReportSchema.properties,
+      customCriteriaFeedback: {
+        ...feedbackReportSchema.properties!.customCriteriaFeedback,
+        minItems: customCriteriaCount,
+        maxItems: customCriteriaCount,
+      },
+    },
+  };
+}
