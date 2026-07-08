@@ -131,6 +131,41 @@ function EditableTextCard({
   );
 }
 
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
 function EditableEvaluationCard({
   criteria,
   onSave,
@@ -139,25 +174,34 @@ function EditableEvaluationCard({
   onSave: (next: string[]) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(criteria.join("\n"));
+  const [draftItems, setDraftItems] = useState<string[]>(criteria);
 
   function startEditing() {
-    setDraft(criteria.join("\n"));
+    setDraftItems(criteria.length > 0 ? criteria : [""]);
     setIsEditing(true);
   }
 
   function handleSave() {
-    const next = draft
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const next = draftItems.map((item) => item.trim()).filter(Boolean);
     onSave(next);
     setIsEditing(false);
   }
 
   function handleCancel() {
-    setDraft(criteria.join("\n"));
+    setDraftItems(criteria);
     setIsEditing(false);
+  }
+
+  function updateItem(index: number, value: string) {
+    setDraftItems((current) => current.map((item, i) => (i === index ? value : item)));
+  }
+
+  function removeItem(index: number) {
+    setDraftItems((current) => current.filter((_, i) => i !== index));
+  }
+
+  function addItem() {
+    setDraftItems((current) => [...current, ""]);
   }
 
   return (
@@ -167,14 +211,36 @@ function EditableEvaluationCard({
 
         {isEditing ? (
           <div className="space-y-2">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={5}
-              autoFocus
-              placeholder="One item per line"
-              className="w-full resize-y rounded-xl border border-[var(--color-border-strong)] bg-white p-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-teal-100"
-            />
+            <div className="space-y-2">
+              {draftItems.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={item}
+                    onChange={(event) => updateItem(index, event.target.value)}
+                    autoFocus={index === draftItems.length - 1}
+                    placeholder="Describe one evaluation point"
+                    className="w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-teal-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(index)}
+                    aria-label="Remove this evaluation point"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-strong)] text-[var(--color-ink-soft)] transition hover:border-rose-300 hover:text-rose-600"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addItem}
+              className="flex items-center gap-1.5 rounded-full border border-dashed border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink-soft)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary-ink)]"
+            >
+              <PlusIcon />
+              Add point
+            </button>
             <EditActions onSave={handleSave} onCancel={handleCancel} />
           </div>
         ) : (
