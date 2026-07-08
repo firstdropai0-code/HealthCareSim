@@ -18,12 +18,17 @@ export function createMessage(
   };
 }
 
+// A generous safety cap so the roleplay can run long enough to actually reach
+// the scenario's ending condition, rather than cutting off at the AI's
+// suggestedTurns figure (which is only pacing guidance shown to the trainer).
+export const HARD_TURN_LIMIT = 12;
+
 export function createInitialSimulationState(scenario: Scenario): SimulationState {
   return {
     scenario,
     messages: [createMessage("scenario", scenario.firstPrompt, "narrator")],
     currentTurn: 0,
-    maxTurns: Math.max(1, scenario.suggestedTurns || 5),
+    maxTurns: HARD_TURN_LIMIT,
     tensionLevel: "low",
     status: "in_progress",
   };

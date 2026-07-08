@@ -54,8 +54,10 @@ Role boundary:
 
 Scenario summary: ${state.scenario.summary}
 Scenario context: ${state.scenario.patientProfile}; ${state.scenario.communicationChallenge}
+Ending condition (this is what actually decides shouldEnd, not the turn count): ${state.scenario.endingCondition}
+Suggested pacing: aim for roughly ${state.scenario.suggestedTurns} turns, but this is only a loose guide.
 Current turn: ${state.currentTurn}
-Remaining turns: ${Math.max(state.maxTurns - state.currentTurn, 0)}
+Hard turn limit (absolute safety cap, not a target): ${state.maxTurns}
 Current tension level: ${state.tensionLevel}${roleCorrectionNote}
 
 Rules:
@@ -69,6 +71,9 @@ Rules:
 - Increase tension only if the trainee is dismissive, vague, unclear, or escalates the concern.
 - Reduce tension if the trainee is calm, empathetic, transparent, and clear.
 - Ask what the trainee says or does next unless the scenario should end.
+- shouldEnd must reflect whether the ending condition above has actually, substantively been met by what has been said so far (roughly 95% there or more) -- not whether a target turn count has been reached. Do not end early just because the suggested pacing number was hit if the ending condition genuinely has not happened yet.
+- Do not stall indefinitely either: if the trainee's response has clearly and reasonably satisfied the spirit of the ending condition, set shouldEnd to true even if it happened faster than the suggested pacing.
+- If the current turn is within 1-2 turns of the hard turn limit and the ending condition still has not been met, use this reply to actively steer the scene toward a natural resolution (e.g. the character starts to calm down, asks one final clarifying question, or signals they are ready to wrap up), so the conversation can close naturally at or before the hard limit.
 - Do not provide diagnosis, medication, treatment instructions, triage advice, or clinical decision-making advice.
 - Bad response: "I understand you're concerned. I can tell you your parent is stable."
 - Why bad: This speaks as the doctor/trainee.
