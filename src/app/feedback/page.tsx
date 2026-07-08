@@ -127,7 +127,7 @@ export default function FeedbackPage() {
           </p>
           <Link
             href="/scenario"
-            className="mt-6 inline-flex min-h-11 items-center rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)]"
+            className="btn-shine mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
           >
             Create scenario
           </Link>
@@ -138,15 +138,19 @@ export default function FeedbackPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
-        <div>
-          <p className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
+      <div className="animate-fade-up space-y-6">
+        <div className="relative overflow-hidden">
+          <div
+            aria-hidden
+            className="animate-float pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-[var(--color-primary)]/14 blur-3xl"
+          />
+          <p className="relative inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
             Feedback report
           </p>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
+          <h1 className="relative mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
             {state.scenario.title}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
+          <p className="relative mt-3 max-w-3xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
             Feedback is limited to communication behaviors and training performance.
           </p>
         </div>
@@ -214,14 +218,14 @@ export default function FeedbackPage() {
               <button
                 type="button"
                 onClick={() => exportFeedback(state, report)}
-                className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
+                className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
               >
                 Export feedback as .txt
               </button>
               <button
                 type="button"
                 onClick={handleRestart}
-                className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)]"
+                className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)]"
               >
                 Restart
               </button>

@@ -11,7 +11,7 @@ import {
   StepProgress,
 } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
-import { ChatMessageList } from "@/components/simulation/ChatMessageList";
+import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
@@ -126,7 +126,7 @@ export default function SimulationPage() {
           </p>
           <Link
             href="/scenario"
-            className="mt-6 inline-flex min-h-11 items-center rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)]"
+            className="btn-shine mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
           >
             Create scenario
           </Link>
@@ -146,10 +146,14 @@ export default function SimulationPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="animate-fade-up space-y-6">
         <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
-          <div className="grid gap-5 bg-[var(--color-primary-ink)] p-5 text-white lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center sm:p-6">
-            <div>
+          <div className="relative grid gap-5 overflow-hidden bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] p-5 text-white lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center sm:p-6">
+            <div
+              aria-hidden
+              className="animate-pulse-glow pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-300/25 blur-3xl"
+            />
+            <div className="relative">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Simulation room</p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
                 {state.scenario.title}
@@ -158,7 +162,7 @@ export default function SimulationPage() {
                 {state.scenario.summary}
               </p>
             </div>
-            <div className="space-y-3">
+            <div className="relative space-y-3">
               <div className="flex flex-wrap gap-2">
                 <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
                 <TensionBadge level={state.tensionLevel} />
@@ -179,6 +183,11 @@ export default function SimulationPage() {
                 <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
               </div>
               <ChatMessageList messages={state.messages} />
+              {loading ? (
+                <div className="mt-4">
+                  <TypingIndicator />
+                </div>
+              ) : null}
             </section>
 
             {!completed ? (
@@ -304,14 +313,14 @@ export default function SimulationPage() {
                   <button
                     type="button"
                     onClick={handleEndSimulation}
-                    className="min-h-11 rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
+                    className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
                   >
                     End Simulation
                   </button>
                   <button
                     type="button"
                     onClick={handleFinishAndGenerateFeedback}
-                    className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
+                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
                   >
                     Finish & Generate Feedback
                   </button>
@@ -320,7 +329,7 @@ export default function SimulationPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/feedback")}
-                  className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
+                  className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
                 >
                   View Feedback
                 </button>
@@ -328,7 +337,7 @@ export default function SimulationPage() {
                 <button
                   type="button"
                   onClick={handleGenerateFeedback}
-                  className="min-h-11 rounded-2xl bg-[var(--color-info)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:bg-blue-900"
+                  className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
                 >
                   Generate Feedback
                 </button>

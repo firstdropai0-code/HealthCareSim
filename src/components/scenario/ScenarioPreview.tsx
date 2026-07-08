@@ -267,12 +267,16 @@ export function ScenarioPreview({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="animate-fade-up space-y-4">
       <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
-        <div className="bg-[var(--color-primary-ink)] px-5 py-5 text-white md:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Scenario brief</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{scenario.title}</h2>
-          <div className="mt-4 flex flex-wrap gap-2">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] px-5 py-5 text-white md:px-6">
+          <div
+            aria-hidden
+            className="animate-pulse-glow pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-300/25 blur-3xl"
+          />
+          <p className="relative text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Scenario brief</p>
+          <h2 className="relative mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{scenario.title}</h2>
+          <div className="relative mt-4 flex flex-wrap gap-2">
             <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
             <MetricChip label="Turns" value={`${scenario.suggestedTurns}`} tone="blue" />
           </div>

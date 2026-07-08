@@ -62,20 +62,24 @@ export default function ScenarioCreatorPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div>
-            <p className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
+        <div className="relative grid gap-5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+          <div
+            aria-hidden
+            className="animate-float pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-[var(--color-primary)]/14 blur-3xl"
+          />
+          <div className="relative">
+            <p className="animate-fade-up inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
               Scenario creator
             </p>
-            <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
+            <h1 className="animate-fade-up animate-fade-up-1 mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
               Turn a rough trainer note into a structured roleplay.
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
+            <p className="animate-fade-up animate-fade-up-2 mt-3 max-w-2xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
               Keep it rough. The app will convert the idea into a short training brief
               that is easy to scan before starting.
             </p>
           </div>
-          <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
+          <div className="card-hover animate-fade-up animate-fade-up-2 relative rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Workflow</p>
             <div className="mt-4 space-y-3">
               {[
@@ -115,7 +119,7 @@ export default function ScenarioCreatorPage() {
                 key={example}
                 type="button"
                 onClick={() => setIdea(example)}
-                className="min-h-11 rounded-full border border-teal-200 bg-[var(--color-primary-soft)] px-4 py-2 text-xs font-semibold text-[var(--color-primary-ink)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:bg-white"
+                className="min-h-11 rounded-full border border-teal-200 bg-[var(--color-primary-soft)] px-4 py-2 text-xs font-semibold text-[var(--color-primary-ink)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:bg-white hover:shadow-[var(--shadow-card)]"
               >
                 {example}
               </button>
@@ -148,7 +152,7 @@ export default function ScenarioCreatorPage() {
                   setScenario(null);
                   setError(null);
                 }}
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition hover:-translate-y-0.5 hover:border-slate-500"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-500"
               >
                 Clear
               </button>
@@ -175,7 +179,7 @@ export default function ScenarioCreatorPage() {
               <button
                 type="button"
                 onClick={handleStartSimulation}
-                className="w-full rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)] md:w-auto"
+                className="btn-shine w-full rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)] md:w-auto"
               >
                 Start Simulation
               </button>

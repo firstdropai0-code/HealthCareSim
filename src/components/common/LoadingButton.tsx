@@ -16,7 +16,7 @@ export function LoadingButton({
     <button
       {...props}
       disabled={disabled || loading}
-      className={`inline-flex min-h-11 items-center justify-center rounded-2xl bg-[var(--color-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition hover:-translate-y-0.5 hover:bg-[var(--color-primary-strong)] disabled:translate-y-0 disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none ${className}`}
+      className={`btn-shine inline-flex min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)] disabled:translate-y-0 disabled:bg-slate-300 disabled:bg-none disabled:text-slate-500 disabled:shadow-none ${className}`}
     >
       {loading ? "Working..." : children}
     </button>

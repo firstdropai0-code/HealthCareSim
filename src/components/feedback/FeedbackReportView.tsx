@@ -51,7 +51,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
   const customCriteriaFeedback = report.customCriteriaFeedback || [];
 
   return (
-    <div className="space-y-5">
+    <div className="animate-fade-up space-y-5">
       {report.source === "fallback" ? (
         <div className="rounded-2xl border border-amber-200 bg-[var(--color-warning-soft)] px-4 py-3 text-sm font-semibold text-amber-950">
           {report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}
@@ -84,7 +84,10 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
       <InfoCard label="Example" title="Better response examples" tone="blue">
         <div className="grid gap-3 md:grid-cols-2">
           {report.betterResponses.map((item) => (
-            <blockquote key={item} className="rounded-2xl bg-[var(--color-info-soft)] px-3 py-3 text-blue-950">
+            <blockquote
+              key={item}
+              className="rounded-2xl border border-blue-100 bg-[var(--color-info-soft)] px-3 py-3 text-blue-950 transition-transform duration-300 hover:-translate-y-0.5"
+            >
               <ReadMoreText text={item} maxLength={140} />
             </blockquote>
           ))}
@@ -97,14 +100,14 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
             {customCriteriaFeedback.map((item) => (
               <div
                 key={item.criterion}
-                className="rounded-2xl bg-indigo-50 px-3 py-3 text-indigo-950"
+                className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3 text-indigo-950 transition-transform duration-300 hover:-translate-y-0.5"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-indigo-700">
                   {item.criterion}
                 </p>
-                <p className="mt-1 text-sm leading-6">
+                <div className="mt-1 text-sm leading-6">
                   <ReadMoreText text={item.assessment} maxLength={140} />
-                </p>
+                </div>
               </div>
             ))}
           </div>

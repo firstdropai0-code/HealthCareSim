@@ -44,25 +44,14 @@ html {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.13), transparent 34rem),
-    linear-gradient(180deg, var(--color-canvas-soft) 0%, var(--color-canvas) 42rem),
-    var(--color-canvas);
+    radial-gradient(1200px 800px at 12% -10%, rgba(15, 118, 110, 0.22), transparent 60%),
+    radial-gradient(900px 700px at 108% 8%, rgba(15, 118, 110, 0.14), transparent 55%),
+    linear-gradient(160deg, #eef6f4 0%, #dff0ec 42%, #e9f2ee 100%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: geometricPrecision;
-}
-
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
-  background-image: linear-gradient(rgba(20, 32, 29, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 32, 29, 0.035) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 58%);
 }
 
 button,
@@ -101,4 +90,192 @@ button:disabled {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(8px, -16px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.animate-fade-up {
+  animation: fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-up-1 {
+  animation-delay: 0.06s;
+}
+
+.animate-fade-up-2 {
+  animation-delay: 0.14s;
+}
+
+.animate-fade-up-3 {
+  animation-delay: 0.22s;
+}
+
+.animate-fade-up-4 {
+  animation-delay: 0.3s;
+}
+
+.animate-float {
+  animation: floatSlow 8s ease-in-out infinite;
+}
+
+.animate-float-slow {
+  animation: floatSlow 12s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+.card-hover {
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s ease,
+    border-color 0.28s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-soft);
+  border-color: var(--color-border-strong);
+}
+
+.btn-shine {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.btn-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.32) 48%, transparent 66%);
+  background-size: 220% 100%;
+  background-position: 150% 0;
+  transition: background-position 0.7s ease;
+}
+
+.btn-shine:hover::after {
+  background-position: -70% 0;
+}
+
+.bg-grid-fade {
+  background-image:
+    linear-gradient(rgba(20, 32, 29, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 32, 29, 0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(ellipse 60% 100% at 50% 0%, black 40%, transparent 85%);
+}
+
+@keyframes rotateSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.decor-capsule {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  box-shadow: 0 20px 46px rgba(15, 118, 110, 0.18);
+}
+
+.decor-capsule::before,
+.decor-capsule::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+}
+
+.decor-capsule::before {
+  background: linear-gradient(120deg, #ffffff 0%, #ffffff 52%, transparent 52%);
+}
+
+.decor-capsule::after {
+  background: linear-gradient(120deg, transparent 52%, var(--color-primary) 52%, var(--color-primary-strong) 100%);
+}
+
+.decor-capsule-ring {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  border: 10px solid rgba(15, 118, 110, 0.14);
+}
+
+.animate-spin-slow {
+  animation: rotateSlow 22s linear infinite;
+}
+
+.page-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2.5rem;
+  background: var(--color-surface);
+  box-shadow: 0 30px 90px rgba(7, 59, 55, 0.14);
+}
+
+.nav-link {
+  position: relative;
+  transition:
+    color 0.3s ease,
+    background-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.nav-link:hover {
+  transform: translateY(-1px);
+}
+
+.header-elevated {
+  box-shadow: 0 12px 32px rgba(7, 59, 55, 0.1);
+}
+
+@keyframes marqueeScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  display: inline-flex;
+  width: max-content;
+  animation: marqueeScroll 26s linear infinite;
 }
