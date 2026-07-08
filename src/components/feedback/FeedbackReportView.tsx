@@ -48,6 +48,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
     report.whatCouldImprove[0] ||
     report.communicationGaps[0] ||
     "Use clearer structure in the next response.";
+  const customCriteriaFeedback = report.customCriteriaFeedback || [];
 
   return (
     <div className="space-y-5">
@@ -89,6 +90,26 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
           ))}
         </div>
       </InfoCard>
+
+      {customCriteriaFeedback.length > 0 ? (
+        <InfoCard label="Custom criteria" title="Your added evaluation criteria" tone="indigo">
+          <div className="grid gap-3 md:grid-cols-2">
+            {customCriteriaFeedback.map((item) => (
+              <div
+                key={item.criterion}
+                className="rounded-2xl bg-indigo-50 px-3 py-3 text-indigo-950"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-indigo-700">
+                  {item.criterion}
+                </p>
+                <p className="mt-1 text-sm leading-6">
+                  <ReadMoreText text={item.assessment} maxLength={140} />
+                </p>
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+      ) : null}
 
       <InfoCard label="Final advice" title="Carry forward" tone="slate">
         <ReadMoreText text={report.finalAdvice} maxLength={170} />

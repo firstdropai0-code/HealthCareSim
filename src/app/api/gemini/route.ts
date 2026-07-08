@@ -198,6 +198,23 @@ function buildSafeNarratorTurn(): NextSimulationTurn {
   };
 }
 
+function normalizeCustomCriteriaFeedback(value: unknown): FeedbackReport["customCriteriaFeedback"] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item): item is { criterion: unknown; assessment: unknown } =>
+        Boolean(item) && typeof item === "object",
+    )
+    .map((item) => ({
+      criterion: typeof item.criterion === "string" ? item.criterion : "",
+      assessment: typeof item.assessment === "string" ? item.assessment : "",
+    }))
+    .filter((item) => item.criterion && item.assessment);
+}
+
 function normalizeFeedback(value: unknown): FeedbackReport {
   const report = value as Partial<FeedbackReport>;
 
@@ -213,6 +230,7 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     communicationGaps: normalizeStringArray(report.communicationGaps),
     betterResponses: normalizeStringArray(report.betterResponses),
     finalAdvice: report.finalAdvice,
+    customCriteriaFeedback: normalizeCustomCriteriaFeedback(report.customCriteriaFeedback),
     source: report.source === "fallback" ? "fallback" : "ai",
     ...(report.fallbackReason ? { fallbackReason: report.fallbackReason } : {}),
   };
@@ -250,6 +268,18 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
       traineeMessages.length > 0
         ? "Review your conversation log for empathy, plain language, and a clear next step. This fallback avoids clinical judgement."
         : "Add at least one trainee response before generating a detailed communication report.",
+    customCriteriaFeedback: (state.scenario.defaultEvaluationCriteria
+      ? state.scenario.evaluationCriteria.filter(
+          (item) =>
+            !state.scenario.defaultEvaluationCriteria!.some(
+              (defaultItem) => defaultItem.trim().toLowerCase() === item.trim().toLowerCase(),
+            ),
+        )
+      : []
+    ).map((criterion) => ({
+      criterion,
+      assessment: "Add another trainee response so this custom criterion can be assessed in detail.",
+    })),
   });
 }
 

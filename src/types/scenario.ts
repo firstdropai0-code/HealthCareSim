@@ -15,5 +15,6 @@ export type Scenario = {
   suggestedTurns: number;
   endingCondition: string;
   evaluationCriteria: string[];
+  defaultEvaluationCriteria?: string[];
   mediaAssets?: MediaAsset[];
 };

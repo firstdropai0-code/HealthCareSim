@@ -92,5 +92,15 @@ export const feedbackReportSchema: GeminiSchema = {
     communicationGaps: stringArraySchema,
     betterResponses: stringArraySchema,
     finalAdvice: { type: "STRING" },
+    customCriteriaFeedback: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          criterion: { type: "STRING" },
+          assessment: { type: "STRING" },
+        },
+      },
+    },
   },
 };

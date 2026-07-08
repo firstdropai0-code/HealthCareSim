@@ -34,12 +34,19 @@ export default function ScenarioCreatorPage() {
 
     try {
       const nextScenario = await generateScenarioFromIdea(idea);
-      setScenario(nextScenario);
+      setScenario({
+        ...nextScenario,
+        defaultEvaluationCriteria: [...nextScenario.evaluationCriteria],
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to generate scenario.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleScenarioChange(updates: Partial<Scenario>) {
+    setScenario((current) => (current ? { ...current, ...updates } : current));
   }
 
   function handleStartSimulation() {
@@ -163,7 +170,7 @@ export default function ScenarioCreatorPage() {
 
         {scenario ? (
           <>
-            <ScenarioPreview scenario={scenario} />
+            <ScenarioPreview scenario={scenario} onScenarioChange={handleScenarioChange} />
             <div className="sticky bottom-4 z-10 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[rgba(255,255,255,0.92)] p-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
               <button
                 type="button"

@@ -50,7 +50,13 @@ ${formatList(report.communicationGaps)}
 
 Better Response Examples
 ${formatList(report.betterResponses)}
-
+${
+  report.customCriteriaFeedback && report.customCriteriaFeedback.length > 0
+    ? `\nYour Added Evaluation Criteria\n${report.customCriteriaFeedback
+        .map((item) => `- ${item.criterion}: ${item.assessment}`)
+        .join("\n")}\n`
+    : ""
+}
 Final Advice
 ${report.finalAdvice}
 `;
