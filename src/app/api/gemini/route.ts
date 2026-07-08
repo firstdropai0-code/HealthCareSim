@@ -361,6 +361,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ result: await generateScenario(input) });
       } catch (error) {
         if (isInvalidJsonResponse(error)) {
+          console.error("Gemini scenario generation returned invalid JSON, using fallback:", error);
           return NextResponse.json({ result: buildFallbackScenario(input) });
         }
 
@@ -380,7 +381,8 @@ export async function POST(request: Request) {
 
       try {
         firstResult = await generateTurn(state, traineeResponse, promptPayload);
-      } catch {
+      } catch (error) {
+        console.error("Gemini next-turn generation failed, using safe narrator turn:", error);
         return NextResponse.json({ result: buildSafeNarratorTurn() });
       }
 
@@ -396,7 +398,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
           result: appearsToSpeakAsTrainee(correctedResult) ? buildSafeNarratorTurn() : correctedResult,
         });
-      } catch {
+      } catch (error) {
+        console.error("Gemini role-correction retry failed, using safe narrator turn:", error);
         return NextResponse.json({ result: buildSafeNarratorTurn() });
       }
     }
@@ -414,7 +417,8 @@ export async function POST(request: Request) {
 
       try {
         return NextResponse.json({ result: await generateFeedback(state) });
-      } catch {
+      } catch (error) {
+        console.error("Gemini feedback generation failed, using fallback:", error);
         return NextResponse.json({ result: buildFallbackFeedback(state) });
       }
     }
