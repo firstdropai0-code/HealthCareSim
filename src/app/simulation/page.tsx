@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
+import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import {
   InfoCard,
@@ -14,6 +15,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
+import { speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
   clearFeedbackReport,
@@ -22,7 +24,11 @@ import {
   savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
-import type { ScenarioSpeaker, SimulationState } from "@/types/simulation";
+import type {
+  ScenarioSpeaker,
+  SimulationMessage,
+  SimulationState,
+} from "@/types/simulation";
 
 const speakerLabels: Record<ScenarioSpeaker, string> = {
   patient: "Patient",
@@ -40,6 +46,13 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [autoRead, setAutoRead] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+  const playbackRef = useRef<SpeechPlayback | null>(null);
+  const autoReadHandledIds = useRef<Set<string>>(new Set());
+  const autoReadSeeded = useRef(false);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setState(loadSimulationState());
@@ -48,6 +61,72 @@ export default function SimulationPage() {
 
     return () => window.clearTimeout(timer);
   }, []);
+
+  const stopSpeaking = useCallback(() => {
+    playbackRef.current?.stop();
+    playbackRef.current = null;
+    setSpeakingMessageId(null);
+  }, []);
+
+  // Stop any in-flight playback when leaving the page.
+  useEffect(() => stopSpeaking, [stopSpeaking]);
+
+  const speakMessage = useCallback(
+    async (message: SimulationMessage) => {
+      // Toggle off if this exact message is already being read.
+      if (speakingMessageId === message.id) {
+        stopSpeaking();
+        return;
+      }
+
+      stopSpeaking();
+      setTtsError(null);
+      setSpeakingMessageId(message.id);
+
+      try {
+        const playback = await speakText(message.content);
+        playbackRef.current = playback;
+        await playback.finished;
+      } catch (err) {
+        setTtsError(err instanceof Error ? err.message : "Could not play audio.");
+      } finally {
+        playbackRef.current = null;
+        setSpeakingMessageId((current) => (current === message.id ? null : current));
+      }
+    },
+    [speakingMessageId, stopSpeaking],
+  );
+
+  // Seed the "already handled" set once so auto-read only fires for genuinely
+  // new AI turns, never for messages already on screen when the toggle flips on.
+  useEffect(() => {
+    if (state && !autoReadSeeded.current) {
+      state.messages.forEach((message) => autoReadHandledIds.current.add(message.id));
+      autoReadSeeded.current = true;
+    }
+  }, [state]);
+
+  // Auto-read the newest scenario message when the toggle is on.
+  useEffect(() => {
+    if (!autoRead || !state) {
+      return;
+    }
+
+    const latest = state.messages.findLast(
+      (message) => message.role === "scenario" && message.content.trim().length > 0,
+    );
+
+    if (!latest || autoReadHandledIds.current.has(latest.id)) {
+      return;
+    }
+
+    autoReadHandledIds.current.add(latest.id);
+    void speakMessage(latest);
+  }, [autoRead, state, speakMessage]);
+
+  function handleTranscript(text: string) {
+    setResponse((current) => (current.trim() ? `${current.trim()} ${text}` : text));
+  }
 
   async function handleSend() {
     if (!state || !response.trim()) {
@@ -180,9 +259,45 @@ export default function SimulationPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Live roleplay</p>
                   <h2 className="text-lg font-semibold text-[var(--color-ink)]">Conversation</h2>
                 </div>
-                <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--color-ink)]">
+                    <input
+                      type="checkbox"
+                      checked={autoRead}
+                      onChange={(event) => {
+                        setAutoRead(event.target.checked);
+                        if (!event.target.checked) {
+                          stopSpeaking();
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-[var(--color-border-strong)] accent-[var(--color-primary)]"
+                    />
+                    Auto-read new patient messages
+                  </label>
+                  <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
+                </div>
               </div>
-              <ChatMessageList messages={state.messages} />
+              <ChatMessageList
+                messages={state.messages}
+                onSpeak={speakMessage}
+                speakingMessageId={speakingMessageId}
+              />
+              {speakingMessageId ? (
+                <button
+                  type="button"
+                  onClick={stopSpeaking}
+                  className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-full border border-rose-300 bg-[var(--color-danger-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:border-rose-400"
+                >
+                  <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-danger)]" />
+                  Stop reading aloud
+                </button>
+              ) : null}
+              {ttsError ? (
+                <p className="mt-2 text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
+              ) : null}
+              <p className="mt-2 text-[11px] leading-4 text-[var(--color-ink-soft)]">
+                Read-aloud audio is AI-generated (OpenAI) and voices only the text shown above.
+              </p>
               {loading ? (
                 <div className="mt-4">
                   <TypingIndicator />
@@ -204,9 +319,12 @@ export default function SimulationPage() {
                       Keep it clear: acknowledge, explain, confirm.
                     </p>
                   </div>
-                  <p className="text-xs font-medium text-[var(--color-ink-soft)]">
-                    {response.trim().length} characters
-                  </p>
+                  <div className="flex flex-col items-start gap-2 md:items-end">
+                    <p className="text-xs font-medium text-[var(--color-ink-soft)]">
+                      {response.trim().length} characters
+                    </p>
+                    <MicButton onTranscript={handleTranscript} disabled={loading} />
+                  </div>
                 </div>
                 <textarea
                   id="trainee-response"

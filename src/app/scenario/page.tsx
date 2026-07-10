@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
+import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
@@ -43,6 +44,10 @@ export default function ScenarioCreatorPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleTranscript(text: string) {
+    setIdea((current) => (current.trim() ? `${current.trim()} ${text}` : text));
   }
 
   function handleScenarioChange(updates: Partial<Scenario>) {
@@ -110,7 +115,10 @@ export default function ScenarioCreatorPage() {
                 One or two sentences is enough. Add context, emotion, and pressure point.
               </p>
             </div>
-            <p className="text-xs font-medium text-[var(--color-ink-soft)]">{idea.trim().length} characters</p>
+            <div className="flex flex-col items-end gap-2">
+              <p className="text-xs font-medium text-[var(--color-ink-soft)]">{idea.trim().length} characters</p>
+              <MicButton onTranscript={handleTranscript} disabled={loading} />
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">

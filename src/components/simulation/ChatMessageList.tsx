@@ -68,9 +68,11 @@ export function TypingIndicator() {
 type ChatMessageProps = {
   message: SimulationMessage;
   shouldType: boolean;
+  onSpeak?: (message: SimulationMessage) => void;
+  isSpeaking?: boolean;
 };
 
-function ChatMessage({ message, shouldType }: ChatMessageProps) {
+function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatMessageProps) {
   const isTrainee = message.role === "trainee";
   const messageLabel =
     message.role === "scenario" && message.speaker
@@ -78,6 +80,7 @@ function ChatMessage({ message, shouldType }: ChatMessageProps) {
       : roleLabels[message.role];
   const typed = useTypedWords(message.content, shouldType && !isTrainee);
   const isStillTyping = shouldType && !isTrainee && typed.length < message.content.length;
+  const canSpeak = !isTrainee && Boolean(onSpeak) && message.content.trim().length > 0;
 
   return (
     <article className={`animate-fade-up flex ${isTrainee ? "justify-end" : "justify-start"}`}>
@@ -88,13 +91,26 @@ function ChatMessage({ message, shouldType }: ChatMessageProps) {
             : "rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)]"
         }`}
       >
-        <p
-          className={`text-xs font-semibold uppercase tracking-[0.12em] ${
-            isTrainee ? "text-teal-50" : "text-[var(--color-ink-soft)]"
-          }`}
-        >
-          {messageLabel}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p
+            className={`text-xs font-semibold uppercase tracking-[0.12em] ${
+              isTrainee ? "text-teal-50" : "text-[var(--color-ink-soft)]"
+            }`}
+          >
+            {messageLabel}
+          </p>
+          {canSpeak ? (
+            <button
+              type="button"
+              onClick={() => onSpeak?.(message)}
+              title={isSpeaking ? "Stop reading" : "Read this message aloud"}
+              aria-label={isSpeaking ? "Stop reading message aloud" : "Read message aloud"}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-primary-strong)] transition-colors duration-200 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            >
+              {isSpeaking ? <SpeakerStopIcon /> : <SpeakerIcon />}
+            </button>
+          ) : null}
+        </div>
         <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
           {isTrainee ? message.content : typed}
           {isStillTyping ? <TypingCursor /> : null}
@@ -104,11 +120,39 @@ function ChatMessage({ message, shouldType }: ChatMessageProps) {
   );
 }
 
+function SpeakerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+      <path
+        d="M4 9v6h4l5 4V5L8 9H4z"
+        fill="currentColor"
+      />
+      <path
+        d="M16 8.5a4 4 0 0 1 0 7"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function SpeakerStopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+      <rect x="14" y="9" width="6" height="6" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 type ChatMessageListProps = {
   messages: SimulationMessage[];
+  onSpeak?: (message: SimulationMessage) => void;
+  speakingMessageId?: string | null;
 };
 
-export function ChatMessageList({ messages }: ChatMessageListProps) {
+export function ChatMessageList({ messages, onSpeak, speakingMessageId }: ChatMessageListProps) {
   const seenIds = useRef<Set<string>>(new Set());
   const isFirstRender = useRef(true);
 
@@ -121,7 +165,15 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
     const shouldType = !seenIds.current.has(message.id);
     seenIds.current.add(message.id);
 
-    return <ChatMessage key={message.id} message={message} shouldType={shouldType} />;
+    return (
+      <ChatMessage
+        key={message.id}
+        message={message}
+        shouldType={shouldType}
+        onSpeak={onSpeak}
+        isSpeaking={speakingMessageId === message.id}
+      />
+    );
   });
 
   return <div className="space-y-4">{rendered}</div>;

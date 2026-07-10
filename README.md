@@ -13,9 +13,8 @@ This is not a medical diagnosis tool. It is only for communication training and 
 - Tailwind CSS
 - Gemini API through Next.js API routes
 - Browser `localStorage` for the current simulation session
-- Gemini speech-to-text through Next.js API routes for scenario and trainee voice input
-- Gemini TTS for patient, family, nurse, and narrator voice output through `/api/gemini-tts`
-- Gemini-derived voice delivery estimates from uploaded audio
+- OpenAI speech-to-text through `/api/openai/transcribe` for scenario-idea and trainee voice input
+- OpenAI text-to-speech through `/api/openai/tts` for reading scenario (patient, family, nurse, narrator) messages aloud
 
 ## Local Setup
 
@@ -29,15 +28,22 @@ Create a local environment file:
 copy .env.example .env.local
 ```
 
-Add your Gemini key to `.env.local`:
+Add your keys to `.env.local`:
 
 ```bash
 GEMINI_API_KEY=your_real_key_here
-GEMINI_MODEL=gemini-2.5-flash-lite
-GEMINI_TTS_MODEL=gemini-3.1-flash-tts-preview
+GEMINI_MODEL=gemini-2.5-flash
+
+# Voice is optional. Set OPENAI_API_KEY to enable speech-to-text and read-aloud.
+OPENAI_API_KEY=your_openai_key_here
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE=alloy
 ```
 
-`GEMINI_MODEL` is optional. The app defaults to `gemini-2.5-flash-lite` and automatically falls back to `gemini-2.5-flash` and `gemini-3.5-flash` when Gemini returns temporary overload errors. `GEMINI_TTS_MODEL` is optional and defaults to `gemini-3.1-flash-tts-preview` for patient, family, nurse, and narrator voice output.
+`GEMINI_API_KEY` is required for all text generation (scenario, simulation turns, feedback). `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
+
+Voice is powered by OpenAI and is fully optional: only `OPENAI_API_KEY` is needed to enable it. `OPENAI_TRANSCRIBE_MODEL`, `OPENAI_TTS_MODEL`, and `OPENAI_TTS_VOICE` are optional and default to `gpt-4o-transcribe`, `gpt-4o-mini-tts`, and `alloy`. If `OPENAI_API_KEY` is absent, the app still works fully by typing and the voice controls surface a clear disabled/error state.
 
 Run the app locally:
 
@@ -53,41 +59,38 @@ Open `http://localhost:3000`.
 2. Create a new Vercel project from the repository.
 3. In Vercel, open Project Settings, then Environment Variables.
 4. Add `GEMINI_API_KEY` with your Gemini API key.
-5. Optionally add `GEMINI_TTS_MODEL` if you need to change the Gemini TTS preview model.
+5. Optionally add `OPENAI_API_KEY` (and the optional `OPENAI_*` model/voice overrides) to enable voice.
 6. Deploy.
 
-The API key is only read in server API routes such as `src/app/api/gemini/route.ts` and `src/app/api/gemini-tts/route.ts`. It is never exposed to frontend code.
+API keys are only read in server API routes (`src/app/api/gemini/route.ts`, `src/app/api/openai/transcribe/route.ts`, and `src/app/api/openai/tts/route.ts`). They are never exposed to frontend code.
 
 ## Current Features
 
 - Home page with product explanation and safety disclaimer.
-- Scenario creator with typed and voice input.
+- Scenario creator with typed input plus optional OpenAI speech-to-text for the idea field.
 - Gemini-powered structured scenario generation.
 - Chat-style simulation room with turn count and tension level.
-- Scenario message playback with Gemini TTS through `/api/gemini-tts`.
-- Voice capture that can estimate volume, pitch, pace, pauses, and likely tone.
+- Optional OpenAI speech-to-text for the trainee response (transcript is editable; never auto-sent).
+- Read-aloud of scenario messages via OpenAI text-to-speech, with a per-message speaker button and an "Auto-read new patient messages" toggle. The audio only voices the exact text Gemini already produced.
 - Gemini-powered next-turn generation.
-- Feedback report generation focused on communication, empathy, clarity, pressure handling, and optional estimated voice delivery.
+- Feedback report generation focused on communication, empathy, clarity, and pressure handling.
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
 
 ## How to Test This Prototype
 
-1. Create a scenario from one of the sample ideas below or your own communication challenge.
-2. Start the simulation and turn on **Voice Simulation Mode**.
-3. Use **Read latest patient message** to confirm Gemini TTS plays the current patient, family, nurse, or narrator message.
-4. Turn on **Auto-read patient messages** if you want new AI scenario turns to play automatically.
-5. Type a response, or use **Start speaking** to record audio for Gemini live captions and transcription.
-6. Stop recording, wait for Gemini to finalize the transcript, then review and edit before sending.
-7. Check the estimated voice delivery pattern when available.
-8. Continue for a few turns, then use **Generate Feedback**.
-9. Export the feedback report as `.txt` and confirm it includes the transcript and coaching notes.
+1. Create a scenario from one of the sample ideas below or your own communication challenge. Optionally press **Speak** next to the idea field to dictate it instead of typing.
+2. Start the simulation.
+3. Press the speaker icon on any patient/family/nurse/narrator message to hear it read aloud, or toggle **Auto-read new patient messages** so each new AI turn plays automatically. Use **Stop reading aloud** to interrupt playback.
+4. Type a response, or press **Speak** next to the response box to dictate it. The transcript lands in the box for you to review and edit — it is never auto-sent.
+5. Continue for a few turns, then use **Generate Feedback**.
+6. Export the feedback report as `.txt` and confirm it includes coaching notes.
 
-Text input should always work. Voice input uses browser MediaRecorder only to capture microphone audio, then Gemini handles live captions, final transcription, and voice delivery estimates through server API routes. Patient, family, nurse, and narrator voice output uses Gemini TTS through `/api/gemini-tts`, with the API key kept server-side. The transcript remains editable and must be sent manually.
+Text input and text-only play always work. Voice input uses the browser MediaRecorder to capture microphone audio, then OpenAI transcribes it through a server route. Read-aloud uses OpenAI text-to-speech through a server route and only voices the exact scenario text Gemini already produced. Both OpenAI keys stay server-side. The transcript remains editable and must be sent manually.
 
 ## Demo Testing Scenarios
 
-Use these trainer prompts to test the prototype end to end. They are designed to check live role boundaries, speaker labels, TTS behavior, estimated voice delivery, and communication-focused feedback.
+Use these trainer prompts to test the prototype end to end. They are designed to check live role boundaries, speaker labels, read-aloud behavior, and communication-focused feedback.
 
 ### 1. ER patient with anxious family
 
@@ -143,22 +146,20 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 
 - AI should never speak as the doctor during live simulation.
 - AI should label the scenario speaker correctly.
-- TTS should only read AI scenario messages.
-- Voice metrics should be shown as estimates.
+- Read-aloud should only voice AI scenario messages, never the trainee's own turns.
 - Feedback should be communication-focused.
 - No diagnosis or treatment advice should be generated.
 
-## Voice Prototype Notes
+## Voice Notes
 
-- Voice input uses MediaRecorder for microphone capture and Gemini for live captions and final transcription.
-- Patient, family, nurse, and narrator playback uses Gemini TTS through `/api/gemini-tts`.
-- The Gemini API key stays server-side and is not sent to the browser.
-- Voice delivery estimates come from Gemini audio transcription output.
-- Tone, pace, clarity, and confidence estimates are approximate and intended only for communication training feedback.
-- Browser support depends on microphone permission and MediaRecorder support.
-- If Gemini cannot transcribe audio, users can retry or type; text input remains the fallback.
+- Text generation (scenario, simulation turns, feedback) is entirely Gemini and is unchanged by the voice features.
+- Voice is powered by OpenAI and is optional. Speech-to-text uses MediaRecorder to capture microphone audio, which OpenAI transcribes through `/api/openai/transcribe`.
+- Read-aloud uses OpenAI text-to-speech through `/api/openai/tts` and only voices the exact scenario text Gemini produced — it never regenerates or alters that text.
+- The OpenAI API key stays server-side and is not sent to the browser.
+- Read-aloud audio is AI-generated; this is disclosed in the UI next to the read-aloud controls.
+- Browser support depends on microphone permission and MediaRecorder support; if voice is unavailable or a call fails, the app still works fully by typing.
 - When recording stops, the transcript remains editable and must be sent manually.
-- Generated TTS audio is played in the browser and is not saved as a file by the app.
+- Generated audio is played in the browser and is not saved as a file by the app.
 
 ## Future Roadmap
 
@@ -182,19 +183,18 @@ src/
     simulation/page.tsx
     feedback/page.tsx
     api/gemini/route.ts
-    api/gemini-tts/route.ts
+    api/openai/transcribe/route.ts
+    api/openai/tts/route.ts
   components/
     common/
     feedback/
     layout/
     scenario/
     simulation/
-  hooks/
-    useGeminiVoiceRecorder.ts
-    useTextToSpeech.ts
   lib/
     ai/
     export/
+    hooks/
     prompts/
     safety/
     simulation/
@@ -204,7 +204,6 @@ src/
     media.ts
     scenario.ts
     simulation.ts
-    voice.ts
 roadmap/
   futureMediaArchitecture.md
 ```
