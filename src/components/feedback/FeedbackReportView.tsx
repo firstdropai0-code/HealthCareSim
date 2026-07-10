@@ -82,14 +82,26 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
       </div>
 
       <InfoCard label="Example" title="Better response examples" tone="blue">
-        <div className="grid gap-3 md:grid-cols-2">
-          {report.betterResponses.map((item) => (
-            <blockquote
-              key={item}
-              className="rounded-2xl border border-blue-100 bg-[var(--color-info-soft)] px-3 py-3 text-blue-950 transition-transform duration-300 hover:-translate-y-0.5"
-            >
-              <ReadMoreText text={item} maxLength={140} />
-            </blockquote>
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-xs font-semibold text-blue-700">
+            FD
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">
+            FirstDrop Coach
+          </span>
+        </div>
+        <div className="mt-3 flex flex-col space-y-3">
+          <div className="animate-fade-up flex justify-start">
+            <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] shadow-[var(--shadow-card)] sm:max-w-xl">
+              <p className="text-sm leading-6">Here are a few lines you could&apos;ve used 👇</p>
+            </div>
+          </div>
+          {report.betterResponses.map((item, index) => (
+            <div key={`better-${index}`} className="animate-fade-up flex justify-start">
+              <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] shadow-[var(--shadow-card)] sm:max-w-xl">
+                <ReadMoreText text={item} maxLength={140} />
+              </div>
+            </div>
           ))}
         </div>
       </InfoCard>
