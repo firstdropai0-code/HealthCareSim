@@ -124,6 +124,85 @@ export default function SimulationPage() {
     void speakMessage(latest);
   }, [autoRead, state, speakMessage]);
 
+  // --- Conversation scroll behaviour (UI-only) -----------------------------
+  // Keeps the newest turn in view without yanking the user back down while
+  // they are intentionally reading earlier messages.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const initialScrollDone = useRef(false);
+  const messageCount = state?.messages.length ?? 0;
+  const hasState = state !== null;
+
+  const scrollHistoryToBottom = useCallback((smooth = true) => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth && !prefersReducedMotion ? "smooth" : "auto",
+    });
+  }, []);
+
+  const handleHistoryScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    nearBottomRef.current = distanceFromBottom < 120;
+  }, []);
+
+  // Jump to the latest turn on load, then follow new messages only when the
+  // user is already near the bottom of the history.
+  useEffect(() => {
+    if (messageCount === 0) {
+      return;
+    }
+
+    if (!initialScrollDone.current) {
+      scrollHistoryToBottom(false);
+      initialScrollDone.current = true;
+      return;
+    }
+
+    if (nearBottomRef.current) {
+      scrollHistoryToBottom();
+    }
+  }, [messageCount, scrollHistoryToBottom]);
+
+  // Reveal the typing indicator when it appears near the bottom.
+  useEffect(() => {
+    if (loading && nearBottomRef.current) {
+      scrollHistoryToBottom();
+    }
+  }, [loading, scrollHistoryToBottom]);
+
+  // Follow content that grows in place (e.g. the typing animation) while the
+  // user is near the bottom, without forcing them down otherwise.
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (nearBottomRef.current) {
+        scrollHistoryToBottom(false);
+      }
+    });
+    observer.observe(content);
+
+    return () => observer.disconnect();
+  }, [hasState, scrollHistoryToBottom]);
+
   function handleTranscript(text: string) {
     setResponse((current) => (current.trim() ? `${current.trim()} ${text}` : text));
   }
@@ -225,158 +304,226 @@ export default function SimulationPage() {
 
   return (
     <AppShell>
-      <div className="animate-fade-up space-y-6">
-        <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
-          <div className="relative grid gap-5 overflow-hidden bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] p-5 text-white lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center sm:p-6">
-            <div
-              aria-hidden
-              className="animate-pulse-glow pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-300/25 blur-3xl"
-            />
-            <div className="relative">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Simulation room</p>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+      <div className="animate-fade-up flex flex-col gap-4">
+        {/* Compact status header */}
+        <header className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] px-4 py-4 text-white shadow-[var(--shadow-soft)] sm:px-5">
+          <div
+            aria-hidden
+            className="animate-pulse-glow pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-teal-300/25 blur-3xl"
+          />
+          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-100">Simulation room</p>
+              <h1 className="mt-1 truncate text-xl font-semibold tracking-tight sm:text-2xl">
                 {state.scenario.title}
               </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-teal-50">
+              <p className="mt-1 line-clamp-2 max-w-2xl text-xs leading-5 text-teal-50 sm:text-sm">
                 {state.scenario.summary}
               </p>
             </div>
-            <div className="relative space-y-3">
-              <div className="flex flex-wrap gap-2">
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end">
+              <div className="flex flex-wrap items-center gap-2">
                 <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
                 <TensionBadge level={state.tensionLevel} />
               </div>
-              <StepProgress current={state.currentTurn} total={state.maxTurns} />
+              <div className="w-full sm:w-56 lg:w-64">
+                <StepProgress current={state.currentTurn} total={state.maxTurns} />
+              </div>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
-          <div className="space-y-6">
-            <section className="min-h-[440px] rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 shadow-[var(--shadow-card)] md:p-5">
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Live roleplay</p>
-                  <h2 className="text-lg font-semibold text-[var(--color-ink)]">Conversation</h2>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--color-ink)]">
-                    <input
-                      type="checkbox"
-                      checked={autoRead}
-                      onChange={(event) => {
-                        setAutoRead(event.target.checked);
-                        if (!event.target.checked) {
-                          stopSpeaking();
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-[var(--color-border-strong)] accent-[var(--color-primary)]"
-                    />
-                    Auto-read new patient messages
-                  </label>
-                  <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
-                </div>
+        {/* Conversation panel + context sidebar */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
+          {/* Conversation panel */}
+          <section className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] shadow-[var(--shadow-card)]">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Live roleplay</p>
+                <h2 className="text-base font-semibold text-[var(--color-ink)]">Conversation</h2>
               </div>
-              <ChatMessageList
-                messages={state.messages}
-                onSpeak={speakMessage}
-                speakingMessageId={speakingMessageId}
-              />
-              {speakingMessageId ? (
-                <button
-                  type="button"
-                  onClick={stopSpeaking}
-                  className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-full border border-rose-300 bg-[var(--color-danger-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:border-rose-400"
-                >
-                  <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-danger)]" />
-                  Stop reading aloud
-                </button>
-              ) : null}
-              {ttsError ? (
-                <p className="mt-2 text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
-              ) : null}
-              <p className="mt-2 text-[11px] leading-4 text-[var(--color-ink-soft)]">
-                Read-aloud audio is AI-generated (OpenAI) and voices only the text shown above.
-              </p>
-              {loading ? (
-                <div className="mt-4">
-                  <TypingIndicator />
-                </div>
-              ) : null}
-            </section>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--color-ink)]">
+                  <input
+                    type="checkbox"
+                    checked={autoRead}
+                    onChange={(event) => {
+                      setAutoRead(event.target.checked);
+                      if (!event.target.checked) {
+                        stopSpeaking();
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-[var(--color-border-strong)] accent-[var(--color-primary)]"
+                  />
+                  Auto-read new patient messages
+                </label>
+                <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
+              </div>
+            </div>
 
-            {!completed ? (
-              <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] md:p-5">
-                <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <label
-                      htmlFor="trainee-response"
-                      className="text-sm font-semibold text-[var(--color-ink)]"
-                    >
-                      Your next response
-                    </label>
-                    <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
-                      Keep it clear: acknowledge, explain, confirm.
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-start gap-2 md:items-end">
-                    <p className="text-xs font-medium text-[var(--color-ink-soft)]">
-                      {response.trim().length} characters
-                    </p>
-                    <MicButton onTranscript={handleTranscript} disabled={loading} />
-                  </div>
-                </div>
-                <textarea
-                  id="trainee-response"
-                  rows={3}
-                  value={response}
-                  onChange={(event) => setResponse(event.target.value)}
-                  placeholder="Type what the trainee says or does next."
-                  className="mt-3 w-full resize-y rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-4 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-teal-100"
+            <div
+              ref={scrollRef}
+              onScroll={handleHistoryScroll}
+              tabIndex={0}
+              aria-label="Conversation history"
+              aria-busy={loading}
+              className="flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 min-h-[320px] max-h-[60dvh] lg:min-h-[360px] lg:max-h-[62dvh]"
+            >
+              <div ref={contentRef} className="space-y-4">
+                <ChatMessageList
+                  messages={state.messages}
+                  onSpeak={speakMessage}
+                  speakingMessageId={speakingMessageId}
                 />
+                {loading ? <TypingIndicator /> : null}
+              </div>
+            </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {coachCues.map((cue) => (
-                    <MetricChip key={cue} label={cue} tone="emerald" />
-                  ))}
-                </div>
-
-                {error ? (
-                  <div className="mt-3 rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
-                    {error}
+            {/* Persistent bottom area: speech controls + composer / completed */}
+            <div className="border-t border-[var(--color-border)] bg-[rgba(255,255,255,0.9)] px-4 py-3 backdrop-blur-xl">
+              {speakingMessageId || ttsError ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {speakingMessageId ? (
                     <button
                       type="button"
-                      onClick={handleSend}
-                      disabled={!response.trim() || loading}
-                      className="ml-3 font-semibold underline disabled:text-rose-300"
+                      onClick={stopSpeaking}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-full border border-rose-300 bg-[var(--color-danger-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:border-rose-400"
                     >
-                      Retry
+                      <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-danger)]" />
+                      Stop reading aloud
                     </button>
-                  </div>
-                ) : null}
-
-                <div className="mt-4">
-                  <LoadingButton
-                    type="button"
-                    loading={loading}
-                    disabled={!response.trim()}
-                    onClick={handleSend}
-                    className="min-h-12 w-full"
-                  >
-                    Send Response
-                  </LoadingButton>
+                  ) : null}
+                  {ttsError ? (
+                    <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
+                  ) : null}
                 </div>
-              </section>
-            ) : (
-              <InfoCard label="Complete" title="Simulation completed" tone="blue">
-                <p className="text-sm leading-6">
-                  Generate a feedback report focused on communication, empathy, clarity, and pressure handling.
-                </p>
-              </InfoCard>
-            )}
-          </div>
+              ) : null}
 
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+              {!completed ? (
+                <>
+                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <label
+                        htmlFor="trainee-response"
+                        className="text-sm font-semibold text-[var(--color-ink)]"
+                      >
+                        Your next response
+                      </label>
+                      <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
+                        Keep it clear: acknowledge, explain, confirm.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-start gap-2 md:items-end">
+                      <p className="text-xs font-medium text-[var(--color-ink-soft)]">
+                        {response.trim().length} characters
+                      </p>
+                      <MicButton onTranscript={handleTranscript} disabled={loading} />
+                    </div>
+                  </div>
+                  <textarea
+                    id="trainee-response"
+                    rows={2}
+                    value={response}
+                    onChange={(event) => setResponse(event.target.value)}
+                    placeholder="Type what the trainee says or does next."
+                    className="mt-2 w-full resize-y rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-teal-100"
+                  />
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {coachCues.map((cue) => (
+                      <MetricChip key={cue} label={cue} tone="emerald" />
+                    ))}
+                  </div>
+
+                  {error ? (
+                    <div className="mt-2 rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                      {error}
+                      <button
+                        type="button"
+                        onClick={handleSend}
+                        disabled={!response.trim() || loading}
+                        className="ml-3 font-semibold underline disabled:text-rose-300"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3">
+                    <LoadingButton
+                      type="button"
+                      loading={loading}
+                      disabled={!response.trim()}
+                      onClick={handleSend}
+                      className="min-h-12 w-full"
+                    >
+                      Send Response
+                    </LoadingButton>
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-[var(--radius-lg)] border border-blue-200 bg-[var(--color-info-soft)] px-4 py-3">
+                  <p className="text-sm font-semibold text-blue-900">Simulation completed</p>
+                  <p className="mt-1 text-sm leading-6 text-blue-950">
+                    Generate a feedback report focused on communication, empathy, clarity, and pressure handling.
+                  </p>
+                </div>
+              )}
+
+              <p className="mt-3 text-[11px] leading-4 text-[var(--color-ink-soft)]">
+                Read-aloud audio is AI-generated (OpenAI) and voices only the text shown above.
+              </p>
+            </div>
+          </section>
+
+          {/* Context / coaching sidebar */}
+          <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Session</p>
+              <p className="mt-1 text-sm font-semibold text-[var(--color-ink)]">
+                {completed ? "Simulation completed" : "Wrap up when ready"}
+              </p>
+              <p className="text-xs text-[var(--color-ink-soft)]">
+                {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
+              </p>
+              <div className="mt-3 grid gap-2">
+                {!completed ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleEndSimulation}
+                      className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
+                    >
+                      End Simulation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleFinishAndGenerateFeedback}
+                      className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                    >
+                      Finish & Generate Feedback
+                    </button>
+                  </>
+                ) : hasFeedbackReport ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/feedback")}
+                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                  >
+                    View Feedback
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleGenerateFeedback}
+                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                  >
+                    Generate Feedback
+                  </button>
+                )}
+              </div>
+            </div>
+
             <InfoCard label="Training brief" title={state.scenario.setting} tone="slate">
               <div className="space-y-3">
                 <div>
@@ -413,55 +560,6 @@ export default function SimulationPage() {
 
             <SafetyNotice />
           </aside>
-        </div>
-
-        <div className="sticky bottom-4 z-10 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[rgba(255,255,255,0.92)] p-3 shadow-[var(--shadow-soft)] backdrop-blur-xl">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-[var(--color-ink)]">
-                {completed ? "Simulation completed" : "Wrap up when ready"}
-              </p>
-              <p className="text-xs text-[var(--color-ink-soft)]">
-                {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 md:flex md:flex-wrap">
-              {!completed ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleEndSimulation}
-                    className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
-                  >
-                    End Simulation
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleFinishAndGenerateFeedback}
-                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
-                  >
-                    Finish & Generate Feedback
-                  </button>
-                </>
-              ) : hasFeedbackReport ? (
-                <button
-                  type="button"
-                  onClick={() => router.push("/feedback")}
-                  className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
-                >
-                  View Feedback
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleGenerateFeedback}
-                  className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
-                >
-                  Generate Feedback
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </AppShell>
