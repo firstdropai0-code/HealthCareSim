@@ -6,7 +6,17 @@
  * our own /api/openai/* handlers.
  */
 
-export async function transcribeAudio(audio: Blob): Promise<string> {
+import type { TranscribedWord } from "@/types/voice";
+
+export type TranscriptionResult = {
+  text: string;
+  /** Word timings, empty when the model/response did not provide them. */
+  words: TranscribedWord[];
+  /** Audio duration reported by the API, when available. */
+  duration?: number;
+};
+
+export async function transcribeAudio(audio: Blob): Promise<TranscriptionResult> {
   const formData = new FormData();
   formData.append("file", audio, "recording.webm");
 
@@ -16,14 +26,18 @@ export async function transcribeAudio(audio: Blob): Promise<string> {
   });
 
   const data = (await response.json().catch(() => null)) as
-    | { text?: string; error?: string }
+    | { text?: string; words?: TranscribedWord[]; duration?: number; error?: string }
     | null;
 
   if (!response.ok || !data) {
     throw new Error(data?.error || "Transcription failed. Please try again.");
   }
 
-  return (data.text || "").trim();
+  return {
+    text: (data.text || "").trim(),
+    words: Array.isArray(data.words) ? data.words : [],
+    ...(typeof data.duration === "number" ? { duration: data.duration } : {}),
+  };
 }
 
 export type SpeakTextOptions = {

@@ -1,4 +1,5 @@
 import type { Scenario } from "./scenario";
+import type { VoiceMetrics } from "./voice";
 
 export type SimulationMessageRole = "system" | "scenario" | "trainee" | "feedback";
 export type ScenarioSpeaker = "patient" | "family_member" | "nurse" | "bystander" | "narrator";
@@ -11,6 +12,11 @@ export type SimulationMessage = {
   content: string;
   timestamp: string;
   speaker?: ScenarioSpeaker;
+  /**
+   * Delivery metrics for a spoken trainee turn. Absent when the turn was typed
+   * rather than spoken, or when analysis was unavailable.
+   */
+  voiceMetrics?: VoiceMetrics;
 };
 
 export type SimulationState = {

@@ -1,10 +1,14 @@
 "use client";
 
 import { useVoiceRecorder } from "@/lib/hooks/useVoiceRecorder";
+import type { VoiceMetrics } from "@/types/voice";
 
 type MicButtonProps = {
-  /** Called with the transcript once a recording is stopped and transcribed. */
-  onTranscript: (text: string) => void;
+  /**
+   * Called with the transcript once a recording is stopped and transcribed.
+   * voiceMetrics is null when delivery analysis was unavailable.
+   */
+  onTranscript: (text: string, voiceMetrics: VoiceMetrics | null) => void;
   /** Disable the control (e.g. while a request is in flight). */
   disabled?: boolean;
   className?: string;
@@ -24,9 +28,9 @@ export function MicButton({ onTranscript, disabled = false, className = "" }: Mi
 
   async function handleClick() {
     if (isRecording) {
-      const text = await stop();
+      const { text, voiceMetrics } = await stop();
       if (text) {
-        onTranscript(text);
+        onTranscript(text, voiceMetrics);
       }
       return;
     }

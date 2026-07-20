@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   buildCustomCriteriaSchema,
+  deliveryFeedbackSchema,
   feedbackReportSchema,
   nextSimulationTurnSchema,
   scenarioSchema,
@@ -10,8 +11,10 @@ import {
   isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
+import { assignCharacterVoices } from "@/lib/ai/voiceDirection";
 import {
   buildCustomCriteriaPrompt,
+  buildDeliveryFeedbackPrompt,
   buildFeedbackPrompt,
   getExtraEvaluationCriteria,
 } from "@/lib/prompts/feedbackPrompt";
@@ -83,7 +86,7 @@ function normalizeScenario(value: unknown): Scenario {
     throw new Error("Generated scenario is missing required fields.");
   }
 
-  return {
+  const normalized: Scenario = {
     id: scenario.id || crypto.randomUUID(),
     title: scenario.title,
     setting: scenario.setting || "Healthcare consultation",
@@ -104,6 +107,10 @@ function normalizeScenario(value: unknown): Scenario {
         : ["Empathy", "Clarity", "Pressure handling", "Shared understanding"],
     mediaAssets: scenario.mediaAssets || [],
   };
+
+  // Pin voices here rather than asking the model for them: it's a closed set of
+  // preset voice ids, and the assignment only needs to happen once per scenario.
+  return { ...normalized, characterVoices: assignCharacterVoices(normalized) };
 }
 
 function buildFallbackScenario(input: string): Scenario {
@@ -234,6 +241,9 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     whatCouldImprove: normalizeStringArray(report.whatCouldImprove),
     communicationGaps: normalizeStringArray(report.communicationGaps),
     betterResponses: normalizeStringArray(report.betterResponses),
+    // deliveryFeedback is intentionally not read here: the scoring call never
+    // receives voice metrics and never produces it. generateFeedback merges it
+    // in from its own separate call.
     finalAdvice: report.finalAdvice,
     customCriteriaFeedback: normalizeCustomCriteriaFeedback(report.customCriteriaFeedback),
     source: report.source === "fallback" ? "fallback" : "ai",
@@ -363,11 +373,43 @@ async function generateCustomCriteriaFeedback(
   }
 }
 
+/**
+ * Delivery coaching, generated separately from the score so the scoring call
+ * never sees the voice metrics. Best-effort: if it fails, the report simply
+ * ships without the delivery card rather than losing the whole feedback run.
+ */
+async function generateDeliveryFeedback(state: SimulationState): Promise<string[]> {
+  const prompt = buildDeliveryFeedbackPrompt(state);
+
+  // Null means nothing was captured (typed session, or analysis unavailable),
+  // so there is no call to make.
+  if (!prompt) {
+    return [];
+  }
+
+  try {
+    const result = (await callGeminiJson({
+      action: "feedback",
+      prompt,
+      models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
+      temperature: 0.3,
+      maxOutputTokens: 500,
+      timeoutMs: FEEDBACK_TIMEOUT_MS,
+      schema: deliveryFeedbackSchema,
+    })) as { deliveryFeedback?: unknown };
+
+    return normalizeStringArray(result?.deliveryFeedback);
+  } catch (error) {
+    console.error("Delivery feedback generation failed, omitting the section:", error);
+    return [];
+  }
+}
+
 async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
   const prompt = buildFeedbackPrompt(state);
   const extraCriteria = getExtraEvaluationCriteria(state);
 
-  const [mainResult, customCriteriaFeedback] = await Promise.all([
+  const [mainResult, customCriteriaFeedback, deliveryFeedback] = await Promise.all([
     callGeminiJson({
       action: "feedback",
       prompt,
@@ -380,9 +422,10 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
     extraCriteria.length > 0
       ? generateCustomCriteriaFeedback(state, extraCriteria)
       : Promise.resolve([]),
+    generateDeliveryFeedback(state),
   ]);
 
-  return { ...normalizeFeedback(mainResult), customCriteriaFeedback };
+  return { ...normalizeFeedback(mainResult), customCriteriaFeedback, deliveryFeedback };
 }
 
 export async function POST(request: Request) {

@@ -49,6 +49,7 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
     report.communicationGaps[0] ||
     "Use clearer structure in the next response.";
   const customCriteriaFeedback = report.customCriteriaFeedback || [];
+  const deliveryFeedback = report.deliveryFeedback || [];
 
   return (
     <div className="animate-fade-up space-y-5">
@@ -105,6 +106,25 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
           ))}
         </div>
       </InfoCard>
+
+      {deliveryFeedback.length > 0 ? (
+        <InfoCard label="Delivery" title="How you sounded" tone="blue">
+          <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+            Measured from your spoken turns. These are cues about delivery, not a score — the
+            overall score above reflects what you said.
+          </p>
+          <div className="mt-3 grid gap-2">
+            {deliveryFeedback.map((item, index) => (
+              <div
+                key={`delivery-${index}`}
+                className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]"
+              >
+                <ReadMoreText text={item} maxLength={140} />
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+      ) : null}
 
       {customCriteriaFeedback.length > 0 ? (
         <InfoCard label="Custom criteria" title="Your added evaluation criteria" tone="indigo">

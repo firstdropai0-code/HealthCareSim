@@ -10,6 +10,11 @@ export type FeedbackReport = {
   whatCouldImprove: string[];
   communicationGaps: string[];
   betterResponses: string[];
+  /**
+   * Coaching on HOW the trainee spoke, from the voice metrics. Empty when the
+   * trainee typed their turns or delivery analysis was unavailable.
+   */
+  deliveryFeedback?: string[];
   finalAdvice: string;
   customCriteriaFeedback?: CustomCriterionFeedback[];
   source?: "ai" | "fallback";

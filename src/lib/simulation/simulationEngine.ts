@@ -1,5 +1,6 @@
 import type { Scenario } from "@/types/scenario";
 import type { ScenarioSpeaker, SimulationMessage, SimulationState } from "@/types/simulation";
+import type { VoiceMetrics } from "@/types/voice";
 
 export function createMessage(
   role: SimulationMessage["role"],
@@ -41,15 +42,21 @@ export function appendSimulationTurn(
   scenarioSpeaker: ScenarioSpeaker,
   tensionLevel: SimulationState["tensionLevel"],
   shouldEnd: boolean,
+  /** Present only when the trainee spoke this turn and analysis succeeded. */
+  traineeVoiceMetrics?: VoiceMetrics | null,
 ): SimulationState {
   const nextTurn = state.currentTurn + 1;
   const reachedMaxTurns = nextTurn >= state.maxTurns;
+
+  const traineeMessage = createMessage("trainee", traineeResponse);
 
   return {
     ...state,
     messages: [
       ...state.messages,
-      createMessage("trainee", traineeResponse),
+      traineeVoiceMetrics
+        ? { ...traineeMessage, voiceMetrics: traineeVoiceMetrics }
+        : traineeMessage,
       createMessage("scenario", scenarioMessage, scenarioSpeaker),
     ],
     currentTurn: nextTurn,

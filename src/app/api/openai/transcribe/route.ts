@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 
+import type { TranscribedWord } from "@/types/voice";
+
 const TRANSCRIBE_TIMEOUT_MS = 30_000;
-const DEFAULT_TRANSCRIBE_MODEL = "gpt-4o-transcribe";
+
+/**
+ * whisper-1 rather than gpt-4o-transcribe: word-level timestamps require
+ * response_format=verbose_json with timestamp_granularities, and those are only
+ * supported on whisper-1. The delivery metrics (pace, pauses) depend on them.
+ */
+const DEFAULT_TRANSCRIBE_MODEL = "whisper-1";
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
@@ -34,6 +42,16 @@ export async function POST(request: Request) {
   upstreamForm.append("file", file, fileName);
   upstreamForm.append("model", model);
 
+  // Only whisper-1 accepts verbose_json; asking for it on a gpt-4o-* transcribe
+  // model is a hard 400. If the env var points elsewhere, fall back to plain
+  // json and let the delivery metrics degrade to "no timings captured".
+  const supportsWordTimestamps = model === "whisper-1";
+
+  if (supportsWordTimestamps) {
+    upstreamForm.append("response_format", "verbose_json");
+    upstreamForm.append("timestamp_granularities[]", "word");
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TRANSCRIBE_TIMEOUT_MS);
 
@@ -53,10 +71,18 @@ export async function POST(request: Request) {
       return errorResponse("Transcription failed. Please try again.", 502);
     }
 
-    const data = (await response.json()) as { text?: string };
+    const data = (await response.json()) as {
+      text?: string;
+      duration?: number;
+      words?: { word?: unknown; start?: unknown; end?: unknown }[];
+    };
     const text = typeof data.text === "string" ? data.text.trim() : "";
 
-    return NextResponse.json({ text });
+    return NextResponse.json({
+      text,
+      words: normalizeWords(data.words),
+      ...(typeof data.duration === "number" ? { duration: data.duration } : {}),
+    });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       return errorResponse("Transcription timed out. Please try a shorter clip.", 504);
@@ -67,6 +93,24 @@ export async function POST(request: Request) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/** Keep only well-formed word timings; a malformed entry is dropped, not guessed. */
+function normalizeWords(value: unknown): TranscribedWord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (item): item is { word: string; start: number; end: number } =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        typeof (item as { word?: unknown }).word === "string" &&
+        typeof (item as { start?: unknown }).start === "number" &&
+        typeof (item as { end?: unknown }).end === "number",
+    )
+    .map((item) => ({ word: item.word, start: item.start, end: item.end }));
 }
 
 async function parseOpenAiError(response: Response): Promise<string> {

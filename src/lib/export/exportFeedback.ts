@@ -51,6 +51,10 @@ ${formatList(report.communicationGaps)}
 Better Response Examples
 ${formatList(report.betterResponses)}
 ${
+  report.deliveryFeedback && report.deliveryFeedback.length > 0
+    ? `\nHow You Sounded (delivery cues, not part of the score)\n${formatList(report.deliveryFeedback)}\n`
+    : ""
+}${
   report.customCriteriaFeedback && report.customCriteriaFeedback.length > 0
     ? `\nYour Added Evaluation Criteria\n${report.customCriteriaFeedback
         .map((item) => `- ${item.criterion}: ${item.assessment}`)

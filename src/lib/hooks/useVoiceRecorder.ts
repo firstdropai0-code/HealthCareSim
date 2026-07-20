@@ -2,17 +2,32 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "@/lib/ai/openaiClient";
+import {
+  startVoiceFeatureCollection,
+  type VoiceFeatureCollector,
+} from "@/lib/audio/voiceFeatureCollector";
+import { buildVoiceMetrics } from "@/lib/audio/voiceMetrics";
+import type { VoiceMetrics } from "@/types/voice";
 
 export type VoiceRecorderStatus = "idle" | "recording" | "transcribing" | "error";
+
+export type VoiceRecorderResult = {
+  /** Empty string on failure. */
+  text: string;
+  /** Null when delivery analysis was unavailable; never a fabricated default. */
+  voiceMetrics: VoiceMetrics | null;
+};
 
 export type UseVoiceRecorder = {
   status: VoiceRecorderStatus;
   error: string | null;
   isSupported: boolean;
   start: () => Promise<void>;
-  /** Stop recording and resolve with the transcript (empty string on failure). */
-  stop: () => Promise<string>;
+  /** Stop recording and resolve with the transcript plus delivery metrics. */
+  stop: () => Promise<VoiceRecorderResult>;
 };
+
+const EMPTY_RESULT: VoiceRecorderResult = { text: "", voiceMetrics: null };
 
 function isMediaRecordingSupported(): boolean {
   return (
@@ -36,6 +51,7 @@ export function useVoiceRecorder(): UseVoiceRecorder {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const collectorRef = useRef<VoiceFeatureCollector | null>(null);
 
   useEffect(() => {
     // Defer the capability check to a microtask so we never call setState
@@ -45,6 +61,9 @@ export function useVoiceRecorder(): UseVoiceRecorder {
   }, []);
 
   const releaseStream = useCallback(() => {
+    // Tear the analyser down before the tracks so it never samples a dead stream.
+    collectorRef.current?.stop();
+    collectorRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     recorderRef.current = null;
@@ -76,6 +95,9 @@ export function useVoiceRecorder(): UseVoiceRecorder {
 
       streamRef.current = stream;
       recorderRef.current = recorder;
+      // Runs off the same stream, so no second permission prompt. Returns null
+      // when Web Audio is unavailable; recording continues either way.
+      collectorRef.current = startVoiceFeatureCollection(stream);
       recorder.start();
       setStatus("recording");
     } catch (err) {
@@ -89,23 +111,25 @@ export function useVoiceRecorder(): UseVoiceRecorder {
     }
   }, [releaseStream]);
 
-  const stop = useCallback((): Promise<string> => {
+  const stop = useCallback((): Promise<VoiceRecorderResult> => {
     const recorder = recorderRef.current;
 
     if (!recorder || recorder.state === "inactive") {
       releaseStream();
       setStatus("idle");
-      return Promise.resolve("");
+      return Promise.resolve(EMPTY_RESULT);
     }
 
-    return new Promise<string>((resolve) => {
+    return new Promise<VoiceRecorderResult>((resolve) => {
       recorder.onstop = async () => {
         const chunks = chunksRef.current;
+        // Read the analyser out before releaseStream() tears it down.
+        const captured = collectorRef.current?.stop() ?? null;
         releaseStream();
 
         if (chunks.length === 0) {
           setStatus("idle");
-          resolve("");
+          resolve(EMPTY_RESULT);
           return;
         }
 
@@ -113,13 +137,29 @@ export function useVoiceRecorder(): UseVoiceRecorder {
         setStatus("transcribing");
 
         try {
-          const text = await transcribeAudio(blob);
+          const { text, words, duration } = await transcribeAudio(blob);
           setStatus("idle");
-          resolve(text);
+
+          // Metrics are strictly best-effort: a failure here must never cost the
+          // trainee their transcript, so it is caught separately.
+          let voiceMetrics: VoiceMetrics | null = null;
+
+          try {
+            voiceMetrics = buildVoiceMetrics({
+              transcript: text,
+              words,
+              samples: captured?.samples ?? [],
+              durationSec: duration ?? captured?.durationSec ?? 0,
+            });
+          } catch (metricsError) {
+            console.error("Voice metric analysis failed; continuing without it:", metricsError);
+          }
+
+          resolve({ text, voiceMetrics });
         } catch (err) {
           setStatus("error");
           setError(err instanceof Error ? err.message : "Transcription failed. Please try again.");
-          resolve("");
+          resolve(EMPTY_RESULT);
         }
       };
 

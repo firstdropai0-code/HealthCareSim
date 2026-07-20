@@ -16,6 +16,13 @@ import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMe
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
+import {
+  buildVoiceInstructions,
+  getCharacterVoice,
+  stripTraineePrompt,
+} from "@/lib/ai/voiceDirection";
+import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
+import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
   clearFeedbackReport,
@@ -52,6 +59,7 @@ export default function SimulationPage() {
   const playbackRef = useRef<SpeechPlayback | null>(null);
   const autoReadHandledIds = useRef<Set<string>>(new Set());
   const autoReadSeeded = useRef(false);
+  const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -84,7 +92,24 @@ export default function SimulationPage() {
       setSpeakingMessageId(message.id);
 
       try {
-        const playback = await speakText(message.content);
+        // Voice is pinned per character; the instruction is rebuilt each turn so
+        // delivery tracks the current tension and how far in we are.
+        const speaker = message.speaker || "narrator";
+        const voiceOptions = state
+          ? {
+              voice: getCharacterVoice(state.scenario, speaker).voiceId,
+              instructions: buildVoiceInstructions({
+                scenario: state.scenario,
+                speaker,
+                tensionLevel: state.tensionLevel,
+                turnRatio:
+                  state.maxTurns > 0 ? Math.min(1, state.currentTurn / state.maxTurns) : 0,
+              }),
+            }
+          : {};
+        // Spoken text drops the trailing "What do you say?" prompt; the message
+        // on screen keeps it.
+        const playback = await speakText(stripTraineePrompt(message.content), voiceOptions);
         playbackRef.current = playback;
         await playback.finished;
       } catch (err) {
@@ -94,7 +119,7 @@ export default function SimulationPage() {
         setSpeakingMessageId((current) => (current === message.id ? null : current));
       }
     },
-    [speakingMessageId, stopSpeaking],
+    [speakingMessageId, state, stopSpeaking],
   );
 
   // Seed the "already handled" set once so auto-read only fires for genuinely
@@ -203,7 +228,12 @@ export default function SimulationPage() {
     return () => observer.disconnect();
   }, [hasState, scrollHistoryToBottom]);
 
-  function handleTranscript(text: string) {
+  // A draft can be built from several dictations (plus typing), so metrics
+  // accumulate here and are combined when the turn is actually sent.
+  function handleTranscript(text: string, voiceMetrics: VoiceMetrics | null) {
+    if (voiceMetrics) {
+      pendingVoiceMetrics.current.push(voiceMetrics);
+    }
     setResponse((current) => (current.trim() ? `${current.trim()} ${text}` : text));
   }
 
@@ -225,6 +255,7 @@ export default function SimulationPage() {
         turn.speaker,
         turn.tensionLevel,
         turn.shouldEnd,
+        aggregateVoiceMetrics(pendingVoiceMetrics.current),
       );
 
       setState(updatedState);
@@ -232,6 +263,7 @@ export default function SimulationPage() {
       clearFeedbackReport();
       setHasFeedbackReport(false);
       setResponse("");
+      pendingVoiceMetrics.current = [];
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue simulation.");
     } finally {
