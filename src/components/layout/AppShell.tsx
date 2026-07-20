@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 const navigationItems = [
+  { href: "/how-it-works", label: "How It Works" },
   { href: "/scenario", label: "Scenario" },
   { href: "/simulation", label: "Simulation" },
   { href: "/feedback", label: "Feedback" },

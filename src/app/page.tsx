@@ -1,6 +1,7 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { InfoCard } from "@/components/common/VisualCards";
+import { HeroChatSnippet } from "@/components/home/HeroChatSnippet";
 import { AppShell } from "@/components/layout/AppShell";
 
 const workflowSteps = [
@@ -80,122 +81,6 @@ function MarqueeRibbon() {
   );
 }
 
-function Hexagon({ x, y, size, opacity }: { x: number; y: number; size: number; opacity: number }) {
-  const points = [0, 60, 120, 180, 240, 300]
-    .map((angle) => {
-      const rad = (Math.PI / 180) * angle;
-      return `${x + size * Math.cos(rad)},${y + size * Math.sin(rad)}`;
-    })
-    .join(" ");
-
-  return <polygon points={points} fill="var(--color-primary)" opacity={opacity} />;
-}
-
-function HeroIllustration() {
-  const ringCircumference = 2 * Math.PI * 118;
-  const half = ringCircumference / 2;
-
-  return (
-    <div className="relative mx-auto w-full max-w-[300px]">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-6 -top-8 h-28 w-28 opacity-70"
-      >
-        <svg viewBox="0 0 120 120" className="h-full w-full">
-          <Hexagon x={30} y={30} size={16} opacity={0.35} />
-          <Hexagon x={62} y={22} size={11} opacity={0.5} />
-          <Hexagon x={90} y={44} size={14} opacity={0.3} />
-          <Hexagon x={40} y={60} size={10} opacity={0.45} />
-          <Hexagon x={70} y={68} size={13} opacity={0.28} />
-        </svg>
-      </div>
-
-      <svg viewBox="0 0 300 300" className="h-full w-full drop-shadow-[0_24px_48px_rgba(7,59,55,0.28)]">
-        <defs>
-          <linearGradient id="avatarGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="var(--color-primary-soft)" />
-            <stop offset="100%" stopColor="#ffffff" />
-          </linearGradient>
-        </defs>
-
-        <circle
-          cx="150"
-          cy="150"
-          r="118"
-          fill="none"
-          stroke="var(--color-primary)"
-          strokeWidth="14"
-          strokeDasharray={`${half} ${half}`}
-          strokeDashoffset={0}
-          transform="rotate(-90 150 150)"
-        />
-        <circle
-          cx="150"
-          cy="150"
-          r="118"
-          fill="none"
-          stroke="var(--color-primary-strong)"
-          strokeWidth="14"
-          strokeDasharray={`${half} ${half}`}
-          strokeDashoffset={-half}
-          transform="rotate(-90 150 150)"
-        />
-
-        <circle cx="150" cy="150" r="98" fill="url(#avatarGrad)" />
-        <path d="M92 268c3-64 25-98 58-98s55 34 58 98Z" fill="var(--color-primary-soft)" />
-        <circle cx="150" cy="128" r="42" fill="var(--color-primary-soft)" />
-        <path
-          d="M150 182c-6 0-11-5-11-12v-7a11 11 0 0 1 22 0v7c0 7-5 12-11 12Z"
-          fill="var(--color-primary)"
-          opacity="0.85"
-        />
-        <path
-          d="M126 188q24 13 48 0"
-          stroke="var(--color-primary)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          fill="none"
-          opacity="0.5"
-        />
-      </svg>
-
-      <div className="absolute -left-3 top-1/2 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-strong)] shadow-[var(--shadow-lift)]">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" className="h-6 w-6">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </div>
-
-      <div
-        aria-hidden
-        className="decor-capsule animate-float absolute -bottom-4 -right-8 h-9 w-28 rotate-[36deg] opacity-95"
-      />
-
-      <div className="animate-float absolute -left-8 top-8 flex items-center gap-2 rounded-2xl bg-white px-3 py-2.5 shadow-[var(--shadow-soft)]">
-        <span className="grid h-8 w-8 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]">
-          <FocusIcon>
-            <path d="M12 21s-7-4.35-9.5-8.5C.5 8.5 2.5 5 6 5c2 0 3.5 1.2 4 2.5.5-1.3 2-2.5 4-2.5 3.5 0 5.5 3.5 3.5 7.5C19 16.65 12 21 12 21Z" />
-          </FocusIcon>
-        </span>
-        <div className="pr-1">
-          <p className="text-xs font-semibold text-[var(--color-ink)]">Empathy-first</p>
-          <p className="text-[11px] text-[var(--color-ink-soft)]">Roleplay coaching</p>
-        </div>
-      </div>
-
-      <div className="animate-float-slow absolute -bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-2xl bg-white px-3 py-2.5 shadow-[var(--shadow-soft)]">
-        <span className="grid h-8 w-8 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]">
-          <FocusIcon>
-            <path d="M9 12l2 2 4-4M4 4h16v16H4z" />
-          </FocusIcon>
-        </span>
-        <div className="pr-1">
-          <p className="text-xs font-semibold text-[var(--color-ink)]">AI feedback</p>
-          <p className="text-[11px] text-[var(--color-ink-soft)]">Scored in seconds</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Home() {
   return (
@@ -222,25 +107,58 @@ export default function Home() {
               Practice difficult healthcare conversations in a safe AI roleplay room, then get
               scored, actionable feedback in seconds.
             </p>
-            <div className="animate-fade-up animate-fade-up-3 mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/scenario"
-                className="btn-shine inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-6 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
-              >
-                Create a scenario
-              </Link>
-              <Link
-                href="/simulation"
-                className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full px-2 text-sm font-semibold text-[var(--color-ink)] transition-all duration-300 hover:gap-2.5 hover:text-[var(--color-primary-strong)]"
-              >
-                Resume simulation
-                <span aria-hidden>&rarr;</span>
-              </Link>
+            <div className="animate-fade-up animate-fade-up-3 mt-8">
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/scenario"
+                  className="btn-shine inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-6 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
+                >
+                  Create a scenario
+                </Link>
+                <Link
+                  href="/how-it-works"
+                  className="group inline-flex min-h-12 items-center justify-center gap-2.5 rounded-full border border-teal-200 bg-[var(--color-primary-soft)] px-5 py-3 text-sm font-semibold text-[var(--color-primary-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:shadow-[var(--shadow-lift)]"
+                >
+                  <span
+                    aria-hidden
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-[var(--color-primary-strong)] shadow-sm transition-transform duration-300 group-hover:scale-110"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="ml-0.5 h-3 w-3">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </span>
+                  See how it works
+                </Link>
+                <Link
+                  href="/simulation"
+                  className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-full px-2 text-sm font-semibold text-[var(--color-ink)] transition-all duration-300 hover:gap-2.5 hover:text-[var(--color-primary-strong)]"
+                >
+                  Resume simulation
+                  <span aria-hidden>&rarr;</span>
+                </Link>
+              </div>
+              <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
+                Watch a 30-second walkthrough &mdash; no signup needed.
+              </p>
             </div>
           </div>
 
           <div className="animate-fade-up animate-fade-up-2 relative">
-            <HeroIllustration />
+            <HeroChatSnippet
+              floatingTag={
+                <div className="animate-float pointer-events-none absolute -right-3 -top-5 z-10 flex items-center gap-2 rounded-2xl bg-white px-3 py-2.5 shadow-[var(--shadow-soft)]">
+                  <span className="grid h-8 w-8 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]">
+                    <FocusIcon>
+                      <path d="M12 21s-7-4.35-9.5-8.5C.5 8.5 2.5 5 6 5c2 0 3.5 1.2 4 2.5.5-1.3 2-2.5 4-2.5 3.5 0 5.5 3.5 3.5 7.5C19 16.65 12 21 12 21Z" />
+                    </FocusIcon>
+                  </span>
+                  <div className="pr-1">
+                    <p className="text-xs font-semibold text-[var(--color-ink)]">Empathy-first</p>
+                    <p className="text-[11px] text-[var(--color-ink-soft)]">Roleplay coaching</p>
+                  </div>
+                </div>
+              }
+            />
           </div>
         </div>
       </section>

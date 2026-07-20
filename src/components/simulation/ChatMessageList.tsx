@@ -18,7 +18,7 @@ const speakerLabels: Record<NonNullable<SimulationMessage["speaker"]>, string> =
   narrator: "Narrator",
 };
 
-function useTypedWords(text: string, enabled: boolean, wordDelayMs = 55) {
+export function useTypedWords(text: string, enabled: boolean, wordDelayMs = 55) {
   const [wordCount, setWordCount] = useState(enabled ? 0 : Infinity);
   const words = text.split(" ");
 
