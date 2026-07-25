@@ -41,17 +41,17 @@ export function PreviewBubble({
   const shown = typeOut ? typed : content;
 
   return (
-    <div className={`animate-fade-up flex ${isTrainee ? "justify-end" : "justify-start"}`}>
+    <div className={` flex ${isTrainee ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[92%] rounded-[1.25rem] px-4 py-3 shadow-[var(--shadow-card)] sm:max-w-md ${
+        className={`max-w-[92%] rounded-[var(--radius-lg)] px-3.5 py-2.5 sm:max-w-md ${
           isTrainee
-            ? "rounded-br-md bg-gradient-to-br from-[#12897d] via-[var(--color-primary)] to-[#0b4a45] text-white"
-            : "rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)]"
+            ? "bg-[var(--color-primary)] text-white"
+            : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-card)]"
         }`}
       >
         <p
-          className={`text-xs font-semibold uppercase tracking-[0.12em] ${
-            isTrainee ? "text-teal-50" : "text-[var(--color-ink-soft)]"
+          className={`eyebrow ${
+            isTrainee ? "text-white/75" : "text-[var(--color-ink-soft)]"
           }`}
         >
           {speaker}

@@ -7,6 +7,7 @@ import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
+import { Reveal } from "@/components/motion/Reveal";
 import { generateFeedbackReport } from "@/lib/ai/geminiClient";
 import { exportFeedback } from "@/lib/export/exportFeedback";
 import {
@@ -109,9 +110,10 @@ export default function FeedbackPage() {
   if (!hasLoaded) {
     return (
       <AppShell>
-        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
-          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">Loading feedback</h1>
-          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">Preparing the feedback page.</p>
+        <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
+          <p className="eyebrow text-[var(--color-ink-soft)]">Feedback report</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">Loading feedback</h1>
+          <p className="lede mt-5 text-sm">Preparing the feedback page.</p>
         </section>
       </AppShell>
     );
@@ -120,15 +122,13 @@ export default function FeedbackPage() {
   if (!state) {
     return (
       <AppShell>
-        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
-          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">No simulation to review</h1>
-          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">
+        <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
+          <p className="eyebrow text-[var(--color-ink-soft)]">Feedback report</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">No simulation to review</h1>
+          <p className="lede mt-5 max-w-lg text-sm">
             Run a simulation before generating a feedback report.
           </p>
-          <Link
-            href="/scenario"
-            className="btn-shine mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
-          >
+          <Link href="/scenario" className="btn-editorial btn-editorial--solid mt-8">
             Create scenario
           </Link>
         </section>
@@ -138,52 +138,55 @@ export default function FeedbackPage() {
 
   return (
     <AppShell>
-      <div className="animate-fade-up space-y-6">
-        <div className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="animate-float pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-[var(--color-primary)]/14 blur-3xl"
-          />
-          <p className="relative inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
-            Feedback report
-          </p>
-          <h1 className="relative mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
-            {state.scenario.title}
-          </h1>
-          <p className="relative mt-3 max-w-3xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
+      <div className="space-y-6">
+        <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
+          <p className="eyebrow text-[var(--color-primary)]">Feedback report</p>
+          <h1 className="display-md mt-2 max-w-3xl">{state.scenario.title}</h1>
+          <p className="lede mt-2 max-w-2xl">
             Feedback is limited to communication behaviors and training performance.
           </p>
-        </div>
+        </Reveal>
         <SafetyNotice />
         {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+          <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
             {error}
             <button
               type="button"
               onClick={handleGenerateReport}
               disabled={loading}
-              className="ml-3 font-semibold underline disabled:text-rose-300"
+              className="ml-3 font-semibold underline disabled:opacity-50"
             >
               Retry
             </button>
           </div>
         ) : null}
         {loading ? (
-          <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)]">
-            <h2 className="text-xl font-semibold text-[var(--color-ink)]">
-              Generating AI feedback...
+          <section className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)]">
+            <p className="eyebrow text-[var(--color-primary)]">Working</p>
+            <h2 className="display-md mt-3 text-[var(--color-ink)]">
+              <span className="shimmer-text">Generating AI feedback</span>
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
+            <p className="lede mt-3 max-w-xl text-sm">
               The report will focus on communication, empathy, clarity, and pressure handling.
             </p>
+            <div className="mt-5 flex gap-1.5" aria-hidden>
+              {[0, 1, 2].map((dot) => (
+                <span
+                  key={dot}
+                  className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--color-primary)]"
+                  style={{ animationDelay: `${dot * 0.15}s` }}
+                />
+              ))}
+            </div>
           </section>
         ) : !report ? (
-          <section className="grid gap-5 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)] lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="grid gap-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
-              <h2 className="text-xl font-semibold text-[var(--color-ink)]">
+              <p className="eyebrow text-[var(--color-ink-soft)]">Ready</p>
+              <h2 className="display-md mt-4 text-[var(--color-ink)]">
                 Ready to generate AI feedback
               </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
+              <p className="lede mt-5 max-w-xl text-sm">
                 The report is formatted as a quick dashboard first, with detailed notes
                 available underneath.
               </p>
@@ -191,24 +194,26 @@ export default function FeedbackPage() {
                 type="button"
                 loading={loading}
                 onClick={handleGenerateReport}
-                className="mt-5"
+                className="mt-8"
               >
                 Generate Feedback
               </LoadingButton>
             </div>
-            <div className="rounded-2xl bg-[var(--color-surface-muted)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-                Report sections
-              </p>
-              <div className="mt-3 grid gap-2 text-sm text-[var(--color-ink-muted)]">
+            <div className="border-t border-[var(--color-border)] pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <p className="eyebrow text-[var(--color-ink-soft)]">Report sections</p>
+              <ol className="mt-4">
                 {["Score", "Quick read", "Strengths", "Improve next", "Practice responses"].map(
-                  (section) => (
-                    <div key={section} className="rounded-2xl bg-white px-3 py-2 shadow-sm">
-                      {section}
-                    </div>
+                  (section, index) => (
+                    <li
+                      key={section}
+                      className="flex items-baseline gap-4 border-b border-[var(--color-border)] py-2.5"
+                    >
+                      <span className="section-num">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="text-sm text-[var(--color-ink-muted)]">{section}</span>
+                    </li>
                   ),
                 )}
-              </div>
+              </ol>
             </div>
           </section>
         ) : (
@@ -218,14 +223,14 @@ export default function FeedbackPage() {
               <button
                 type="button"
                 onClick={() => exportFeedback(state, report)}
-                className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                className="btn-editorial btn-editorial--solid"
               >
                 Export feedback as .txt
               </button>
               <button
                 type="button"
                 onClick={handleRestart}
-                className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-5 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)]"
+                className="btn-editorial btn-editorial--quiet"
               >
                 Restart
               </button>

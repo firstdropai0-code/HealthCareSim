@@ -46,7 +46,7 @@ function EditButton({ onClick, label }: { onClick: () => void; label: string }) 
       type="button"
       onClick={onClick}
       aria-label={`Edit ${label}`}
-      className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-soft)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-ink)]"
+      className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-soft)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
     >
       <PencilIcon />
     </button>
@@ -59,14 +59,14 @@ function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () =>
       <button
         type="button"
         onClick={onSave}
-        className="rounded-full bg-[var(--color-primary)] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[var(--color-primary-strong)]"
+        className="btn-editorial btn-editorial--accent min-h-8 px-3 py-1"
       >
         Save
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="rounded-full border border-[var(--color-border-strong)] px-3 py-1 text-xs font-semibold text-[var(--color-ink)] transition hover:border-slate-500"
+        className="btn-editorial btn-editorial--quiet min-h-8 px-3 py-1"
       >
         Cancel
       </button>
@@ -119,7 +119,7 @@ function EditableTextCard({
               onChange={(event) => setDraft(event.target.value)}
               rows={4}
               autoFocus
-              className="w-full resize-y rounded-xl border border-[var(--color-border-strong)] bg-white p-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-teal-100"
+              className="w-full resize-y border border-[var(--color-border-strong)] bg-white p-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
             />
             <EditActions onSave={handleSave} onCancel={handleCancel} />
           </div>
@@ -220,13 +220,13 @@ function EditableEvaluationCard({
                     onChange={(event) => updateItem(index, event.target.value)}
                     autoFocus={index === draftItems.length - 1}
                     placeholder="Describe one evaluation point"
-                    className="w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-teal-100"
+                    className="w-full border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
                   />
                   <button
                     type="button"
                     onClick={() => removeItem(index)}
                     aria-label="Remove this evaluation point"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--color-border-strong)] text-[var(--color-ink-soft)] transition hover:border-rose-300 hover:text-rose-600"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--color-border-strong)] text-[var(--color-ink-soft)] transition hover:border-[var(--color-danger)] hover:text-[var(--color-danger)]"
                   >
                     <TrashIcon />
                   </button>
@@ -236,7 +236,7 @@ function EditableEvaluationCard({
             <button
               type="button"
               onClick={addItem}
-              className="flex items-center gap-1.5 rounded-full border border-dashed border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-semibold text-[var(--color-ink-soft)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary-ink)]"
+              className="eyebrow eyebrow-tight flex items-center gap-1.5 border border-dashed border-[var(--color-border-strong)] px-3 py-1.5 text-[var(--color-ink-soft)] transition hover:border-[var(--color-ink)] hover:text-[var(--color-ink)]"
             >
               <PlusIcon />
               Add point
@@ -267,22 +267,16 @@ export function ScenarioPreview({
   }
 
   return (
-    <section className="animate-fade-up space-y-4">
-      <div className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]">
-        <div className="relative overflow-hidden bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] px-5 py-5 text-white md:px-6">
-          <div
-            aria-hidden
-            className="animate-pulse-glow pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-300/25 blur-3xl"
-          />
-          <p className="relative text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">Scenario brief</p>
-          <h2 className="relative mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{scenario.title}</h2>
-          <div className="relative mt-4 flex flex-wrap gap-2">
+    <section className="space-y-4">
+      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-4 md:px-6">
+          <p className="eyebrow text-[var(--color-primary)]">Scenario brief</p>
+          <h2 className="display-md mt-1.5">{scenario.title}</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
             <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
             <MetricChip label="Turns" value={`${scenario.suggestedTurns}`} tone="blue" />
           </div>
-          <p className="mt-4 max-w-3xl text-sm leading-6 text-teal-50">
-            {scenario.summary}
-          </p>
+          <p className="lede mt-4 max-w-3xl text-sm">{scenario.summary}</p>
         </div>
 
         <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5">

@@ -3,6 +3,7 @@ import {
   ReadMoreText,
   ScoreCard,
 } from "@/components/common/VisualCards";
+import { RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import type { FeedbackReport } from "@/types/feedback";
 
 type FeedbackTone = "emerald" | "amber" | "rose" | "blue";
@@ -32,7 +33,10 @@ function FeedbackItemGrid({
     <InfoCard label={label} title={`${items.length} notes`} tone={tone}>
       <div className="grid gap-2">
         {items.map((item) => (
-          <div key={item} className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]">
+          <div
+            key={item}
+            className="border-l border-[var(--color-border-strong)] px-3 py-2 text-[var(--color-ink)]"
+          >
             <ReadMoreText text={item} maxLength={115} />
           </div>
         ))}
@@ -43,7 +47,8 @@ function FeedbackItemGrid({
 
 export function FeedbackReportView({ report }: { report: FeedbackReport }) {
   const score = Math.max(1, Math.min(10, report.overallScore));
-  const topStrength = report.whatWentWell[0] || "Stayed engaged in the scenario.";
+  const topStrength =
+    report.whatWentWell[0] || "Stayed engaged in the scenario.";
   const topFocus =
     report.whatCouldImprove[0] ||
     report.communicationGaps[0] ||
@@ -52,13 +57,14 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
   const deliveryFeedback = report.deliveryFeedback || [];
 
   return (
-    <div className="animate-fade-up space-y-5">
+    <div className="space-y-5">
       {report.source === "fallback" ? (
-        <div className="rounded-2xl border border-amber-200 bg-[var(--color-warning-soft)] px-4 py-3 text-sm font-semibold text-amber-950">
-          {report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}
+        <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
+          {report.fallbackReason ||
+            "Basic fallback feedback generated because Gemini feedback was unavailable."}
         </div>
       ) : null}
-      <section className="grid gap-5 rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] lg:grid-cols-[240px_1fr] lg:p-5">
+      <section className="grid gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)] lg:grid-cols-[240px_1fr] lg:p-5">
         <ScoreCard score={score} label={scoreLabel(score)} />
 
         <div className="space-y-4">
@@ -76,30 +82,50 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <FeedbackItemGrid label="What went well" items={report.whatWentWell} tone="emerald" />
-        <FeedbackItemGrid label="Improve next time" items={report.whatCouldImprove} tone="amber" />
-        <FeedbackItemGrid label="Watch gaps" items={report.communicationGaps} tone="rose" />
-      </div>
+      <RevealGroup stagger={0.09} className="grid gap-4 lg:grid-cols-3">
+        <RevealItem>
+          <FeedbackItemGrid
+            label="What went well"
+            items={report.whatWentWell}
+            tone="emerald"
+          />
+        </RevealItem>
+        <RevealItem>
+          <FeedbackItemGrid
+            label="Improve next time"
+            items={report.whatCouldImprove}
+            tone="amber"
+          />
+        </RevealItem>
+        <RevealItem>
+          <FeedbackItemGrid
+            label="Watch gaps"
+            items={report.communicationGaps}
+            tone="rose"
+          />
+        </RevealItem>
+      </RevealGroup>
 
       <InfoCard label="Example" title="Better response examples" tone="blue">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-xs font-semibold text-blue-700">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-[0.625rem] font-semibold text-[var(--color-info)]">
             FD
           </span>
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">
+          <span className="eyebrow text-[var(--color-info)]">
             FirstDrop Coach
           </span>
         </div>
-        <div className="mt-3 flex flex-col space-y-3">
-          <div className="animate-fade-up flex justify-start">
-            <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] shadow-[var(--shadow-card)] sm:max-w-xl">
-              <p className="text-sm leading-6">Here are a few lines you could&apos;ve used 👇</p>
+        <div className="mt-4 flex flex-col space-y-3">
+          <div className="flex justify-start">
+            <div className="max-w-[92%] rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] sm:max-w-xl">
+              <p className="text-sm leading-6">
+                Here are a few lines you could&apos;ve used.
+              </p>
             </div>
           </div>
           {report.betterResponses.map((item, index) => (
-            <div key={`better-${index}`} className="animate-fade-up flex justify-start">
-              <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] shadow-[var(--shadow-card)] sm:max-w-xl">
+            <div key={`better-${index}`} className="flex justify-start">
+              <div className="max-w-[92%] rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-primary)] bg-[var(--color-surface)] px-4 py-3 text-[var(--color-ink)] sm:max-w-xl">
                 <ReadMoreText text={item} maxLength={140} />
               </div>
             </div>
@@ -110,14 +136,14 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
       {deliveryFeedback.length > 0 ? (
         <InfoCard label="Delivery" title="How you sounded" tone="blue">
           <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
-            Measured from your spoken turns. These are cues about delivery, not a score — the
-            overall score above reflects what you said.
+            Measured from your spoken turns. These are cues about delivery, not
+            a score — the overall score above reflects what you said.
           </p>
           <div className="mt-3 grid gap-2">
             {deliveryFeedback.map((item, index) => (
               <div
                 key={`delivery-${index}`}
-                className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-[var(--color-ink)]"
+                className="border-l border-[var(--color-border-strong)] px-3 py-2 text-[var(--color-ink)]"
               >
                 <ReadMoreText text={item} maxLength={140} />
               </div>
@@ -127,14 +153,18 @@ export function FeedbackReportView({ report }: { report: FeedbackReport }) {
       ) : null}
 
       {customCriteriaFeedback.length > 0 ? (
-        <InfoCard label="Custom criteria" title="Your added evaluation criteria" tone="indigo">
+        <InfoCard
+          label="Custom criteria"
+          title="Your added evaluation criteria"
+          tone="indigo"
+        >
           <div className="grid gap-3 md:grid-cols-2">
             {customCriteriaFeedback.map((item) => (
               <div
                 key={item.criterion}
-                className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3 text-indigo-950 transition-transform duration-300 hover:-translate-y-0.5"
+                className="card-hover rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-3 text-[var(--color-ink)]"
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-indigo-700">
+                <p className="eyebrow text-[var(--color-ink-muted)]">
                   {item.criterion}
                 </p>
                 <div className="mt-1 text-sm leading-6">

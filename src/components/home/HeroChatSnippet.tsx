@@ -80,15 +80,13 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
       <Link
         href="/how-it-works"
         aria-label="See how FirstDropAI works"
-        className="group block overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-lift)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100"
+        className="card-hover group block overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-card)]"
       >
         {/* The floating tag sits over the right side of this row, so no label
             here — the whole card is the link, and the hero already has an
             explicit "See how it works" button. */}
-        <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[rgba(255,255,255,0.7)] px-4 py-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
-            Live roleplay
-          </p>
+        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-3">
+          <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
         </div>
 
         {/* Reserved height stops the hero from reflowing as the loop plays. */}

@@ -92,11 +92,69 @@ function buildConversationLog(state: SimulationState) {
 }
 
 /**
- * Scores and reviews WHAT was said. Deliberately receives no voice metrics --
- * see buildDeliveryFeedbackPrompt.
+ * The trainer's custom criteria are assessed in the SAME call as the main
+ * report (not a separate one), so both sections come from a single reasoning
+ * pass over the transcript. This block is appended to the main prompt when
+ * extra criteria exist; the model is told explicitly to keep the criteria
+ * assessments consistent with the report it just wrote rather than re-deriving
+ * an independent -- and possibly contradictory -- judgement of the same
+ * behavior. Delivery metrics are handed over here too (when captured) for
+ * criteria about HOW the trainee spoke.
  */
-export function buildFeedbackPrompt(state: SimulationState): string {
+function buildCustomCriteriaSection(state: SimulationState, extraCriteria: string[]): string {
+  const metrics = getSimulationVoiceMetrics(state);
+
+  const deliverySection = metrics
+    ? `Delivery metrics for criteria about HOW the trainee spoke (measured from their audio):
+${formatVoiceMetrics(metrics)}`
+    : `Delivery metrics: none captured. The trainee typed their responses, or voice analysis was
+unavailable, so you have NO verifiable information about how they sounded, including pauses,
+silence, or pace.`;
+
+  return `
+The trainer added these custom evaluation criteria on top of the defaults. Assess ONLY these,
+in this exact order, and return one entry per criterion in customCriteriaFeedback:
+${extraCriteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")}
+
+${deliverySection}
+
+Rules for customCriteriaFeedback:
+- STAY CONSISTENT WITH THE REPORT ABOVE. These criteria overlap with behavior you already
+  judged in whatWentWell, whatCouldImprove, and communicationGaps. When a criterion is about a
+  behavior you already assessed, the assessment MUST reach the SAME verdict you gave above --
+  never the opposite. Do not re-judge the same behavior from scratch or contradict a point you
+  already made in this report.
+- Judge each criterion ONLY from evidence actually available: the conversation log for what was
+  said, and the delivery metrics above for how it sounded.
+- If a criterion asks about something you CANNOT verify from those two sources, you MUST NOT
+  guess a verdict. This includes silence, pause length, or pace when no delivery metrics were
+  captured, and body language, eye contact, facial expression, or tone from text alone. In that
+  case the assessment must plainly state it could not be assessed from this session and why --
+  unless the report above already reached a conclusion about that same behavior, in which case
+  agree with the report. Inventing a confident verdict to fill the slot is not allowed; "could
+  not be assessed from this session" is the required answer whenever the evidence is not there.
+- Each "criterion" value must exactly match the criterion text given above, in the same order.
+- Each "assessment" must be one clear sentence under 25 words.
+`;
+}
+
+/**
+ * Scores and reviews WHAT was said, and -- when the trainer added custom
+ * criteria -- assesses those in the same response. Deliberately receives no
+ * voice metrics for scoring (see buildDeliveryFeedbackPrompt); the custom
+ * criteria section separately receives delivery metrics only for criteria about
+ * how the trainee spoke.
+ */
+export function buildFeedbackPrompt(state: SimulationState, extraCriteria: string[] = []): string {
   const conversationLog = buildConversationLog(state);
+  const hasCustomCriteria = extraCriteria.length > 0;
+  const customCriteriaSection = hasCustomCriteria
+    ? buildCustomCriteriaSection(state, extraCriteria)
+    : "";
+  const customCriteriaField = hasCustomCriteria
+    ? `,
+  "customCriteriaFeedback": [{ "criterion": "string", "assessment": "string" }]`
+    : "";
 
   return `Evaluate this healthcare communication training simulation.
 
@@ -125,7 +183,7 @@ Rules:
 - Each array should contain 2 to 4 short items.
 - Each item should be one clear sentence under 22 words.
 - betterResponses should be phrased as direct example lines the trainee could say.
-- Return only valid JSON matching this shape:
+${customCriteriaSection}- Return only valid JSON matching this shape:
 {
   "overallScore": 1,
   "summary": "string",
@@ -133,48 +191,6 @@ Rules:
   "whatCouldImprove": ["string"],
   "communicationGaps": ["string"],
   "betterResponses": ["string"],
-  "finalAdvice": "string"
+  "finalAdvice": "string"${customCriteriaField}
 }`;
-}
-
-export function buildCustomCriteriaPrompt(state: SimulationState, extraCriteria: string[]): string {
-  const conversationLog = buildConversationLog(state);
-  const metrics = getSimulationVoiceMetrics(state);
-
-  // Trainers write these criteria freely, so some will be about delivery
-  // ("kept a calm tone") rather than wording. Hand over the voice metrics when
-  // we have them, and be explicit about what is NOT observable either way --
-  // otherwise the model invents an assessment to fill the required slot.
-  const deliverySection = metrics
-    ? `
-
-Delivery metrics (measured from the trainee's spoken audio, for criteria about HOW they spoke):
-${formatVoiceMetrics(metrics)}`
-    : `
-
-Delivery metrics: none captured. The trainee typed their responses, or voice analysis was
-unavailable. You have no information about how they sounded.`;
-
-  return `You are assessing a healthcare communication training conversation against specific
-custom evaluation criteria that a trainer added on top of the scenario's default checklist.
-
-Scenario title: ${state.scenario.title}
-Conversation log: ${JSON.stringify(conversationLog)}${deliverySection}
-
-Criteria to assess (assess ONLY these, in this exact order):
-${extraCriteria.map((criterion, index) => `${index + 1}. ${criterion}`).join("\n")}
-
-Rules:
-- Do not deeply judge medical correctness. Focus on communication behavior only.
-- Judge each criterion ONLY from evidence actually available above: the conversation log for
-  what was said, and the delivery metrics for how it sounded.
-- If a criterion asks about something not observable from either source -- for example body
-  language, eye contact, facial expression, or tone when no delivery metrics were captured --
-  do not guess or infer it from wording. Say plainly that it could not be assessed from this
-  session, and briefly why. An honest "not assessable" is always better than a confident guess.
-- Return exactly ${extraCriteria.length} entr${extraCriteria.length === 1 ? "y" : "ies"} in customCriteriaFeedback, one per criterion listed above, in the same order.
-- Each "criterion" value must exactly match the criterion text given above.
-- Each "assessment" must be one clear sentence under 25 words judging how well the trainee met that specific criterion in the conversation.
-- Return only valid JSON matching this shape:
-{ "customCriteriaFeedback": [{ "criterion": "string", "assessment": "string" }] }`;
 }

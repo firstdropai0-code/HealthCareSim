@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { motion } from "framer-motion";
+import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
+import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
+import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
 
+// Every tone is a hairline-bordered paper panel; the tone shows only in the
+// label ink and a left rule, never in a filled pastel background.
 const toneStyles: Record<
   Tone,
   {
@@ -17,44 +23,44 @@ const toneStyles: Record<
   slate: {
     card: "border-[var(--color-border)] bg-[var(--color-surface)]",
     label: "text-[var(--color-ink-soft)]",
-    chip: "bg-slate-100 text-slate-700",
+    chip: "border-[var(--color-border-strong)] text-[var(--color-ink-muted)]",
     fill: "bg-[var(--color-surface-muted)] text-[var(--color-ink)]",
-    progress: "bg-slate-500",
+    progress: "bg-[var(--color-ink-muted)]",
   },
   emerald: {
-    card: "border-teal-200 bg-[var(--color-surface)]",
-    label: "text-[var(--color-primary-strong)]",
-    chip: "bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]",
+    card: "border-[var(--color-border)] bg-[var(--color-surface)]",
+    label: "text-[var(--color-primary)]",
+    chip: "border-[var(--color-primary)] text-[var(--color-primary-ink)]",
     fill: "bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]",
     progress: "bg-[var(--color-primary)]",
   },
   amber: {
-    card: "border-amber-200 bg-[var(--color-surface)]",
-    label: "text-amber-700",
-    chip: "bg-[var(--color-warning-soft)] text-amber-900",
-    fill: "bg-[var(--color-warning-soft)] text-amber-950",
-    progress: "bg-amber-500",
+    card: "border-[var(--color-border)] bg-[var(--color-surface)]",
+    label: "text-[var(--color-warning)]",
+    chip: "border-[var(--color-warning)] text-[var(--color-warning)]",
+    fill: "bg-[var(--color-warning-soft)] text-[var(--color-ink)]",
+    progress: "bg-[var(--color-warning)]",
   },
   rose: {
-    card: "border-rose-200 bg-[var(--color-surface)]",
-    label: "text-rose-700",
-    chip: "bg-[var(--color-danger-soft)] text-rose-900",
-    fill: "bg-[var(--color-danger-soft)] text-rose-950",
-    progress: "bg-rose-500",
+    card: "border-[var(--color-border)] bg-[var(--color-surface)]",
+    label: "text-[var(--color-danger)]",
+    chip: "border-[var(--color-danger)] text-[var(--color-danger)]",
+    fill: "bg-[var(--color-danger-soft)] text-[var(--color-ink)]",
+    progress: "bg-[var(--color-danger)]",
   },
   blue: {
-    card: "border-blue-200 bg-[var(--color-surface)]",
-    label: "text-blue-700",
-    chip: "bg-[var(--color-info-soft)] text-blue-900",
-    fill: "bg-[var(--color-info-soft)] text-blue-950",
+    card: "border-[var(--color-border)] bg-[var(--color-surface)]",
+    label: "text-[var(--color-info)]",
+    chip: "border-[var(--color-info)] text-[var(--color-info)]",
+    fill: "bg-[var(--color-info-soft)] text-[var(--color-ink)]",
     progress: "bg-[var(--color-info)]",
   },
   indigo: {
-    card: "border-indigo-200 bg-[var(--color-surface)]",
-    label: "text-indigo-700",
-    chip: "bg-indigo-100 text-indigo-900",
-    fill: "bg-indigo-50 text-indigo-950",
-    progress: "bg-indigo-500",
+    card: "border-[var(--color-border)] bg-[var(--color-surface)]",
+    label: "text-[var(--color-ink-muted)]",
+    chip: "border-[var(--color-border-strong)] text-[var(--color-ink-muted)]",
+    fill: "bg-[var(--color-surface-muted)] text-[var(--color-ink)]",
+    progress: "bg-[var(--color-ink-muted)]",
   },
 };
 
@@ -134,7 +140,7 @@ export function ReadMoreText({
         <button
           type="button"
           onClick={() => setIsExpanded((current) => !current)}
-          className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]"
+          className="link-editorial eyebrow eyebrow-tight text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]"
         >
           {isExpanded ? "Show less" : "Show more"}
         </button>
@@ -158,11 +164,11 @@ export function InfoCard({
 
   return (
     <article
-      className={`card-hover rounded-2xl border p-4 shadow-[var(--shadow-card)] ${styles.card}`}
+      className={`card-hover rounded-[var(--radius-lg)] border p-4 shadow-[var(--shadow-card)] ${styles.card}`}
     >
-      <p className={`text-xs font-semibold uppercase tracking-[0.12em] ${styles.label}`}>{label}</p>
-      {title ? <h3 className="mt-1 text-base font-semibold text-[var(--color-ink)]">{title}</h3> : null}
-      <div className="mt-2 text-[var(--color-ink-muted)]">{children}</div>
+      <p className={`eyebrow ${styles.label}`}>{label}</p>
+      {title ? <h3 className="display-sm mt-1.5">{title}</h3> : null}
+      <div className="mt-2 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">{children}</div>
     </article>
   );
 }
@@ -180,10 +186,12 @@ export function MetricChip({
 
   return (
     <span
-      className={`inline-flex min-h-7 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-transform duration-200 hover:-translate-y-0.5 ${styles.chip}`}
+      className={`eyebrow eyebrow-tight inline-flex min-h-6 items-center gap-1.5 rounded-full border px-2.5 py-0.5 transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] hover:-translate-y-px hover:shadow-[var(--shadow-card)] ${styles.chip}`}
     >
       <span>{label}</span>
-      {value ? <span className="opacity-80">{value}</span> : null}
+      {value ? (
+        <span className="text-[0.6875rem] font-semibold normal-case tracking-normal">{value}</span>
+      ) : null}
     </span>
   );
 }
@@ -200,10 +208,8 @@ export function CollapsibleSection({
   const styles = toneStyles[tone];
 
   return (
-    <details className={`rounded-2xl border p-4 shadow-sm ${styles.card}`}>
-      <summary className={`cursor-pointer text-sm font-semibold ${styles.label}`}>
-        {title}
-      </summary>
+    <details className={`rounded-[var(--radius-lg)] border p-4 ${styles.card}`}>
+      <summary className={`eyebrow cursor-pointer ${styles.label}`}>{title}</summary>
       <div className="mt-3 text-sm leading-6 text-[var(--color-ink-muted)]">{children}</div>
     </details>
   );
@@ -222,17 +228,20 @@ export function StepProgress({
   const progressPercent = Math.min(100, Math.round((current / safeTotal) * 100));
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">{label}</p>
-        <p className="text-xs font-semibold text-[var(--color-ink-muted)]">
+        <p className="eyebrow text-[var(--color-ink-soft)]">{label}</p>
+        <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
           {current} / {safeTotal}
         </p>
       </div>
-      <div className="mt-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-2 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] transition-[width] duration-500 ease-out"
-          style={{ width: `${progressPercent}%` }}
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
+        <motion.div
+          className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+          initial={false}
+          animate={{ scaleX: progressPercent / 100 }}
+          transition={{ duration: 0.6, ease: EASE_OUT_CUBIC }}
+          style={{ width: "100%" }}
         />
       </div>
     </div>
@@ -246,26 +255,36 @@ export function ScoreCard({
   score: number;
   label: string;
 }) {
+  const shouldAnimate = useShouldAnimate();
   const safeScore = Math.max(1, Math.min(10, score));
 
   return (
-    <section className="relative overflow-hidden rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] p-5 text-white shadow-[var(--shadow-soft)]">
-      <div
-        aria-hidden
-        className="animate-pulse-glow pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-300/30 blur-3xl"
-      />
-      <p className="relative text-xs font-semibold uppercase tracking-[0.12em] text-teal-100">Score</p>
-      <div className="relative mt-3 flex items-end gap-2">
-        <span className="text-6xl font-semibold tracking-tight">{safeScore}</span>
-        <span className="pb-2 text-lg font-semibold text-teal-100">/ 10</span>
-      </div>
-      <div className="relative mt-5 overflow-hidden rounded-full bg-white/20">
-        <div
-          className="h-2 rounded-full bg-gradient-to-r from-teal-300 to-teal-100 transition-[width] duration-700 ease-out"
-          style={{ width: `${safeScore * 10}%` }}
+    <section className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-soft)]">
+      <p className="eyebrow text-[var(--color-ink-soft)]">Score</p>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <AnimatedNumber
+          value={safeScore}
+          className="text-4xl font-semibold tabular-nums leading-none text-[var(--color-primary)]"
         />
+        <span className="text-base font-medium text-[var(--color-ink-soft)]">/ 10</span>
       </div>
-      <p className="relative mt-3 text-sm font-semibold text-teal-100">{label}</p>
+      <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
+        {/* Scales rather than animating width, so the fill stays on the GPU. */}
+        {shouldAnimate ? (
+          <motion.div
+            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: safeScore / 10 }}
+            transition={{ duration: 1.1, ease: EASE_OUT_CUBIC }}
+          />
+        ) : (
+          <div
+            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+            style={{ transform: `scaleX(${safeScore / 10})` }}
+          />
+        )}
+      </div>
+      <p className="eyebrow mt-3 text-[var(--color-primary-ink)]">{label}</p>
     </section>
   );
 }

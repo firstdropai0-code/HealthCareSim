@@ -1,35 +1,86 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   FirstDropAI design tokens — clinical, quiet, readable.
+
+   The look is carried by a cool clinical palette, hairline rules, generous
+   line-height, and restraint in type size. Hierarchy comes from weight and
+   spacing rather than scale, so nothing shouts and nothing gets clipped.
+--------------------------------------------------------------------------- */
+
 :root {
-  --color-canvas: #f7f3ee;
-  --color-canvas-soft: #fbfaf7;
+  /* Surfaces — cool, lightly teal-tinted */
+  --color-canvas: #f4f7f6;
+  --color-canvas-soft: #fafcfb;
   --color-surface: #ffffff;
-  --color-surface-muted: #f1f7f5;
-  --color-ink: #14201d;
-  --color-ink-muted: #52615c;
-  --color-ink-soft: #6f7c77;
-  --color-border: #dbe8e3;
-  --color-border-strong: #b8cbc4;
+  --color-surface-muted: #eef4f2;
+
+  /* Text */
+  --color-ink: #16211e;
+  --color-ink-muted: #4a5b56;
+  --color-ink-soft: #74847f;
+
+  /* Hairlines */
+  --color-border: #d9e5e1;
+  --color-border-strong: #b9cdc7;
+
+  /* Brand teal — the system colour, not a lone accent */
   --color-primary: #0f766e;
-  --color-primary-strong: #115e59;
-  --color-primary-soft: #dff5ef;
-  --color-primary-ink: #073b37;
+  --color-primary-strong: #0b5e57;
+  --color-primary-soft: #dff0ec;
+  --color-primary-ink: #06302c;
+
+  /* Status */
   --color-info: #3156a3;
   --color-info-soft: #e8eefc;
   --color-warning: #9a5b12;
-  --color-warning-soft: #fff4d6;
+  --color-warning-soft: #fdf1dc;
   --color-danger: #b4233a;
-  --color-danger-soft: #ffe4e8;
-  --shadow-soft: 0 18px 48px rgba(23, 37, 35, 0.08);
-  --shadow-card: 0 10px 28px rgba(23, 37, 35, 0.07);
-  --shadow-lift: 0 16px 36px rgba(15, 118, 110, 0.18);
-  --radius-sm: 0.75rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.25rem;
-  --radius-xl: 1.75rem;
-  --header-height: 4.5rem;
+  --color-danger-soft: #fce8ea;
+
+  /* Layered elevation. Stacking a tight contact shadow under a wider ambient
+     one is what reads as real depth; a single blur reads as a smudge. */
+  --shadow-card:
+    0 1px 1px rgba(22, 33, 30, 0.04),
+    0 2px 4px rgba(22, 33, 30, 0.04);
+  --shadow-soft:
+    0 1px 1px rgba(22, 33, 30, 0.04),
+    0 4px 10px -2px rgba(22, 33, 30, 0.06),
+    0 10px 24px -6px rgba(22, 33, 30, 0.06);
+  --shadow-lift:
+    0 1px 1px rgba(22, 33, 30, 0.05),
+    0 8px 18px -4px rgba(22, 33, 30, 0.10),
+    0 18px 40px -10px rgba(22, 33, 30, 0.12);
+  --shadow-accent:
+    0 1px 2px rgba(15, 118, 110, 0.20),
+    0 6px 16px -4px rgba(15, 118, 110, 0.28);
+
+  /* Motion. Curves and durations lifted from the Buttermax reference:
+     easeOutCubic for almost everything, easeOutQuad for long reveals. */
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 0.2s;
+  --dur-base: 0.35s;
+  --dur-slow: 0.45s;
+  --dur-reveal: 0.7s;
+
+  /* Softened corners: not severe, not pill-shaped */
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+
+  --header-height: 3.75rem;
   --background: var(--color-canvas);
   --foreground: var(--color-ink);
+
+  --ease-editorial: var(--ease-out-cubic);
+
+  /* next/font injects --font-body; --font-display is an alias kept so the
+     `.font-display` helper and existing markup keep resolving. */
+  --font-stack-body: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-stack-display: var(--font-stack-body);
 }
 
 * {
@@ -43,15 +94,19 @@ html {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 800px at 12% -10%, rgba(15, 118, 110, 0.22), transparent 60%),
-    radial-gradient(900px 700px at 108% 8%, rgba(15, 118, 110, 0.14), transparent 55%),
-    linear-gradient(160deg, #eef6f4 0%, #dff0ec 42%, #e9f2ee 100%);
+  /* Two very low-opacity teal washes give the canvas depth without reading as
+     a gradient. Fixed so they stay put while content scrolls over them. */
+  background-color: var(--color-canvas);
+  background-image:
+    radial-gradient(900px 600px at 8% -5%, rgba(15, 118, 110, 0.07), transparent 60%),
+    radial-gradient(700px 500px at 100% 0%, rgba(49, 86, 163, 0.05), transparent 55%);
   background-attachment: fixed;
+  background-repeat: no-repeat;
   color: var(--foreground);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  text-rendering: geometricPrecision;
+  font-family: var(--font-stack-body);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -73,12 +128,15 @@ button:disabled {
 }
 
 ::selection {
-  background: rgba(15, 118, 110, 0.2);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-ink);
 }
 
 :focus-visible {
-  outline: 3px solid rgba(15, 118, 110, 0.32);
-  outline-offset: 3px;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -92,10 +150,392 @@ button:disabled {
   }
 }
 
+/* Everything below lives in the `components` layer so Tailwind utilities, which
+   sit in the later `utilities` layer, can still override these. Unlayered rules
+   would beat every utility regardless of source order. */
+@layer components {
+
+/* --- Typography ---------------------------------------------------------- */
+
+.font-display,
+.font-body {
+  font-family: var(--font-stack-body);
+}
+
+/* A UI-scale heading set. Line-height stays >= 1.25 everywhere so descenders
+   are never visually clipped. */
+.display-xl,
+.display-lg,
+.display-md,
+.display-sm {
+  font-family: var(--font-stack-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+  color: var(--color-ink);
+}
+
+.display-xl {
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+}
+
+.display-lg {
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+}
+
+.display-md {
+  font-size: clamp(1.125rem, 1.6vw, 1.25rem);
+}
+
+.display-sm {
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+/* Small uppercase labels. Tracking is gentle now — wide tracking was what made
+   these both shouty and prone to overflowing narrow columns. */
+.eyebrow {
+  font-family: var(--font-stack-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.45;
+}
+
+.eyebrow-tight {
+  letter-spacing: 0.04em;
+}
+
+.lede {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--color-ink-muted);
+  text-wrap: pretty;
+}
+
+/* --- Structure ----------------------------------------------------------- */
+
+.rule {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 0;
+}
+
+.rule-strong {
+  border-top-color: var(--color-border-strong);
+}
+
+/* The "01" marker opening a numbered section. */
+.section-num {
+  font-family: var(--font-stack-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Buttons ------------------------------------------------------------- */
+
+.btn-editorial {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.3;
+  box-shadow: var(--shadow-card);
+  transform: translateZ(0);
+  transition:
+    background-color var(--dur-fast) var(--ease-out-cubic),
+    color var(--dur-fast) var(--ease-out-cubic),
+    border-color var(--dur-fast) var(--ease-out-cubic),
+    box-shadow var(--dur-base) var(--ease-out-cubic),
+    transform var(--dur-base) var(--ease-out-cubic);
+}
+
+.btn-editorial:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+/* Press feedback: the button should feel like it physically responds. */
+.btn-editorial:active {
+  transform: translateY(0) scale(0.985);
+  transition-duration: 0.08s;
+}
+
+/* Primary action. A one-pixel top highlight gives the fill dimension. */
+.btn-editorial--accent {
+  background: linear-gradient(180deg, #14867d 0%, var(--color-primary) 55%, #0d6b64 100%);
+  border-color: var(--color-primary-strong);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    var(--shadow-accent);
+}
+
+.btn-editorial--accent:hover {
+  background: linear-gradient(180deg, #17958b 0%, #11837a 55%, #0f7469 100%);
+  border-color: var(--color-primary-strong);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 2px 4px rgba(15, 118, 110, 0.24),
+    0 10px 24px -6px rgba(15, 118, 110, 0.36);
+}
+
+/* Secondary action: quieter than accent, firmer than quiet. */
+.btn-editorial--solid {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-soft);
+  color: var(--color-primary-ink);
+}
+
+.btn-editorial--solid:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.btn-editorial--quiet {
+  border-color: var(--color-border);
+  color: var(--color-ink-muted);
+}
+
+.btn-editorial:disabled {
+  background: var(--color-surface-muted);
+  border-color: var(--color-border);
+  color: var(--color-ink-soft);
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+/* Underline-on-hover text links. */
+.link-editorial {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--color-ink);
+  transition: color 0.2s var(--ease-editorial);
+}
+
+.link-editorial:hover {
+  color: var(--color-primary);
+}
+
+.link-editorial::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--color-primary);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s var(--ease-editorial);
+}
+
+.link-editorial:hover::after,
+.link-editorial[data-active="true"]::after {
+  transform: scaleX(1);
+}
+
+/* --- Surfaces ------------------------------------------------------------ */
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.card-hover {
+  transform: translateZ(0);
+  transition:
+    border-color var(--dur-base) var(--ease-out-cubic),
+    box-shadow var(--dur-base) var(--ease-out-cubic),
+    transform var(--dur-base) var(--ease-out-cubic);
+}
+
+.card-hover:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-2px);
+}
+
+/* Frosted app chrome. Saturation keeps the teal wash alive behind the blur
+   instead of washing it to grey. */
+.glass {
+  background: rgba(244, 247, 246, 0.72);
+  /* Unprefixed only — Lightning CSS adds the -webkit- prefix from the build
+     targets. Authoring both made it emit *just* the prefixed one, which left
+     Firefox with no blur at all. */
+  backdrop-filter: blur(14px) saturate(160%);
+}
+
+/* A hairline of brand colour along the top edge of a feature surface. */
+.accent-edge {
+  position: relative;
+  overflow: hidden;
+}
+
+.accent-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-primary) 22%,
+    #4bb8ac 50%,
+    var(--color-primary) 78%,
+    transparent
+  );
+  opacity: 0.85;
+}
+
+/* Sweeping highlight used on the primary CTA and on loading surfaces. */
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.sheen::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  transform: translateX(-120%);
+}
+
+.sheen:hover::after {
+  animation: sheen 0.9s var(--ease-out-quad);
+}
+
+/* Idle attention cue for a discovery affordance. The sweep occupies only the
+   first sixth of the cycle and then rests, so it periodically catches the eye
+   without nagging the way a continuous animation would. */
+@keyframes sheenIdle {
+  0% {
+    transform: translateX(-140%);
+  }
+  16% {
+    transform: translateX(240%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+.sheen-idle {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.sheen-idle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(15, 118, 110, 0.16),
+    transparent
+  );
+  transform: translateX(-140%);
+  animation: sheenIdle 5s var(--ease-out-quad) infinite;
+}
+
+/* Indeterminate progress shimmer for AI-generation waits. */
+@keyframes shimmerSweep {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    100deg,
+    var(--color-ink-soft) 30%,
+    var(--color-primary) 50%,
+    var(--color-ink-soft) 70%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmerSweep 2.2s var(--ease-out-quad) infinite;
+}
+
+/* Soft pulsing dot for live/recording states. */
+@keyframes haloPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(15, 118, 110, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
+  }
+}
+
+.halo {
+  animation: haloPulse 2s var(--ease-out-quad) infinite;
+}
+
+/* --- Animation ----------------------------------------------------------- */
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -103,179 +543,29 @@ button:disabled {
   }
 }
 
-@keyframes floatSlow {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(8px, -16px);
-  }
-}
-
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 0.9;
-  }
-}
-
+/* `forwards`, not `both`. `both` applies the 0%-opacity keyframe *before* the
+   animation starts, so if it never runs — a paused/hidden document, or a
+   browser that skips it — the content stays invisible. `forwards` only holds
+   the end state, so the element renders normally and animation is purely
+   additive. Content must never depend on an animation having run. */
 .animate-fade-up {
-  animation: fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fadeInUp 0.4s var(--ease-editorial) forwards;
 }
 
 .animate-fade-up-1 {
-  animation-delay: 0.06s;
+  animation-delay: 0.04s;
 }
 
 .animate-fade-up-2 {
-  animation-delay: 0.14s;
+  animation-delay: 0.08s;
 }
 
 .animate-fade-up-3 {
-  animation-delay: 0.22s;
+  animation-delay: 0.12s;
 }
 
 .animate-fade-up-4 {
-  animation-delay: 0.3s;
+  animation-delay: 0.16s;
 }
 
-.animate-float {
-  animation: floatSlow 8s ease-in-out infinite;
-}
-
-.animate-float-slow {
-  animation: floatSlow 12s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 4s ease-in-out infinite;
-}
-
-.card-hover {
-  transition:
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.28s ease,
-    border-color 0.28s ease;
-}
-
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-soft);
-  border-color: var(--color-border-strong);
-}
-
-.btn-shine {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.btn-shine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.32) 48%, transparent 66%);
-  background-size: 220% 100%;
-  background-position: 150% 0;
-  transition: background-position 0.7s ease;
-}
-
-.btn-shine:hover::after {
-  background-position: -70% 0;
-}
-
-.bg-grid-fade {
-  background-image:
-    linear-gradient(rgba(20, 32, 29, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 32, 29, 0.05) 1px, transparent 1px);
-  background-size: 38px 38px;
-  mask-image: radial-gradient(ellipse 60% 100% at 50% 0%, black 40%, transparent 85%);
-}
-
-@keyframes rotateSlow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.decor-capsule {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 999px;
-  box-shadow: 0 20px 46px rgba(15, 118, 110, 0.18);
-}
-
-.decor-capsule::before,
-.decor-capsule::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-}
-
-.decor-capsule::before {
-  background: linear-gradient(120deg, #ffffff 0%, #ffffff 52%, transparent 52%);
-}
-
-.decor-capsule::after {
-  background: linear-gradient(120deg, transparent 52%, var(--color-primary) 52%, var(--color-primary-strong) 100%);
-}
-
-.decor-capsule-ring {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 999px;
-  border: 10px solid rgba(15, 118, 110, 0.14);
-}
-
-.animate-spin-slow {
-  animation: rotateSlow 22s linear infinite;
-}
-
-.page-frame {
-  position: relative;
-  overflow: hidden;
-  border-radius: 2.5rem;
-  background: var(--color-surface);
-  box-shadow: 0 30px 90px rgba(7, 59, 55, 0.14);
-}
-
-.nav-link {
-  position: relative;
-  transition:
-    color 0.3s ease,
-    background-color 0.3s ease,
-    transform 0.3s ease;
-}
-
-.nav-link:hover {
-  transform: translateY(-1px);
-}
-
-.header-elevated {
-  box-shadow: 0 12px 32px rgba(7, 59, 55, 0.1);
-}
-
-@keyframes marqueeScroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.marquee-track {
-  display: inline-flex;
-  width: max-content;
-  animation: marqueeScroll 26s linear infinite;
-}
+} /* end @layer components */

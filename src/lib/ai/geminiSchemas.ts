@@ -106,23 +106,38 @@ export const deliveryFeedbackSchema: GeminiSchema = {
   },
 };
 
-export function buildCustomCriteriaSchema(count: number): GeminiSchema {
+const customCriterionItemSchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["criterion", "assessment"],
+  properties: {
+    criterion: { type: "STRING" },
+    assessment: { type: "STRING" },
+  },
+};
+
+/**
+ * The feedback report schema, optionally extended with the custom-criteria
+ * section. When a trainer added custom criteria, the main report and the
+ * custom-criteria assessments are produced by a SINGLE Gemini call using this
+ * combined schema. One reasoning pass over the transcript yields both sections,
+ * which is what structurally prevents them from reaching opposite verdicts about
+ * the same behavior. With no custom criteria, this is just feedbackReportSchema.
+ */
+export function buildFeedbackReportSchema(customCriteriaCount: number): GeminiSchema {
+  if (customCriteriaCount <= 0) {
+    return feedbackReportSchema;
+  }
+
   return {
-    type: "OBJECT",
-    required: ["customCriteriaFeedback"],
+    ...feedbackReportSchema,
+    required: [...(feedbackReportSchema.required ?? []), "customCriteriaFeedback"],
     properties: {
+      ...feedbackReportSchema.properties,
       customCriteriaFeedback: {
         type: "ARRAY",
-        minItems: count,
-        maxItems: count,
-        items: {
-          type: "OBJECT",
-          required: ["criterion", "assessment"],
-          properties: {
-            criterion: { type: "STRING" },
-            assessment: { type: "STRING" },
-          },
-        },
+        minItems: customCriteriaCount,
+        maxItems: customCriteriaCount,
+        items: customCriterionItemSchema,
       },
     },
   };

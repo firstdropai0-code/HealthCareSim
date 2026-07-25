@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  buildCustomCriteriaSchema,
+  buildFeedbackReportSchema,
   deliveryFeedbackSchema,
-  feedbackReportSchema,
   nextSimulationTurnSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
@@ -13,7 +12,6 @@ import {
 } from "@/lib/ai/geminiServer";
 import { assignCharacterVoices } from "@/lib/ai/voiceDirection";
 import {
-  buildCustomCriteriaPrompt,
   buildDeliveryFeedbackPrompt,
   buildFeedbackPrompt,
   getExtraEvaluationCriteria,
@@ -79,12 +77,71 @@ function normalizeSimulationPromptPayload(
     : undefined;
 }
 
+/**
+ * The opening line is shown as a narrator message and must never be the
+ * clinician (the trainee) speaking. Scenario generation is instructed not to do
+ * this, but the model occasionally slips and writes the doctor greeting or
+ * questioning the patient. Catch the unambiguous clinician-voice markers so we
+ * can repair the line rather than trust it -- the same "guard, don't trust"
+ * approach used for simulation turns (see appearsToSpeakAsTrainee).
+ */
+function firstPromptSoundsLikeClinician(firstPrompt: string): boolean {
+  const normalized = firstPrompt.toLowerCase();
+
+  const clinicianMarkers = [
+    "i'm here to",
+    "i am here to",
+    "i'm here for",
+    "i am here for",
+    "the nurse told me",
+    "the nurse just told me",
+    "how are you feeling",
+    "how can i help",
+    "what can i do for you",
+    "let me explain",
+    "i wanted to talk",
+    "i need to talk to you",
+    "i'm the doctor",
+    "i am the doctor",
+    "i'm dr",
+    "i am dr",
+    "thank you for waiting",
+    "thanks for waiting",
+    "i'll be taking care",
+    "i will be taking care",
+    "i have some news",
+    "i have some difficult news",
+    "i understand you're waiting",
+    "i understand you have",
+  ];
+
+  return clinicianMarkers.some((phrase) => normalized.includes(phrase));
+}
+
+/**
+ * Build a safe narrator opening from the scene description when the model's
+ * firstPrompt has to be discarded, so the simulation still starts from the
+ * patient/family/narrator side and prompts the trainee to respond.
+ */
+function buildNarratorOpening(scene: string): string {
+  const trimmedScene = scene.trim().replace(/\s+/g, " ");
+  const base = trimmedScene || "The patient or family member waits for you to speak.";
+  const withStop = /[.!?"']$/.test(base) ? base : `${base}.`;
+
+  return `${withStop} What do you say?`;
+}
+
 function normalizeScenario(value: unknown): Scenario {
   const scenario = value as Partial<Scenario>;
 
   if (!scenario.title || !scenario.firstPrompt) {
     throw new Error("Generated scenario is missing required fields.");
   }
+
+  const startingSituation = scenario.startingSituation || scenario.summary || "";
+  const firstPrompt = firstPromptSoundsLikeClinician(scenario.firstPrompt)
+    ? buildNarratorOpening(startingSituation)
+    : scenario.firstPrompt;
 
   const normalized: Scenario = {
     id: scenario.id || crypto.randomUUID(),
@@ -97,8 +154,8 @@ function normalizeScenario(value: unknown): Scenario {
     traineeObjective: scenario.traineeObjective || "Communicate clearly and empathetically.",
     communicationChallenge:
       scenario.communicationChallenge || "Respond with empathy under pressure.",
-    startingSituation: scenario.startingSituation || scenario.summary || "",
-    firstPrompt: scenario.firstPrompt,
+    startingSituation,
+    firstPrompt,
     suggestedTurns: Math.max(3, Math.min(6, Number(scenario.suggestedTurns || 4))),
     endingCondition: scenario.endingCondition || "The conversation reaches a natural close.",
     evaluationCriteria:
@@ -342,35 +399,24 @@ function fallbackCustomCriterionAssessment(criterion: string): { criterion: stri
   };
 }
 
-async function generateCustomCriteriaFeedback(
-  state: SimulationState,
+/**
+ * Align the model's custom-criteria output back to the trainer's own criteria
+ * text. Force the criterion label to the trainer's exact wording and only
+ * borrow the AI's assessment, so a mismatched, reordered, or short model
+ * response can never desync the section from what's actually on the checklist.
+ * Missing entries fall back to the "needs more responses" placeholder.
+ */
+function reconcileCustomCriteriaFeedback(
   extraCriteria: string[],
-): Promise<FeedbackReport["customCriteriaFeedback"]> {
-  try {
-    const prompt = buildCustomCriteriaPrompt(state, extraCriteria);
-    const result = (await callGeminiJson({
-      action: "feedback",
-      prompt,
-      models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
-      temperature: 0.2,
-      maxOutputTokens: 700,
-      timeoutMs: FEEDBACK_TIMEOUT_MS,
-      schema: buildCustomCriteriaSchema(extraCriteria.length),
-    })) as { customCriteriaFeedback?: unknown };
+  parsed: FeedbackReport["customCriteriaFeedback"],
+): FeedbackReport["customCriteriaFeedback"] {
+  const assessments = parsed || [];
 
-    const parsed = normalizeCustomCriteriaFeedback(result?.customCriteriaFeedback) || [];
-
-    // Force the criterion label to the trainer's own text and only borrow the
-    // AI's assessment, so a mismatched/reordered model response can never
-    // desync the section from what's actually on the checklist.
-    return extraCriteria.map((criterion, index) => ({
-      criterion,
-      assessment: parsed[index]?.assessment || fallbackCustomCriterionAssessment(criterion).assessment,
-    }));
-  } catch (error) {
-    console.error("Custom criteria feedback generation failed, using fallback text:", error);
-    return extraCriteria.map((criterion) => fallbackCustomCriterionAssessment(criterion));
-  }
+  return extraCriteria.map((criterion, index) => ({
+    criterion,
+    assessment:
+      assessments[index]?.assessment || fallbackCustomCriterionAssessment(criterion).assessment,
+  }));
 }
 
 /**
@@ -406,26 +452,34 @@ async function generateDeliveryFeedback(state: SimulationState): Promise<string[
 }
 
 async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
-  const prompt = buildFeedbackPrompt(state);
   const extraCriteria = getExtraEvaluationCriteria(state);
+  const hasCustomCriteria = extraCriteria.length > 0;
 
-  const [mainResult, customCriteriaFeedback, deliveryFeedback] = await Promise.all([
+  // Main report and custom criteria come from ONE call so both sections reason
+  // over the transcript together and cannot reach opposite verdicts about the
+  // same behavior. Delivery coaching stays a separate parallel call by design
+  // (the scoring context must never see voice metrics).
+  const [mainResult, deliveryFeedback] = await Promise.all([
     callGeminiJson({
       action: "feedback",
-      prompt,
+      prompt: buildFeedbackPrompt(state, extraCriteria),
       models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
       temperature: 0.25,
-      maxOutputTokens: 2200,
+      // Extra headroom when the response must also carry the custom-criteria
+      // section, so the combined JSON is never truncated.
+      maxOutputTokens: hasCustomCriteria ? 2900 : 2200,
       timeoutMs: FEEDBACK_TIMEOUT_MS,
-      schema: feedbackReportSchema,
+      schema: buildFeedbackReportSchema(extraCriteria.length),
     }),
-    extraCriteria.length > 0
-      ? generateCustomCriteriaFeedback(state, extraCriteria)
-      : Promise.resolve([]),
     generateDeliveryFeedback(state),
   ]);
 
-  return { ...normalizeFeedback(mainResult), customCriteriaFeedback, deliveryFeedback };
+  const normalized = normalizeFeedback(mainResult);
+  const customCriteriaFeedback = hasCustomCriteria
+    ? reconcileCustomCriteriaFeedback(extraCriteria, normalized.customCriteriaFeedback)
+    : [];
+
+  return { ...normalized, customCriteriaFeedback, deliveryFeedback };
 }
 
 export async function POST(request: Request) {

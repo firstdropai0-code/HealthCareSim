@@ -54,19 +54,19 @@ export function MicButton({ onTranscript, disabled = false, className = "" }: Mi
         disabled={controlDisabled}
         aria-pressed={isRecording}
         title={label}
-        className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[var(--shadow-card)] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`eyebrow eyebrow-tight inline-flex min-h-11 items-center gap-2 border px-4 py-2 transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-60 ${
           isRecording
-            ? "border-rose-300 bg-[var(--color-danger-soft)] text-[var(--color-danger)] hover:-translate-y-0.5"
-            : "border-[var(--color-border-strong)] bg-[var(--color-surface)] text-[var(--color-ink)] hover:-translate-y-0.5 hover:border-[var(--color-primary)]"
+            ? "border-[var(--color-danger)] bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
+            : "border-[var(--color-border-strong)] bg-[var(--color-surface)] text-[var(--color-ink)] hover:border-[var(--color-ink)]"
         }`}
       >
         <span
           aria-hidden
-          className={`inline-block h-2.5 w-2.5 rounded-full ${
+          className={`inline-block h-1.5 w-1.5 ${
             isRecording
               ? "animate-pulse bg-[var(--color-danger)]"
               : isTranscribing
-                ? "animate-pulse bg-amber-500"
+                ? "animate-pulse bg-[var(--color-warning)]"
                 : "bg-[var(--color-primary)]"
           }`}
         />

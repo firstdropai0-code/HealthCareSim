@@ -13,7 +13,7 @@ const navigationItems = [
 
 function LogoMark() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
       <path d="M11 2h2v7h7v2h-7v7h-2V11H4V9h7V2Z" />
     </svg>
   );
@@ -37,43 +37,33 @@ export function AppShell({ children }: { children: ReactNode }) {
     <main className="relative min-h-screen overflow-x-hidden text-[var(--color-ink)]">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-[var(--color-surface)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-primary-strong)] focus:shadow-[var(--shadow-card)]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius-sm)] focus:border focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-primary)]"
       >
         Skip to main content
       </a>
 
-      <div
-        aria-hidden
-        className="decor-capsule animate-float pointer-events-none absolute -left-14 top-[16%] hidden h-9 w-32 -rotate-[18deg] opacity-90 sm:block"
-      />
-      <div
-        aria-hidden
-        className="decor-capsule animate-float-slow pointer-events-none absolute -right-16 top-[46%] hidden h-12 w-40 rotate-[32deg] opacity-80 lg:block"
-      />
-      <div
-        aria-hidden
-        className="decor-capsule-ring animate-spin-slow pointer-events-none absolute -left-10 bottom-[8%] hidden h-36 w-36 lg:block"
-      />
-
       <header
-        className={`sticky top-0 z-40 border-b border-[var(--color-border)] bg-[rgba(251,250,247,0.86)] backdrop-blur-xl transition-shadow duration-300 ${
-          isScrolled ? "header-elevated" : "shadow-[0_1px_0_rgba(255,255,255,0.7)]"
+        className={`glass sticky top-0 z-40 border-b transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] ${
+          isScrolled
+            ? "border-[var(--color-border)] shadow-[var(--shadow-soft)]"
+            : "border-transparent"
         }`}
       >
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        {/* Wraps to a second row on narrow screens so no nav item is ever clipped. */}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6 lg:px-8">
           <Link
             href="/"
-            className="group inline-flex min-h-11 items-center gap-2.5 text-[var(--color-ink)] transition hover:text-[var(--color-primary-strong)]"
+            className="group inline-flex items-center gap-2 text-[var(--color-ink)] transition-colors hover:text-[var(--color-primary)]"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-strong)] text-white shadow-[var(--shadow-lift)] transition duration-300 group-hover:scale-105 group-hover:shadow-[0_18px_34px_rgba(15,118,110,0.32)]">
+            <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-sm)] bg-gradient-to-br from-[#14867d] to-[var(--color-primary)] text-white shadow-[var(--shadow-accent)] transition-transform duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:scale-110 group-hover:rotate-[-6deg]">
               <LogoMark />
             </span>
-            <span className="text-base font-bold tracking-tight">FirstDropAI</span>
+            <span className="text-[0.9375rem] font-semibold tracking-[-0.01em]">FirstDropAI</span>
           </Link>
 
           <nav
             aria-label="Primary navigation"
-            className="hidden items-center gap-1 text-sm font-semibold text-[var(--color-ink-muted)] md:flex"
+            className="order-3 flex w-full items-center gap-5 overflow-x-auto sm:order-none sm:w-auto sm:overflow-visible"
           >
             {navigationItems.map((item) => {
               const isActive = pathname === item.href;
@@ -81,60 +71,33 @@ export function AppShell({ children }: { children: ReactNode }) {
               return (
                 <Link
                   key={item.href}
-                  className={`group relative px-4 py-2 transition-colors duration-300 ${
-                    isActive ? "text-[var(--color-primary-ink)]" : "hover:text-[var(--color-primary-strong)]"
-                  }`}
                   href={item.href}
+                  data-active={isActive}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`link-editorial shrink-0 text-[0.8125rem] font-medium ${
+                    isActive ? "text-[var(--color-primary)]" : "text-[var(--color-ink-muted)]"
+                  }`}
                 >
                   {item.label}
-                  <span
-                    aria-hidden
-                    className={`pointer-events-none absolute inset-x-3 -bottom-0.5 h-0.5 origin-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] transition-transform duration-300 ease-out ${
-                      isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
-                    }`}
-                  />
                 </Link>
               );
             })}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <nav
-              aria-label="Primary navigation (compact)"
-              className="flex min-h-11 items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/85 p-1 text-xs font-semibold text-[var(--color-ink-muted)] shadow-[var(--shadow-card)] md:hidden"
-            >
-              {navigationItems.map((item) => {
-                const isActive = pathname === item.href;
-
-                return (
-                  <Link
-                    key={item.href}
-                    className={`nav-link rounded-full px-2.5 py-2 ${
-                      isActive
-                        ? "bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] text-white shadow-[var(--shadow-lift)]"
-                        : "hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary-ink)]"
-                    }`}
-                    href={item.href}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-            <Link
-              href="/scenario"
-              className="btn-shine hidden min-h-11 items-center justify-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,118,110,0.3)] sm:inline-flex"
-            >
-              New scenario
-            </Link>
-          </div>
+          <Link
+            href="/scenario"
+            className="btn-editorial btn-editorial--accent min-h-9 px-3 py-1.5 text-xs"
+          >
+            New scenario
+          </Link>
         </div>
       </header>
 
-      <div className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
-        <div id="main-content" className="page-frame p-4 sm:p-6 lg:p-9">
-          {children}
-        </div>
+      <div
+        id="main-content"
+        className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8"
+      >
+        {children}
       </div>
     </main>
   );

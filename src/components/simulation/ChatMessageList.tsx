@@ -1,6 +1,9 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { springSoft } from "@/components/motion/motionConfig";
+import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import type { SimulationMessage } from "@/types/simulation";
 
 const roleLabels: Record<SimulationMessage["role"], string> = {
@@ -50,18 +53,38 @@ function TypingCursor() {
 }
 
 export function TypingIndicator() {
-  return (
-    <div className="flex justify-start">
-      <div className="animate-fade-up flex items-center gap-1.5 rounded-[1.25rem] rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
-        {[0, 1, 2].map((dot) => (
-          <span
+  const shouldAnimate = useShouldAnimate();
+
+  const dots = (
+    <div className="flex items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
+      {[0, 1, 2].map((dot) =>
+        shouldAnimate ? (
+          <motion.span
             key={dot}
-            className="h-2 w-2 animate-bounce rounded-full bg-[var(--color-primary)]"
-            style={{ animationDelay: `${dot * 0.15}s` }}
+            className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]"
+            animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut", delay: dot * 0.15 }}
           />
-        ))}
-      </div>
+        ) : (
+          <span key={dot} className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
+        ),
+      )}
     </div>
+  );
+
+  if (!shouldAnimate) {
+    return <div className="flex justify-start">{dots}</div>;
+  }
+
+  return (
+    <motion.div
+      className="flex justify-start"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
+    >
+      {dots}
+    </motion.div>
   );
 }
 
@@ -73,6 +96,7 @@ type ChatMessageProps = {
 };
 
 function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatMessageProps) {
+  const shouldAnimate = useShouldAnimate();
   const isTrainee = message.role === "trainee";
   const messageLabel =
     message.role === "scenario" && message.speaker
@@ -82,19 +106,18 @@ function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatM
   const isStillTyping = shouldType && !isTrainee && typed.length < message.content.length;
   const canSpeak = !isTrainee && Boolean(onSpeak) && message.content.trim().length > 0;
 
-  return (
-    <article className={`animate-fade-up flex ${isTrainee ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[92%] rounded-[1.25rem] px-4 py-3 shadow-[var(--shadow-card)] transition-transform duration-300 hover:-translate-y-0.5 sm:max-w-3xl ${
+  const bubble = (
+    <div
+        className={`max-w-[92%] rounded-[var(--radius-lg)] px-4 py-3 sm:max-w-3xl ${
           isTrainee
-            ? "rounded-br-md bg-gradient-to-br from-[#12897d] via-[var(--color-primary)] to-[#0b4a45] text-white"
-            : "rounded-bl-md border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)]"
+            ? "bg-gradient-to-br from-[#14867d] to-[var(--color-primary)] text-white shadow-[var(--shadow-accent)]"
+            : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-card)]"
         }`}
       >
         <div className="flex items-center justify-between gap-3">
           <p
-            className={`text-xs font-semibold uppercase tracking-[0.12em] ${
-              isTrainee ? "text-teal-50" : "text-[var(--color-ink-soft)]"
+            className={`eyebrow ${
+              isTrainee ? "text-white/75" : "text-[var(--color-ink-soft)]"
             }`}
           >
             {messageLabel}
@@ -105,7 +128,7 @@ function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatM
               onClick={() => onSpeak?.(message)}
               title={isSpeaking ? "Stop reading" : "Read this message aloud"}
               aria-label={isSpeaking ? "Stop reading message aloud" : "Read message aloud"}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface-muted)] text-[var(--color-primary-strong)] transition-colors duration-200 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] transition-colors duration-200 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
             >
               {isSpeaking ? <SpeakerStopIcon /> : <SpeakerIcon />}
             </button>
@@ -115,8 +138,31 @@ function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatM
           {isTrainee ? message.content : typed}
           {isStillTyping ? <TypingCursor /> : null}
         </p>
-      </div>
-    </article>
+    </div>
+  );
+
+  const rowClass = `flex ${isTrainee ? "justify-end" : "justify-start"}`;
+
+  // A transcript must never be gated behind an animation. When animation is
+  // off, render a plain <article>: Framer Motion does not clear inline styles
+  // it has already written, so reusing motion.article would strand the
+  // hydrated `opacity: 0` on the node.
+  if (!shouldAnimate) {
+    return <article className={rowClass}>{bubble}</article>;
+  }
+
+  return (
+    // Transform + opacity only. Animating height or scale would change the
+    // scroller's measured content size and fight the auto-scroll logic in the
+    // simulation page.
+    <motion.article
+      className={rowClass}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
+    >
+      {bubble}
+    </motion.article>
   );
 }
 

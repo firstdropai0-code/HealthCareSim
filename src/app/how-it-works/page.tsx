@@ -3,8 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
-import { InfoCard, MetricChip, ScoreCard } from "@/components/common/VisualCards";
+import {
+  InfoCard,
+  MetricChip,
+  ScoreCard,
+} from "@/components/common/VisualCards";
+import { AnimatePresence, motion } from "framer-motion";
+import { Section } from "@/components/editorial/Section";
 import { AppShell } from "@/components/layout/AppShell";
+import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { EASE_OUT_CUBIC, springSnappy } from "@/components/motion/motionConfig";
+import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import {
   PreviewBubble,
   TYPED_WORD_DELAY_MS,
@@ -16,10 +25,12 @@ import { TypingIndicator } from "@/components/simulation/ChatMessageList";
 // No storage, no AI calls, no navigation into the real app.
 const sampleScenario = {
   title: "Anxious parent in the ER",
-  summary: "A parent waiting on test results for their child is growing frightened and impatient.",
+  summary:
+    "A parent waiting on test results for their child is growing frightened and impatient.",
   setting: "Emergency Department",
   traineeObjective: "Acknowledge the fear before explaining what happens next.",
-  communicationChallenge: "Give an honest timeline without dismissing the worry behind the question.",
+  communicationChallenge:
+    "Give an honest timeline without dismissing the worry behind the question.",
   patientEmotion: "Anxious",
 };
 
@@ -28,7 +39,8 @@ const sampleMessages = [
     id: "preview-1",
     speaker: "Parent",
     isTrainee: false,
-    content: "Nobody has told me anything for an hour. Is my daughter going to be okay?",
+    content:
+      "Nobody has told me anything for an hour. Is my daughter going to be okay?",
   },
   {
     id: "preview-2",
@@ -47,7 +59,8 @@ const sampleMessages = [
 
 const sampleFeedback = {
   score: 8,
-  summary: "You led with the emotion and gave a concrete next step, which settled the conversation.",
+  summary:
+    "You led with the emotion and gave a concrete next step, which settled the conversation.",
   whatWentWell: [
     "Named the parent's fear before giving facts.",
     "Committed to a specific follow-up.",
@@ -62,12 +75,14 @@ const previewSteps = [
   {
     id: "scenario",
     label: "Scenario",
-    caption: "You start from one rough idea and get a structured practice scenario.",
+    caption:
+      "You start from one rough idea and get a structured practice scenario.",
   },
   {
     id: "simulation",
     label: "Simulation",
-    caption: "You roleplay the conversation turn by turn; the AI plays the patient, family, or nurse.",
+    caption:
+      "You roleplay the conversation turn by turn; the AI plays the patient, family, or nurse.",
   },
   {
     id: "feedback",
@@ -78,43 +93,43 @@ const previewSteps = [
 
 function ScenarioPreview() {
   return (
-    <div className="animate-fade-up rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary-strong)]">
-        Training brief
-      </p>
-      <h4 className="animate-fade-up mt-1 text-base font-semibold text-[var(--color-ink)]">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
+      <p className="eyebrow text-[var(--color-primary)]">Training brief</p>
+      <h4 className="display-sm mt-3 text-[var(--color-ink)]">
         {sampleScenario.title}
       </h4>
-      <p className="animate-fade-up animate-fade-up-1 mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
+      <p className="mt-3 text-sm leading-7 text-[var(--color-ink-muted)]">
         {sampleScenario.summary}
       </p>
 
-      <div className="animate-fade-up animate-fade-up-2 mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-6 grid gap-5 border-t border-[var(--color-border)] pt-5 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">
-            Setting
+          <p className="eyebrow text-[var(--color-ink-soft)]">Setting</p>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
+            {sampleScenario.setting}
           </p>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">{sampleScenario.setting}</p>
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary-strong)]">
-            Goal
-          </p>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
+          <p className="eyebrow text-[var(--color-primary)]">Goal</p>
+          <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
             {sampleScenario.traineeObjective}
           </p>
         </div>
       </div>
 
-      <div className="animate-fade-up animate-fade-up-3 mt-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Challenge</p>
-        <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
+      <div className="mt-5">
+        <p className="eyebrow text-[var(--color-warning)]">Challenge</p>
+        <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
           {sampleScenario.communicationChallenge}
         </p>
       </div>
 
-      <div className="animate-fade-up animate-fade-up-4 mt-3 flex flex-wrap gap-2">
-        <MetricChip label="Patient" value={sampleScenario.patientEmotion} tone="amber" />
+      <div className="mt-5 flex flex-wrap gap-2">
+        <MetricChip
+          label="Patient"
+          value={sampleScenario.patientEmotion}
+          tone="amber"
+        />
       </div>
     </div>
   );
@@ -157,13 +172,13 @@ function SimulationPreview() {
   }, [prefersReducedMotion, rawPhase]);
 
   return (
-    <div className="animate-fade-up overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] shadow-[var(--shadow-card)]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
+    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3.5">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
-            Live roleplay
-          </p>
-          <h4 className="text-base font-semibold text-[var(--color-ink)]">Conversation</h4>
+          <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
+          <h4 className="display-sm mt-1.5 text-[var(--color-ink)]">
+            Conversation
+          </h4>
         </div>
         <MetricChip label="Speaker" value="Parent" tone="blue" />
       </div>
@@ -205,25 +220,25 @@ function SimulationPreview() {
 
 function FeedbackPreview() {
   return (
-    <div className="animate-fade-up grid gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)] lg:grid-cols-[200px_1fr]">
-      <div className="animate-fade-up">
+    <div className="grid gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] lg:grid-cols-[200px_1fr]">
+      <div>
         <ScoreCard score={sampleFeedback.score} label="Strong" />
       </div>
 
       <div className="space-y-3">
-        <div className="animate-fade-up animate-fade-up-1">
+        <div>
           <InfoCard label="Summary" title="Quick read" tone="slate">
             <p className="text-sm leading-6">{sampleFeedback.summary}</p>
           </InfoCard>
         </div>
 
-        <div className="animate-fade-up animate-fade-up-3 grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <InfoCard label="What went well" tone="emerald">
             <ul className="grid gap-2">
               {sampleFeedback.whatWentWell.map((item) => (
                 <li
                   key={item}
-                  className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
+                  className="border-l border-[var(--color-border-strong)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
                 >
                   {item}
                 </li>
@@ -235,7 +250,7 @@ function FeedbackPreview() {
               {sampleFeedback.whatCouldImprove.map((item) => (
                 <li
                   key={item}
-                  className="rounded-2xl bg-[var(--color-surface-muted)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
+                  className="border-l border-[var(--color-border-strong)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
                 >
                   {item}
                 </li>
@@ -249,9 +264,10 @@ function FeedbackPreview() {
 }
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-100 focus-visible:border-[var(--color-primary)]";
+  "focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]";
 
 export default function HowItWorksPage() {
+  const shouldAnimate = useShouldAnimate();
   const [stepIndex, setStepIndex] = useState(0);
   const activeStep = previewSteps[stepIndex];
   const isFirst = stepIndex === 0;
@@ -259,110 +275,182 @@ export default function HowItWorksPage() {
 
   return (
     <AppShell>
-      <div className="animate-fade-up space-y-6">
-        <header>
-          <p className="inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary-strong)] shadow-sm">
-            How it works
-          </p>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-[var(--color-ink)] sm:text-4xl">
-            See it before you try it
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--color-ink-muted)] sm:text-base sm:leading-7">
-            FirstDropAI is an AI roleplay room for practicing difficult healthcare conversations,
-            with scored feedback in seconds.
-          </p>
-        </header>
+      <div className="space-y-12">
+        <RevealGroup as="header" stagger={0.08}>
+          <RevealItem>
+            <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[var(--color-primary)] shadow-[var(--shadow-card)]">
+              <span
+                aria-hidden
+                className="halo h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]"
+              />
+              How it works
+            </p>
+          </RevealItem>
+          <RevealItem>
+            <h1 className="display-xl mt-4 max-w-2xl">
+              See it before you try it.
+            </h1>
+          </RevealItem>
+          <RevealItem>
+            <p className="lede mt-4 max-w-2xl">
+              FirstDropAI is an AI roleplay room for practicing difficult
+              healthcare conversations, with scored feedback in seconds.
+            </p>
+          </RevealItem>
+        </RevealGroup>
 
         {/* Static, fully mocked preview — sample data only. */}
-        <section
-          aria-labelledby="preview-heading"
-          className="overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] shadow-[var(--shadow-soft)]"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[rgba(255,255,255,0.7)] px-4 py-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">
-                Sample preview
-              </p>
-              <h2 id="preview-heading" className="text-base font-semibold text-[var(--color-ink)]">
-                Step {stepIndex + 1} of {previewSteps.length} &middot; {activeStep.label}
-              </h2>
+        <Reveal>
+          <section
+            aria-labelledby="preview-heading"
+            className="accent-edge overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-3.5">
+              <div>
+                <p className="eyebrow text-[var(--color-ink-soft)]">
+                  Sample preview
+                </p>
+                <h2
+                  id="preview-heading"
+                  className="display-sm mt-2 text-[var(--color-ink)]"
+                >
+                  Step {stepIndex + 1} / {previewSteps.length} &middot;{" "}
+                  {activeStep.label}
+                </h2>
+              </div>
+              <MetricChip label="Example data" tone="slate" />
             </div>
-            <MetricChip label="Example data" tone="slate" />
-          </div>
 
-          <div className="px-4 py-4 sm:px-5 sm:py-5">
-            <h3 className="sr-only">{activeStep.label} preview</h3>
-            {/* Each branch is a distinct component, so switching steps remounts
-                it and restarts that step's entrance animation from the top. */}
-            {stepIndex === 0 ? <ScenarioPreview /> : null}
-            {stepIndex === 1 ? <SimulationPreview /> : null}
-            {stepIndex === 2 ? <FeedbackPreview /> : null}
+            <div className="px-4 py-5 sm:px-5 sm:py-6">
+              <h3 className="sr-only">{activeStep.label} preview</h3>
+              {/* Each branch is a distinct component, so switching steps remounts
+ it and restarts that step's entrance animation from the top.
+ `mode="wait"` lets the outgoing step clear before the next
+ arrives, which keeps the panel from jumping mid-swap. */}
+              {(() => {
+                const stepBody = (
+                  <>
+                    {stepIndex === 0 ? <ScenarioPreview /> : null}
+                    {stepIndex === 1 ? <SimulationPreview /> : null}
+                    {stepIndex === 2 ? <FeedbackPreview /> : null}
 
-            <p className="mt-4 text-sm leading-6 text-[var(--color-ink-muted)]">
-              {activeStep.caption}
-            </p>
-          </div>
+                    <p className="mt-5 text-sm leading-7 text-[var(--color-ink-muted)]">
+                      {activeStep.caption}
+                    </p>
+                  </>
+                );
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] bg-[rgba(255,255,255,0.7)] px-4 py-3">
-            <div className="flex items-center gap-2" role="tablist" aria-label="Preview steps">
-              {previewSteps.map((step, index) => {
-                const isActive = index === stepIndex;
+                // Without animation the step content renders plainly, so the
+                // preview is never blank.
+                if (!shouldAnimate) {
+                  return <div key={activeStep.id}>{stepBody}</div>;
+                }
 
                 return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    aria-label={`Step ${index + 1}: ${step.label}`}
-                    onClick={() => setStepIndex(index)}
-                    className={`h-3 w-3 rounded-full border transition-all duration-300 ${focusRing} ${
-                      isActive
-                        ? "w-7 border-transparent bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)]"
-                        : "border-[var(--color-border-strong)] bg-[var(--color-surface)] hover:border-[var(--color-primary)]"
-                    }`}
-                  />
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={activeStep.id}
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -16 }}
+                      transition={{ duration: 0.28, ease: EASE_OUT_CUBIC }}
+                    >
+                      {stepBody}
+                    </motion.div>
+                  </AnimatePresence>
                 );
-              })}
+              })()}
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
-                disabled={isFirst}
-                className={`min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-2.5 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:text-[var(--color-primary-strong)] disabled:pointer-events-none disabled:opacity-45 ${focusRing}`}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] px-5 py-4">
+              <div
+                className="flex items-center gap-2"
+                role="tablist"
+                aria-label="Preview steps"
               >
-                Prev
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setStepIndex((current) => Math.min(previewSteps.length - 1, current + 1))
-                }
-                disabled={isLast}
-                className={`btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-45 ${focusRing}`}
-              >
-                Next
-              </button>
+                {previewSteps.map((step, index) => {
+                  const isActive = index === stepIndex;
+
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-label={`Step ${index + 1}: ${step.label}`}
+                      onClick={() => setStepIndex(index)}
+                      className={`relative h-1.5 rounded-full transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] ${focusRing} ${
+                        isActive
+                          ? "w-7"
+                          : "w-4 bg-[var(--color-border-strong)] hover:bg-[var(--color-ink-soft)]"
+                      }`}
+                    >
+                      {isActive ? (
+                        <motion.span
+                          layoutId="step-dot"
+                          className="absolute inset-0 rounded-full bg-[var(--color-primary)]"
+                          transition={springSnappy}
+                        />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStepIndex((current) => Math.max(0, current - 1))
+                  }
+                  disabled={isFirst}
+                  className={`btn-editorial btn-editorial--quiet disabled:pointer-events-none ${focusRing}`}
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStepIndex((current) =>
+                      Math.min(previewSteps.length - 1, current + 1),
+                    )
+                  }
+                  disabled={isLast}
+                  className={`btn-editorial btn-editorial--accent disabled:pointer-events-none ${focusRing}`}
+                >
+                  Next
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </Reveal>
 
-        <p className="text-sm leading-6 text-[var(--color-ink-soft)]">
-          Optional voice features: dictate your response with the mic, or have messages read aloud.
-        </p>
+        <Section
+          id="try"
+          index={1}
+          title="Your turn"
+          description="Optional voice features: dictate your response with the mic, or have messages read aloud."
+        >
+          <RevealGroup className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+            <RevealItem className="card-hover accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
+              <h3 className="display-sm">Ready to practice</h3>
+              <p className="mt-2 max-w-xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+                Start from a rough scenario idea and the app builds the training
+                brief for you.
+              </p>
+              <Link
+                href="/scenario"
+                className="btn-editorial btn-editorial--accent sheen mt-5"
+              >
+                Try it yourself
+              </Link>
+            </RevealItem>
 
-        <SafetyNotice />
-
-        <div>
-          <Link
-            href="/scenario"
-            className="btn-shine inline-flex min-h-12 items-center justify-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-6 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
-          >
-            Try it yourself
-          </Link>
-        </div>
+            <RevealItem>
+              <SafetyNotice />
+            </RevealItem>
+          </RevealGroup>
+        </Section>
       </div>
     </AppShell>
   );

@@ -309,15 +309,13 @@ export default function SimulationPage() {
   if (!state) {
     return (
       <AppShell>
-        <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow-soft)]">
-          <h1 className="text-2xl font-semibold text-[var(--color-ink)]">No active simulation</h1>
-          <p className="mt-3 text-sm text-[var(--color-ink-muted)]">
+        <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
+          <p className="eyebrow text-[var(--color-ink-soft)]">Simulation room</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">No active simulation</h1>
+          <p className="lede mt-5 max-w-lg text-sm">
             Create a structured scenario before entering the simulation room.
           </p>
-          <Link
-            href="/scenario"
-            className="btn-shine mt-6 inline-flex min-h-11 items-center rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-primary-strong)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-lift)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(15,118,110,0.32)]"
-          >
+          <Link href="/scenario" className="btn-editorial btn-editorial--solid mt-8">
             Create scenario
           </Link>
         </section>
@@ -336,20 +334,18 @@ export default function SimulationPage() {
 
   return (
     <AppShell>
-      <div className="animate-fade-up flex flex-col gap-4">
+      {/* No entrance animation on the page root: the whole simulation room
+          would be hidden until it ran. `template.tsx` already animates the
+          route change. */}
+      <div className="flex flex-col gap-4">
         {/* Compact status header */}
-        <header className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-gradient-to-br from-[var(--color-primary-ink)] via-[var(--color-primary-strong)] to-[var(--color-primary-ink)] px-4 py-4 text-white shadow-[var(--shadow-soft)] sm:px-5">
-          <div
-            aria-hidden
-            className="animate-pulse-glow pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-teal-300/25 blur-3xl"
-          />
-          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <header className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-100">Simulation room</p>
-              <h1 className="mt-1 truncate text-xl font-semibold tracking-tight sm:text-2xl">
-                {state.scenario.title}
-              </h1>
-              <p className="mt-1 line-clamp-2 max-w-2xl text-xs leading-5 text-teal-50 sm:text-sm">
+              <p className="eyebrow text-[var(--color-primary)]">Simulation room</p>
+              {/* Titles and summaries wrap in full — never truncated. */}
+              <h1 className="display-md mt-2">{state.scenario.title}</h1>
+              <p className="mt-2 max-w-2xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
                 {state.scenario.summary}
               </p>
             </div>
@@ -368,14 +364,14 @@ export default function SimulationPage() {
         {/* Conversation panel + context sidebar */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
           {/* Conversation panel */}
-          <section className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
+          <section className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3.5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-ink-soft)]">Live roleplay</p>
-                <h2 className="text-base font-semibold text-[var(--color-ink)]">Conversation</h2>
+                <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
+                <h2 className="display-sm mt-1.5 text-[var(--color-ink)]">Conversation</h2>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[var(--color-ink)]">
+                <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
                   <input
                     type="checkbox"
                     checked={autoRead}
@@ -385,9 +381,9 @@ export default function SimulationPage() {
                         stopSpeaking();
                       }
                     }}
-                    className="h-4 w-4 rounded border-[var(--color-border-strong)] accent-[var(--color-primary)]"
+                    className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
                   />
-                  Auto-read new patient messages
+                  Auto-read new messages
                 </label>
                 <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
               </div>
@@ -412,16 +408,16 @@ export default function SimulationPage() {
             </div>
 
             {/* Persistent bottom area: speech controls + composer / completed */}
-            <div className="border-t border-[var(--color-border)] bg-[rgba(255,255,255,0.9)] px-4 py-3 backdrop-blur-xl">
+            <div className="glass border-t border-[var(--color-border)] px-4 py-4">
               {speakingMessageId || ttsError ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {speakingMessageId ? (
                     <button
                       type="button"
                       onClick={stopSpeaking}
-                      className="inline-flex min-h-9 items-center gap-2 rounded-full border border-rose-300 bg-[var(--color-danger-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--color-danger)] transition-colors hover:border-rose-400"
+                      className="eyebrow eyebrow-tight inline-flex min-h-9 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-1.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
                     >
-                      <span aria-hidden className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--color-danger)]" />
+                      <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
                       Stop reading aloud
                     </button>
                   ) : null}
@@ -435,19 +431,16 @@ export default function SimulationPage() {
                 <>
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
-                      <label
-                        htmlFor="trainee-response"
-                        className="text-sm font-semibold text-[var(--color-ink)]"
-                      >
+                      <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
                         Your next response
                       </label>
-                      <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
+                      <p className="mt-2 text-xs text-[var(--color-ink-soft)]">
                         Keep it clear: acknowledge, explain, confirm.
                       </p>
                     </div>
                     <div className="flex flex-col items-start gap-2 md:items-end">
-                      <p className="text-xs font-medium text-[var(--color-ink-soft)]">
-                        {response.trim().length} characters
+                      <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
+                        {response.trim().length} chars
                       </p>
                       <MicButton onTranscript={handleTranscript} disabled={loading} />
                     </div>
@@ -458,7 +451,7 @@ export default function SimulationPage() {
                     value={response}
                     onChange={(event) => setResponse(event.target.value)}
                     placeholder="Type what the trainee says or does next."
-                    className="mt-2 w-full resize-y rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-teal-100"
+                    className="mt-3 w-full resize-y border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-3 text-sm leading-7 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
                   />
 
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -468,13 +461,13 @@ export default function SimulationPage() {
                   </div>
 
                   {error ? (
-                    <div className="mt-2 rounded-2xl border border-rose-200 bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                    <div className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
                       {error}
                       <button
                         type="button"
                         onClick={handleSend}
                         disabled={!response.trim() || loading}
-                        className="ml-3 font-semibold underline disabled:text-rose-300"
+                        className="ml-3 font-semibold underline disabled:opacity-50"
                       >
                         Retry
                       </button>
@@ -487,22 +480,22 @@ export default function SimulationPage() {
                       loading={loading}
                       disabled={!response.trim()}
                       onClick={handleSend}
-                      className="min-h-12 w-full"
+                      className="sheen min-h-12 w-full"
                     >
                       Send Response
                     </LoadingButton>
                   </div>
                 </>
               ) : (
-                <div className="rounded-[var(--radius-lg)] border border-blue-200 bg-[var(--color-info-soft)] px-4 py-3">
-                  <p className="text-sm font-semibold text-blue-900">Simulation completed</p>
-                  <p className="mt-1 text-sm leading-6 text-blue-950">
+                <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-3">
+                  <p className="eyebrow text-[var(--color-info)]">Simulation completed</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
                     Generate a feedback report focused on communication, empathy, clarity, and pressure handling.
                   </p>
                 </div>
               )}
 
-              <p className="mt-3 text-[11px] leading-4 text-[var(--color-ink-soft)]">
+              <p className="mt-4 text-[11px] leading-4 text-[var(--color-ink-soft)]">
                 Read-aloud audio is AI-generated (OpenAI) and voices only the text shown above.
               </p>
             </div>
@@ -510,28 +503,28 @@ export default function SimulationPage() {
 
           {/* Context / coaching sidebar */}
           <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-ink-soft)]">Session</p>
-              <p className="mt-1 text-sm font-semibold text-[var(--color-ink)]">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
+              <p className="eyebrow text-[var(--color-ink-soft)]">Session</p>
+              <p className="display-sm mt-3 text-[var(--color-ink)]">
                 {completed ? "Simulation completed" : "Wrap up when ready"}
               </p>
-              <p className="text-xs text-[var(--color-ink-soft)]">
+              <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
                 {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
               </p>
-              <div className="mt-3 grid gap-2">
+              <div className="mt-5 grid gap-2">
                 {!completed ? (
                   <>
                     <button
                       type="button"
                       onClick={handleEndSimulation}
-                      className="min-h-11 rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 text-sm font-semibold text-[var(--color-ink)] shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400 hover:text-rose-700"
+                      className="btn-editorial btn-editorial--quiet w-full hover:border-[var(--color-danger)] hover:bg-transparent hover:text-[var(--color-danger)]"
                     >
                       End Simulation
                     </button>
                     <button
                       type="button"
                       onClick={handleFinishAndGenerateFeedback}
-                      className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                      className="btn-editorial btn-editorial--solid w-full"
                     >
                       Finish & Generate Feedback
                     </button>
@@ -540,7 +533,7 @@ export default function SimulationPage() {
                   <button
                     type="button"
                     onClick={() => router.push("/feedback")}
-                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                    className="btn-editorial btn-editorial--solid w-full"
                   >
                     View Feedback
                   </button>
@@ -548,7 +541,7 @@ export default function SimulationPage() {
                   <button
                     type="button"
                     onClick={handleGenerateFeedback}
-                    className="btn-shine min-h-11 rounded-full bg-gradient-to-r from-[var(--color-info)] to-blue-900 px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_rgba(49,86,163,0.32)]"
+                    className="btn-editorial btn-editorial--solid w-full"
                   >
                     Generate Feedback
                   </button>
@@ -580,11 +573,12 @@ export default function SimulationPage() {
             <InfoCard label="Response cues" title="Use this pattern" tone="emerald">
               <div className="grid gap-2">
                 {coachCues.map((cue, index) => (
-                  <div key={cue} className="flex items-center gap-3 rounded-2xl bg-[var(--color-primary-soft)] px-3 py-2">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-[var(--color-primary-ink)] shadow-sm">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm font-medium text-[var(--color-ink)]">{cue}</span>
+                  <div
+                    key={cue}
+                    className="flex items-baseline gap-4 border-b border-[var(--color-border)] py-2.5 last:border-b-0"
+                  >
+                    <span className="section-num">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="text-sm text-[var(--color-ink)]">{cue}</span>
                   </div>
                 ))}
               </div>
