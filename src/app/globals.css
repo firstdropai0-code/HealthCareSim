@@ -9,11 +9,14 @@
 --------------------------------------------------------------------------- */
 
 :root {
-  /* Surfaces — cool, lightly teal-tinted */
-  --color-canvas: #f4f7f6;
-  --color-canvas-soft: #fafcfb;
+  /* Surfaces — cool, lightly teal-tinted. The canvas sits a few steps below
+     white so panels read as distinct objects laid on it rather than as areas
+     of the same sheet. That separation is what makes a card legible; borders
+     and shadows only reinforce an edge the tonal step has already drawn. */
+  --color-canvas: #e8eeec;
+  --color-canvas-soft: #f7faf9;
   --color-surface: #ffffff;
-  --color-surface-muted: #eef4f2;
+  --color-surface-muted: #eaf1ef;
 
   /* Text */
   --color-ink: #16211e;
@@ -21,8 +24,8 @@
   --color-ink-soft: #74847f;
 
   /* Hairlines */
-  --color-border: #d9e5e1;
-  --color-border-strong: #b9cdc7;
+  --color-border: #c5d6d0;
+  --color-border-strong: #a2bcb4;
 
   /* Brand teal — the system colour, not a lone accent */
   --color-primary: #0f766e;
@@ -41,16 +44,16 @@
   /* Layered elevation. Stacking a tight contact shadow under a wider ambient
      one is what reads as real depth; a single blur reads as a smudge. */
   --shadow-card:
-    0 1px 1px rgba(22, 33, 30, 0.04),
-    0 2px 4px rgba(22, 33, 30, 0.04);
+    0 1px 2px rgba(22, 33, 30, 0.06),
+    0 3px 8px -2px rgba(22, 33, 30, 0.07);
   --shadow-soft:
-    0 1px 1px rgba(22, 33, 30, 0.04),
-    0 4px 10px -2px rgba(22, 33, 30, 0.06),
-    0 10px 24px -6px rgba(22, 33, 30, 0.06);
+    0 1px 2px rgba(22, 33, 30, 0.06),
+    0 6px 14px -3px rgba(22, 33, 30, 0.09),
+    0 14px 30px -8px rgba(22, 33, 30, 0.09);
   --shadow-lift:
-    0 1px 1px rgba(22, 33, 30, 0.05),
-    0 8px 18px -4px rgba(22, 33, 30, 0.10),
-    0 18px 40px -10px rgba(22, 33, 30, 0.12);
+    0 1px 2px rgba(22, 33, 30, 0.07),
+    0 10px 22px -5px rgba(22, 33, 30, 0.13),
+    0 22px 46px -12px rgba(22, 33, 30, 0.15);
   --shadow-accent:
     0 1px 2px rgba(15, 118, 110, 0.20),
     0 6px 16px -4px rgba(15, 118, 110, 0.28);
@@ -382,7 +385,7 @@ button:disabled {
 /* Frosted app chrome. Saturation keeps the teal wash alive behind the blur
    instead of washing it to grey. */
 .glass {
-  background: rgba(244, 247, 246, 0.72);
+  background: rgba(232, 238, 236, 0.78);
   /* Unprefixed only — Lightning CSS adds the -webkit- prefix from the build
      targets. Authoring both made it emit *just* the prefixed one, which left
      Firefox with no blur at all. */

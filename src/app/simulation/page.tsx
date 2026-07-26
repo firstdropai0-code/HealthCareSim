@@ -6,11 +6,7 @@ import { useRouter } from "next/navigation";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
-import {
-  InfoCard,
-  MetricChip,
-  StepProgress,
-} from "@/components/common/VisualCards";
+import { MetricChip, StepProgress } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
@@ -44,6 +40,30 @@ const speakerLabels: Record<ScenarioSpeaker, string> = {
   bystander: "Bystander",
   narrator: "Narrator",
 };
+
+const briefToneClasses = {
+  ink: "text-[var(--color-ink-soft)]",
+  primary: "text-[var(--color-primary)]",
+  warning: "text-[var(--color-warning)]",
+} as const;
+
+/** One labelled field in the briefing bar. */
+function BriefItem({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: keyof typeof briefToneClasses;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className={`eyebrow eyebrow-tight ${briefToneClasses[tone]}`}>{label}</p>
+      <p className="mt-1 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">{value}</p>
+    </div>
+  );
+}
 
 export default function SimulationPage() {
   const router = useRouter();
@@ -324,7 +344,6 @@ export default function SimulationPage() {
   }
 
   const completed = state.status === "completed";
-  const coachCues = ["Name emotion", "Share next step", "Check understanding"];
   const latestScenarioMessage = state.messages.findLast(
     (message) => message.role === "scenario" && message.speaker,
   );
@@ -337,46 +356,73 @@ export default function SimulationPage() {
       {/* No entrance animation on the page root: the whole simulation room
           would be hidden until it ran. `template.tsx` already animates the
           route change. */}
-      <div className="flex flex-col gap-4">
-        {/* Compact status header */}
-        <header className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+      {/* Three fixed regions: a briefing bar, a session rail, and the roleplay
+          itself. The page as a whole does not scroll — only the conversation
+          history does — so the composer and the brief stay put while the
+          trainee works. */}
+      {/* On a viewport with room for it, the page height is pinned so only the
+          conversation history scrolls — the brief and composer never move. The
+          lock is gated on available height because below roughly 800px there
+          is genuinely not enough room, and squeezing would clip the composer;
+          short viewports fall back to ordinary page flow. */}
+      <div className="flex flex-col gap-3 lg:[@media(min-height:800px)]:h-[calc(100dvh-var(--header-height)-5rem)]">
+        {/* 1. Briefing bar — everything the trainee needs at a glance. */}
+        <header className="accent-edge shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             <div className="min-w-0">
               <p className="eyebrow text-[var(--color-primary)]">Simulation room</p>
-              {/* Titles and summaries wrap in full — never truncated. */}
-              <h1 className="display-md mt-2">{state.scenario.title}</h1>
-              <p className="mt-2 max-w-2xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
-                {state.scenario.summary}
-              </p>
+              <h1 className="display-md mt-1.5">{state.scenario.title}</h1>
             </div>
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:flex-col lg:items-end">
-              <div className="flex flex-wrap items-center gap-2">
-                <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
-                <TensionBadge level={state.tensionLevel} />
-              </div>
-              <div className="w-full sm:w-56 lg:w-64">
-                {/* The total is the hard safety cap, not the target. Most
-                    roleplays end well before it, on the ending condition. */}
-                <StepProgress
-                  current={state.currentTurn}
-                  total={state.maxTurns}
-                  label="Turns used"
-                  hint={`Paced for about ${state.scenario.suggestedTurns}; ends when the conversation resolves.`}
-                />
-              </div>
+            {/* Chips get the full width of the right side rather than a narrow
+                column: penned into one they wrapped onto three rows and pushed
+                the conversation off screen. */}
+            {/* Short, fixed-length facts live as chips; only the prose fields
+                get a column below. Setting is two words — giving it a third of
+                the brief row wasted the measure the long fields needed. */}
+            <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+              <MetricChip label="Setting" value={state.scenario.setting} tone="emerald" />
+              <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
+              <TensionBadge level={state.tensionLevel} />
+              {/* Status is deliberately absent: the session rail already states
+                  it in words, and a fifth chip wrapped the row onto two lines. */}
+              <MetricChip label="Patient" value={state.scenario.patientEmotion} tone="amber" />
             </div>
+          </div>
+
+          {/* The training brief, inlined so it never needs to be scrolled to.
+              Three full-width columns give these enough measure to read
+              properly instead of wrapping every few words. */}
+          <div className="mt-3 grid gap-x-8 gap-y-3 border-t border-[var(--color-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3">
+            <BriefItem label="Situation" tone="ink" value={state.scenario.summary} />
+            <BriefItem label="Goal" tone="primary" value={state.scenario.traineeObjective} />
+            <BriefItem
+              label="Challenge"
+              tone="warning"
+              value={state.scenario.communicationChallenge}
+            />
+          </div>
+
+          {/* The total is the hard safety cap, not the target. Most roleplays
+              end well before it, on the ending condition. */}
+          <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+            <StepProgress
+              variant="inline"
+              current={state.currentTurn}
+              total={state.maxTurns}
+              label="Turns used"
+              hint={`Paced for about ${state.scenario.suggestedTurns}; ends when the conversation resolves.`}
+            />
           </div>
         </header>
 
-        {/* Conversation panel + context sidebar */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
+        {/* 2. Session rail (left) + 3. roleplay (centre). */}
+        {/* An explicit row track: an implicit `auto` row sizes to its content
+            and would overflow the pinned container instead of shrinking. */}
+        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           {/* Conversation panel */}
-          <section className="flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)]">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3.5">
-              <div>
-                <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
-                <h2 className="display-sm mt-1.5 text-[var(--color-ink)]">Conversation</h2>
-              </div>
+          <section className="order-1 flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)] lg:order-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-2.5">
+              <h2 className="eyebrow text-[var(--color-ink)]">Live roleplay</h2>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
                   <input
@@ -402,7 +448,7 @@ export default function SimulationPage() {
               tabIndex={0}
               aria-label="Conversation history"
               aria-busy={loading}
-              className="flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 min-h-[320px] max-h-[60dvh] lg:min-h-[360px] lg:max-h-[62dvh]"
+              className="min-h-[16rem] max-h-[55dvh] flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 lg:[@media(min-height:800px)]:max-h-none lg:[@media(min-height:800px)]:min-h-0"
             >
               <div ref={contentRef} className="space-y-4">
                 <ChatMessageList
@@ -415,7 +461,7 @@ export default function SimulationPage() {
             </div>
 
             {/* Persistent bottom area: speech controls + composer / completed */}
-            <div className="glass border-t border-[var(--color-border)] px-4 py-4">
+            <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
               {speakingMessageId || ttsError ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {speakingMessageId ? (
@@ -436,16 +482,11 @@ export default function SimulationPage() {
 
               {!completed ? (
                 <>
-                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                    <div>
-                      <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
-                        Your next response
-                      </label>
-                      <p className="mt-2 text-xs text-[var(--color-ink-soft)]">
-                        Keep it clear: acknowledge, explain, confirm.
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-start gap-2 md:items-end">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
+                      Your next response
+                    </label>
+                    <div className="flex items-center gap-3">
                       <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
                         {response.trim().length} chars
                       </p>
@@ -458,14 +499,8 @@ export default function SimulationPage() {
                     value={response}
                     onChange={(event) => setResponse(event.target.value)}
                     placeholder="Type what the trainee says or does next."
-                    className="mt-3 w-full resize-y border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-3 text-sm leading-7 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
+                    className="mt-2.5 w-full resize-y border border-[var(--color-border-strong)] bg-white p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
                   />
-
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {coachCues.map((cue) => (
-                      <MetricChip key={cue} label={cue} tone="emerald" />
-                    ))}
-                  </div>
 
                   {error ? (
                     <div className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
@@ -481,13 +516,13 @@ export default function SimulationPage() {
                     </div>
                   ) : null}
 
-                  <div className="mt-3">
+                  <div className="mt-2.5">
                     <LoadingButton
                       type="button"
                       loading={loading}
                       disabled={!response.trim()}
                       onClick={handleSend}
-                      className="sheen min-h-12 w-full"
+                      className="sheen min-h-11 w-full"
                     >
                       Send Response
                     </LoadingButton>
@@ -501,24 +536,21 @@ export default function SimulationPage() {
                   </p>
                 </div>
               )}
-
-              <p className="mt-4 text-[11px] leading-4 text-[var(--color-ink-soft)]">
-                Read-aloud audio is AI-generated (OpenAI) and voices only the text shown above.
-              </p>
             </div>
           </section>
 
-          {/* Context / coaching sidebar */}
-          <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1">
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
+          {/* Session rail. Sits alongside the roleplay rather than below it, so
+              ending the session never means scrolling away from the composer. */}
+          <aside className="order-2 flex flex-col gap-3 lg:order-1 lg:self-start">
+            <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
               <p className="eyebrow text-[var(--color-ink-soft)]">Session</p>
-              <p className="display-sm mt-3 text-[var(--color-ink)]">
+              <p className="display-sm mt-2 text-[var(--color-ink)]">
                 {completed ? "Simulation completed" : "Wrap up when ready"}
               </p>
-              <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
+              <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
                 {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
               </p>
-              <div className="mt-5 grid gap-2">
+              <div className="mt-4 grid gap-2">
                 {!completed ? (
                   <>
                     <button
@@ -556,42 +588,12 @@ export default function SimulationPage() {
               </div>
             </div>
 
-            <InfoCard label="Training brief" title={state.scenario.setting} tone="slate">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary-strong)]">Goal</p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
-                    {state.scenario.traineeObjective}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">Challenge</p>
-                  <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">
-                    {state.scenario.communicationChallenge}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <MetricChip label="Patient" value={state.scenario.patientEmotion} tone="amber" />
-                  <MetricChip label="Status" value={state.status.replace("_", " ")} tone="slate" />
-                </div>
-              </div>
-            </InfoCard>
-
-            <InfoCard label="Response cues" title="Use this pattern" tone="emerald">
-              <div className="grid gap-2">
-                {coachCues.map((cue, index) => (
-                  <div
-                    key={cue}
-                    className="flex items-baseline gap-4 border-b border-[var(--color-border)] py-2.5 last:border-b-0"
-                  >
-                    <span className="section-num">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="text-sm text-[var(--color-ink)]">{cue}</span>
-                  </div>
-                ))}
-              </div>
-            </InfoCard>
-
             <SafetyNotice />
+
+            <p className="text-[11px] leading-4 text-[var(--color-ink-soft)]">
+              Read-aloud audio is AI-generated (OpenAI) and voices only the text shown
+              in the conversation.
+            </p>
           </aside>
         </div>
       </div>

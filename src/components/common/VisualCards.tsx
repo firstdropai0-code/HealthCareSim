@@ -220,33 +220,65 @@ export function StepProgress({
   total,
   label = "Turn progress",
   hint,
+  variant = "card",
 }: {
   current: number;
   total: number;
   label?: string;
-  /** Small caption under the bar, for explaining what the total means. */
+  /** Small caption explaining what the total means. */
   hint?: string;
+  /**
+   * "bare" drops the panel chrome, for use inside another card. "inline" also
+   * lays the parts out on one row, which costs a fraction of the vertical
+   * space where the meter is competing with other content for it.
+   */
+  variant?: "card" | "bare" | "inline";
 }) {
   const safeTotal = Math.max(1, total);
   const progressPercent = Math.min(100, Math.round((current / safeTotal) * 100));
 
+  const bar = (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
+      <motion.div
+        className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+        initial={false}
+        animate={{ scaleX: progressPercent / 100 }}
+        transition={{ duration: 0.6, ease: EASE_OUT_CUBIC }}
+        style={{ width: "100%" }}
+      />
+    </div>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <p className="eyebrow text-[var(--color-ink-soft)]">{label}</p>
+        <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
+          {current} / {safeTotal}
+        </p>
+        <div className="w-32 shrink-0 sm:w-40">{bar}</div>
+        {hint ? (
+          <p className="text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">{hint}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+    <div
+      className={
+        variant === "card"
+          ? "rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+          : ""
+      }
+    >
       <div className="flex items-center justify-between gap-3">
         <p className="eyebrow text-[var(--color-ink-soft)]">{label}</p>
         <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
           {current} / {safeTotal}
         </p>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
-        <motion.div
-          className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
-          initial={false}
-          animate={{ scaleX: progressPercent / 100 }}
-          transition={{ duration: 0.6, ease: EASE_OUT_CUBIC }}
-          style={{ width: "100%" }}
-        />
-      </div>
+      <div className="mt-2">{bar}</div>
       {hint ? (
         <p className="mt-2 text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">
           {hint}
