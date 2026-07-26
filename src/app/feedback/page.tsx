@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
 import { LoadingButton } from "@/components/common/LoadingButton";
+import { MetricChip } from "@/components/common/VisualCards";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal } from "@/components/motion/Reveal";
 import { generateFeedbackReport } from "@/lib/ai/geminiClient";
 import { exportFeedback } from "@/lib/export/exportFeedback";
+import { getScenarioMessages } from "@/lib/feedback/betterResponses";
 import {
   clearPendingFeedbackGeneration,
   clearSimulationState,
@@ -139,10 +141,24 @@ export default function FeedbackPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
+        <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
           <p className="eyebrow text-[var(--color-primary)]">Feedback report</p>
           <h1 className="display-md mt-2 max-w-3xl">{state.scenario.title}</h1>
-          <p className="lede mt-2 max-w-2xl">
+          {/* What was practised and how long it ran, so the report opens with
+              the context it is judging rather than a bare score. */}
+          <p className="mt-2 max-w-3xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+            {state.scenario.summary}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <MetricChip label="Setting" value={state.scenario.setting} tone="emerald" />
+            <MetricChip
+              label="Ended in"
+              value={`${state.currentTurn} ${state.currentTurn === 1 ? "turn" : "turns"}`}
+              tone="blue"
+            />
+            <MetricChip label="Goal" value={state.scenario.traineeObjective} tone="slate" />
+          </div>
+          <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
             Feedback is limited to communication behaviors and training performance.
           </p>
         </Reveal>
@@ -218,22 +234,32 @@ export default function FeedbackPage() {
           </section>
         ) : (
           <>
-            <FeedbackReportView report={report} />
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => exportFeedback(state, report)}
-                className="btn-editorial btn-editorial--solid"
-              >
-                Export feedback as .txt
-              </button>
-              <button
-                type="button"
-                onClick={handleRestart}
-                className="btn-editorial btn-editorial--quiet"
-              >
-                Restart
-              </button>
+            <FeedbackReportView
+              report={report}
+              scenarioMessages={getScenarioMessages(state)}
+            />
+            {/* Session actions sit below the deck: they act on the whole
+                report, not on whichever page happens to be open. */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 shadow-[var(--shadow-card)]">
+              <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+                Keep a copy of this report, or start a new scenario.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => exportFeedback(state, report)}
+                  className="btn-editorial btn-editorial--solid"
+                >
+                  Export feedback as .txt
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestart}
+                  className="btn-editorial btn-editorial--quiet"
+                >
+                  Restart
+                </button>
+              </div>
             </div>
           </>
         )}

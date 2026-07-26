@@ -1,8 +1,37 @@
+import {
+  getScenarioMessages,
+  resolveRespondedMessage,
+} from "@/lib/feedback/betterResponses";
 import type { FeedbackReport } from "@/types/feedback";
 import type { SimulationState } from "@/types/simulation";
 
 function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
+}
+
+/**
+ * Each suggestion is written under the line it answers, so the exported file
+ * carries the same pairing the report shows on screen.
+ */
+function formatBetterResponses(
+  state: SimulationState,
+  report: FeedbackReport,
+): string {
+  const scenarioMessages = getScenarioMessages(state);
+
+  return report.betterResponses
+    .map((entry) => {
+      const responded = resolveRespondedMessage(entry, scenarioMessages);
+
+      if (!responded) {
+        return `- "${entry.suggestion}"`;
+      }
+
+      const speaker = formatLabel(responded.speaker || "narrator").toUpperCase();
+
+      return `- When ${speaker} said: "${responded.content}"\n  You could have said: "${entry.suggestion}"`;
+    })
+    .join("\n\n");
 }
 
 function formatLabel(value: string): string {
@@ -49,7 +78,7 @@ Communication Gaps
 ${formatList(report.communicationGaps)}
 
 Better Response Examples
-${formatList(report.betterResponses)}
+${formatBetterResponses(state, report)}
 ${
   report.deliveryFeedback && report.deliveryFeedback.length > 0
     ? `\nHow You Sounded (delivery cues, not part of the score)\n${formatList(report.deliveryFeedback)}\n`

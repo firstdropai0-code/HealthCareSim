@@ -75,6 +75,21 @@ export const nextSimulationTurnSchema: GeminiSchema = {
   },
 };
 
+/**
+ * Each suggested line carries the scenario turn it answers, so the report can
+ * show it against the moment it belongs to. Only `suggestion` is required —
+ * a model that cannot place a line still returns a usable one.
+ */
+const betterResponseItemSchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["suggestion"],
+  properties: {
+    respondsToTurn: { type: "INTEGER" },
+    inResponseTo: { type: "STRING" },
+    suggestion: { type: "STRING" },
+  },
+};
+
 export const feedbackReportSchema: GeminiSchema = {
   type: "OBJECT",
   required: [
@@ -92,7 +107,7 @@ export const feedbackReportSchema: GeminiSchema = {
     whatWentWell: stringArraySchema,
     whatCouldImprove: stringArraySchema,
     communicationGaps: stringArraySchema,
-    betterResponses: stringArraySchema,
+    betterResponses: { type: "ARRAY", items: betterResponseItemSchema },
     finalAdvice: { type: "STRING" },
   },
 };

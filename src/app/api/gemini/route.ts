@@ -11,6 +11,7 @@ import {
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
 import { assignCharacterVoices } from "@/lib/ai/voiceDirection";
+import { normalizeBetterResponses } from "@/lib/feedback/betterResponses";
 import {
   buildDeliveryFeedbackPrompt,
   buildFeedbackPrompt,
@@ -297,7 +298,7 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     whatWentWell: normalizeStringArray(report.whatWentWell),
     whatCouldImprove: normalizeStringArray(report.whatCouldImprove),
     communicationGaps: normalizeStringArray(report.communicationGaps),
-    betterResponses: normalizeStringArray(report.betterResponses),
+    betterResponses: normalizeBetterResponses(report.betterResponses),
     // deliveryFeedback is intentionally not read here: the scoring call never
     // receives voice metrics and never produces it. generateFeedback merges it
     // in from its own separate call.

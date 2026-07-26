@@ -1,3 +1,4 @@
+import { normalizeBetterResponses } from "@/lib/feedback/betterResponses";
 import type { FeedbackReport } from "@/types/feedback";
 import type { SimulationState } from "@/types/simulation";
 
@@ -62,7 +63,15 @@ export function loadFeedbackReport(): FeedbackReport | null {
   }
 
   try {
-    return JSON.parse(rawReport) as FeedbackReport;
+    const report = JSON.parse(rawReport) as FeedbackReport;
+
+    // Reports cached before suggestions carried a turn stored plain strings.
+    // Normalising on read means an old report still renders instead of
+    // breaking on a missing `suggestion`.
+    return {
+      ...report,
+      betterResponses: normalizeBetterResponses(report.betterResponses),
+    };
   } catch {
     clearFeedbackReport();
     return null;

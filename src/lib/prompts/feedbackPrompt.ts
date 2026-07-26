@@ -83,12 +83,30 @@ export function getExtraEvaluationCriteria(state: SimulationState): string[] {
   );
 }
 
+/**
+ * The transcript, with every scenario-side message numbered. That number is
+ * what betterResponses points back at, so each suggested line is anchored to the
+ * moment it answers instead of floating free of the conversation. Trainee turns
+ * are deliberately left unnumbered: the trainee always replies to a scenario
+ * message, so one sequence is enough and two would invite the model to mix them.
+ */
 function buildConversationLog(state: SimulationState) {
-  return state.messages.map((message) => ({
-    role: message.role,
-    ...(message.role === "scenario" && message.speaker ? { speaker: message.speaker } : {}),
-    content: message.content,
-  }));
+  let scenarioTurn = 0;
+
+  return state.messages.map((message) => {
+    if (message.role !== "scenario") {
+      return { role: message.role, content: message.content };
+    }
+
+    scenarioTurn += 1;
+
+    return {
+      role: message.role,
+      turn: scenarioTurn,
+      ...(message.speaker ? { speaker: message.speaker } : {}),
+      content: message.content,
+    };
+  });
 }
 
 /**
@@ -182,7 +200,16 @@ Rules:
 - summary: max 35 words.
 - Each array should contain 2 to 4 short items.
 - Each item should be one clear sentence under 22 words.
-- betterResponses should be phrased as direct example lines the trainee could say.
+
+Rules for betterResponses -- each one is a rewrite of a specific moment, not general advice:
+- "suggestion" is the exact line the trainee could have said, in their own voice, ready to speak.
+- "respondsToTurn" is the "turn" number of the scenario message in the log above that this line
+  answers. Use only numbers that appear as a "turn" value in the log; never invent one, and never
+  count trainee messages.
+- "inResponseTo" is a short quote of up to 12 words, copied from that same scenario message, so it
+  is clear which moment you mean.
+- Prefer the moments the trainee actually handled worst. Do not give two suggestions for the same
+  turn unless the conversation genuinely had nothing else worth improving.
 ${customCriteriaSection}- Return only valid JSON matching this shape:
 {
   "overallScore": 1,
@@ -190,7 +217,7 @@ ${customCriteriaSection}- Return only valid JSON matching this shape:
   "whatWentWell": ["string"],
   "whatCouldImprove": ["string"],
   "communicationGaps": ["string"],
-  "betterResponses": ["string"],
+  "betterResponses": [{ "respondsToTurn": 1, "inResponseTo": "string", "suggestion": "string" }],
   "finalAdvice": "string"${customCriteriaField}
 }`;
 }
