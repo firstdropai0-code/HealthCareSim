@@ -355,7 +355,14 @@ export default function SimulationPage() {
                 <TensionBadge level={state.tensionLevel} />
               </div>
               <div className="w-full sm:w-56 lg:w-64">
-                <StepProgress current={state.currentTurn} total={state.maxTurns} />
+                {/* The total is the hard safety cap, not the target. Most
+                    roleplays end well before it, on the ending condition. */}
+                <StepProgress
+                  current={state.currentTurn}
+                  total={state.maxTurns}
+                  label="Turns used"
+                  hint={`Paced for about ${state.scenario.suggestedTurns}; ends when the conversation resolves.`}
+                />
               </div>
             </div>
           </div>

@@ -274,7 +274,13 @@ export function ScenarioPreview({
           <h2 className="display-md mt-1.5">{scenario.title}</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
-            <MetricChip label="Turns" value={`${scenario.suggestedTurns}`} tone="blue" />
+            {/* Pacing, not a limit. The roleplay ends on the scenario's ending
+                condition, and the hard cap shown in the simulation is higher. */}
+            <MetricChip
+              label="Pacing"
+              value={`~${scenario.suggestedTurns} turns`}
+              tone="blue"
+            />
           </div>
           <p className="lede mt-4 max-w-3xl text-sm">{scenario.summary}</p>
         </div>

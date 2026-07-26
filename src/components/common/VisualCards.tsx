@@ -219,10 +219,13 @@ export function StepProgress({
   current,
   total,
   label = "Turn progress",
+  hint,
 }: {
   current: number;
   total: number;
   label?: string;
+  /** Small caption under the bar, for explaining what the total means. */
+  hint?: string;
 }) {
   const safeTotal = Math.max(1, total);
   const progressPercent = Math.min(100, Math.round((current / safeTotal) * 100));
@@ -244,6 +247,11 @@ export function StepProgress({
           style={{ width: "100%" }}
         />
       </div>
+      {hint ? (
+        <p className="mt-2 text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
