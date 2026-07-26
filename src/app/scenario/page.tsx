@@ -10,8 +10,10 @@ import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { ScenarioLibraryBar } from "@/components/scenario/ScenarioLibrary";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
+import type { LibraryScenario } from "@/lib/scenarios/scenarioLibrary";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
 import {
   clearSimulationState,
@@ -19,16 +21,11 @@ import {
 } from "@/lib/storage/localSimulationStorage";
 import type { Scenario } from "@/types/scenario";
 
-const exampleIdeas = [
-  "An anxious patient feels ignored after a long clinic wait.",
-  "A family member is upset because updates have been unclear.",
-  "A patient is embarrassed and reluctant to ask follow-up questions.",
-];
-
 export default function ScenarioCreatorPage() {
   const shouldAnimate = useShouldAnimate();
   const router = useRouter();
   const [idea, setIdea] = useState("");
+  const [libraryId, setLibraryId] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +49,22 @@ export default function ScenarioCreatorPage() {
   }
 
   function handleTranscript(text: string) {
+    setLibraryId(null);
     setIdea((current) => (current.trim() ? `${current.trim()} ${text}` : text));
+  }
+
+  function handleLibraryPick(entry: LibraryScenario) {
+    setIdea(entry.idea);
+    setLibraryId(entry.id);
+    setScenario(null);
+    setError(null);
+  }
+
+  function handleIdeaChange(next: string) {
+    setIdea(next);
+    // Once the trainer edits the text it is no longer that library case, so the
+    // marker in the bar is dropped rather than left claiming something stale.
+    setLibraryId(null);
   }
 
   function handleScenarioChange(updates: Partial<Scenario>) {
@@ -138,23 +150,18 @@ export default function ScenarioCreatorPage() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {exampleIdeas.map((example) => (
-              <button
-                key={example}
-                type="button"
-                onClick={() => setIdea(example)}
-                className="min-h-10 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-3 py-2 text-left text-xs leading-5 text-[var(--color-ink-muted)] transition-colors duration-200 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--color-primary-ink)]"
-              >
-                {example}
-              </button>
-            ))}
+          <div className="mt-5">
+            <ScenarioLibraryBar
+              selectedId={libraryId}
+              onSelect={handleLibraryPick}
+              disabled={loading}
+            />
           </div>
 
           <textarea
             id="scenario-idea"
             value={idea}
-            onChange={(event) => setIdea(event.target.value)}
+            onChange={(event) => handleIdeaChange(event.target.value)}
             rows={6}
             placeholder="Example: A worried parent is frustrated after waiting in a clinic and wants clearer updates from the doctor."
             className="mt-5 w-full resize-y border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-4 text-sm leading-7 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
@@ -174,6 +181,7 @@ export default function ScenarioCreatorPage() {
                 type="button"
                 onClick={() => {
                   setIdea("");
+                  setLibraryId(null);
                   setScenario(null);
                   setError(null);
                 }}
