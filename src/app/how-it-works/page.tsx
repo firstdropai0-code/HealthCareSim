@@ -10,6 +10,7 @@ import {
 } from "@/components/common/VisualCards";
 import { AnimatePresence, motion } from "framer-motion";
 import { Section } from "@/components/editorial/Section";
+import { WalkthroughVideo } from "@/components/howItWorks/WalkthroughVideo";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import { EASE_OUT_CUBIC, springSnappy } from "@/components/motion/motionConfig";
@@ -298,6 +299,10 @@ export default function HowItWorksPage() {
             </p>
           </RevealItem>
         </RevealGroup>
+
+        <Reveal>
+          <WalkthroughVideo />
+        </Reveal>
 
         {/* Static, fully mocked preview — sample data only. */}
         <Reveal>
