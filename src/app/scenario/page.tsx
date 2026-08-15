@@ -12,13 +12,17 @@ import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
-import { DifficultySelector } from "@/components/scenario/DifficultySelector";
+import {
+  CategorySelector,
+  DifficultySelector,
+} from "@/components/scenario/DifficultySelector";
 import { ScenarioLibraryBar } from "@/components/scenario/ScenarioLibrary";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { publishCase } from "@/lib/cases/caseRepository";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
 import {
+  GENERAL_CATEGORY,
   difficultyMeta,
   type LibraryScenario,
   type ScenarioDifficulty,
@@ -43,6 +47,7 @@ export default function ScenarioCreatorPage() {
   // and is what groups the skill tree into tracks.
   const [libraryEntry, setLibraryEntry] = useState<LibraryScenario | null>(null);
   const [difficulty, setDifficulty] = useState<ScenarioDifficulty>("intermediate");
+  const [category, setCategory] = useState<string>(GENERAL_CATEGORY);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +67,10 @@ export default function ScenarioCreatorPage() {
         ...nextScenario,
         defaultEvaluationCriteria: [...nextScenario.evaluationCriteria],
         // Attached client-side. The model never sees or invents these.
-        ...(libraryEntry ? { libraryId: libraryEntry.id, category: libraryEntry.category } : {}),
+        ...(libraryEntry ? { libraryId: libraryEntry.id } : {}),
+        // Always set, never only when a library case was picked. A scenario with
+        // no track has no row on the skill tree and vanishes from progress.
+        category,
         difficulty,
       });
       setGeneratedDifficulty(difficulty);
@@ -82,6 +90,7 @@ export default function ScenarioCreatorPage() {
     setIdea(entry.idea);
     setLibraryEntry(entry);
     setDifficulty(entry.difficulty);
+    setCategory(entry.category);
     setScenario(null);
     setError(null);
   }
@@ -218,6 +227,18 @@ export default function ScenarioCreatorPage() {
               locked={Boolean(libraryEntry)}
               disabled={loading}
             />
+
+            <div className="mt-5">
+              <CategorySelector
+                value={category}
+                onChange={(next) => {
+                  setCategory(next);
+                  setPublishState("idle");
+                }}
+                locked={Boolean(libraryEntry)}
+                disabled={loading}
+              />
+            </div>
 
             {scenario && generatedDifficulty && generatedDifficulty !== difficulty ? (
               <p className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs leading-5">

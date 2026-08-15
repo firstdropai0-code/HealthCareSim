@@ -1,10 +1,56 @@
 "use client";
 
 import {
+  categoryOptions,
   difficultyMeta,
   difficultyOrder,
   type ScenarioDifficulty,
 } from "@/lib/scenarios/scenarioLibrary";
+
+/**
+ * The track a case belongs to, which is the row it occupies on every trainee's
+ * skill tree. Chosen explicitly rather than inferred: cases written from a
+ * free-typed idea previously carried no track at all and disappeared from
+ * progress entirely.
+ */
+export function CategorySelector({
+  value,
+  onChange,
+  locked,
+  disabled,
+}: {
+  value: string;
+  onChange: (category: string) => void;
+  /** True when the track came from a library case rather than a manual choice. */
+  locked?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor="scenario-category" className="eyebrow text-[var(--color-ink)]">
+        Track
+      </label>
+      <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
+        {locked
+          ? "Taken from the case you picked. Change it if you are adapting the case."
+          : "The row this case sits in on your trainees' skill tree."}
+      </p>
+      <select
+        id="scenario-category"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-3 w-full max-w-sm border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 py-2.5 text-[0.9375rem] text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
+      >
+        {categoryOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 /**
  * Every run needs a tier: it is the bucket progress and cohort comparison are

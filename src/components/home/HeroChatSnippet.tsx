@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { heroExchanges } from "@/components/home/heroExchanges";
 import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import {
@@ -39,13 +39,17 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
   const phase = prefersReducedMotion ? PHASE_HOLD : rawPhase;
   const exchange = heroExchanges[index];
 
-  const replyWordCount = exchange.reply.split(" ").length;
-  const phaseDelaysMs = [
-    1100,
-    1500,
-    replyWordCount * TYPED_WORD_DELAY_MS + 600,
-    3200,
-  ];
+  // Memoised, or the effect below sees a new array every render and restarts
+  // its timer each time instead of letting a phase run out.
+  const phaseDelaysMs = useMemo(
+    () => [
+      1100,
+      1500,
+      exchange.reply.split(" ").length * TYPED_WORD_DELAY_MS + 600,
+      3200,
+    ],
+    [exchange.reply],
+  );
 
   useEffect(() => {
     const node = containerRef.current;
