@@ -1,7 +1,10 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { heroExchanges } from "@/components/home/heroExchanges";
+import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import {
   PreviewBubble,
   TYPED_WORD_DELAY_MS,
@@ -9,42 +12,40 @@ import {
 } from "@/components/preview/PreviewChat";
 import { TypingIndicator } from "@/components/simulation/ChatMessageList";
 
-// Hardcoded sample exchange. No AI calls, no storage.
-const parentLine = "Nobody has told me anything for an hour. Is my daughter okay?";
-const traineeLine =
-  "I can hear how frightening this wait has been. Her results are back with the doctor now, and I'll come find you the moment we know more.";
-
-// The dots stand for "the AI is composing", so they may only precede the parent
-// line. The trainee reply just fades in and types, with no indicator.
+// The dots stand for "the AI is composing", so they may only precede the
+// counterpart's line. The trainee reply just fades in and types.
 const PHASE_DOTS = 0;
-const PHASE_PARENT = 1;
-const PHASE_TRAINEE = 2;
+const PHASE_PROMPT = 1;
+const PHASE_REPLY = 2;
 const PHASE_HOLD = 3;
 const PHASE_COUNT = 4;
 
-const traineeWordCount = traineeLine.split(" ").length;
+/** Rises and fades in, and leaves upward so the swap reads as a scroll. */
+const bubbleMotion = {
+  initial: { opacity: 0, y: 14, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -10, scale: 0.98 },
+  transition: { duration: 0.4, ease: EASE_OUT_CUBIC },
+};
 
-// Index i holds the pause before advancing from phase i to phase i + 1,
-// wrapping from PHASE_HOLD back to PHASE_DOTS.
-const phaseDelaysMs = [
-  1100,
-  1300,
-  traineeWordCount * TYPED_WORD_DELAY_MS + 400,
-  2800,
-];
-
-/**
- * `floatingTag` is rendered inside the snippet's own width-constrained box so
- * it stays pinned to the card, not to the surrounding grid cell (which goes
- * full-width once the hero stacks on smaller screens).
- */
 export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOnScreen, setIsOnScreen] = useState(true);
   const [rawPhase, setRawPhase] = useState(PHASE_DOTS);
-  // Reduced motion renders the settled two-bubble conversation, no loop.
+  const [index, setIndex] = useState(0);
+
+  // Reduced motion renders one settled exchange and never loops.
   const phase = prefersReducedMotion ? PHASE_HOLD : rawPhase;
+  const exchange = heroExchanges[index];
+
+  const replyWordCount = exchange.reply.split(" ").length;
+  const phaseDelaysMs = [
+    1100,
+    1500,
+    replyWordCount * TYPED_WORD_DELAY_MS + 600,
+    3200,
+  ];
 
   useEffect(() => {
     const node = containerRef.current;
@@ -69,51 +70,86 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
     }
 
     const timer = window.setTimeout(() => {
-      setRawPhase((current) => (current + 1) % PHASE_COUNT);
+      setRawPhase((current) => {
+        const next = (current + 1) % PHASE_COUNT;
+
+        // Moving on to a new exchange: pick any other one, so the panel never
+        // shows the same conversation twice running.
+        if (next === PHASE_DOTS) {
+          setIndex((currentIndex) => {
+            const offset = 1 + Math.floor(Math.random() * (heroExchanges.length - 1));
+            return (currentIndex + offset) % heroExchanges.length;
+          });
+        }
+
+        return next;
+      });
     }, phaseDelaysMs[rawPhase]);
 
     return () => window.clearTimeout(timer);
-  }, [isOnScreen, prefersReducedMotion, rawPhase]);
+  }, [isOnScreen, phaseDelaysMs, prefersReducedMotion, rawPhase]);
 
   return (
     <div ref={containerRef} className="relative mx-auto w-full max-w-[340px]">
       <Link
         href="/how-it-works"
         aria-label="See how FirstDropAI works"
-        className="card-hover group block overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-card)]"
+        className="card-hover group block overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-[var(--shadow-lift)]"
       >
-        {/* The floating tag sits over the right side of this row, so no label
-            here — the whole card is the link, and the hero already has an
-            explicit "See how it works" button. */}
-        <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-3">
+        {/* A hairline accent along the top edge, plus a live dot. Enough to lift
+            the card off the canvas without turning it into a coloured panel. */}
+        <div aria-hidden className="h-[3px] w-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]" />
+
+        <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-4 py-3">
+          <span
+            aria-hidden
+            className={`h-1.5 w-1.5 rounded-full bg-[var(--color-primary)] ${
+              prefersReducedMotion ? "" : "halo"
+            }`}
+          />
           <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
         </div>
 
         {/* Reserved height stops the hero from reflowing as the loop plays. */}
         <div
           aria-hidden
-          className="flex min-h-[260px] flex-col justify-end gap-3 px-3 py-4"
+          className="flex min-h-[280px] flex-col justify-end gap-3 px-3 py-4"
         >
-          {phase === PHASE_DOTS ? <TypingIndicator /> : null}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {phase === PHASE_DOTS ? (
+              <motion.div key={`${exchange.id}-dots`} {...bubbleMotion}>
+                <TypingIndicator />
+              </motion.div>
+            ) : null}
 
-          {phase >= PHASE_PARENT ? (
-            <PreviewBubble speaker="Parent" content={parentLine} isTrainee={false} typeOut={false} />
-          ) : null}
+            {phase >= PHASE_PROMPT ? (
+              <motion.div key={`${exchange.id}-prompt`} {...bubbleMotion}>
+                <PreviewBubble
+                  speaker={exchange.speaker}
+                  content={exchange.prompt}
+                  isTrainee={false}
+                  typeOut={false}
+                />
+              </motion.div>
+            ) : null}
 
-          {phase >= PHASE_TRAINEE ? (
-            <PreviewBubble
-              speaker="Trainee"
-              content={traineeLine}
-              isTrainee
-              typeOut={!prefersReducedMotion}
-            />
-          ) : null}
+            {phase >= PHASE_REPLY ? (
+              <motion.div key={`${exchange.id}-reply`} {...bubbleMotion}>
+                <PreviewBubble
+                  speaker="Trainee"
+                  content={exchange.reply}
+                  isTrainee
+                  typeOut={!prefersReducedMotion}
+                />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
 
         {/* The looping bubbles are aria-hidden; this is the stable text an
             assistive technology user gets instead. */}
         <p className="sr-only">
-          A sample roleplay. Parent: {parentLine} Trainee: {traineeLine}
+          A sample roleplay. {exchange.speaker}: {exchange.prompt} Trainee: {exchange.reply}
         </p>
       </Link>
       {floatingTag}

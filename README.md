@@ -13,6 +13,7 @@ This is not a medical diagnosis tool. It is only for communication training and 
 - Tailwind CSS
 - Gemini API through Next.js API routes
 - Browser `localStorage` for the current simulation session
+- Firebase Auth and Firestore for accounts, groups, and completed-run history (optional — the app runs without it)
 - OpenAI speech-to-text through `/api/openai/transcribe` for scenario-idea and trainee voice input
 - OpenAI text-to-speech through `/api/openai/tts` for reading scenario (patient, family, nurse, narrator) messages aloud
 
@@ -53,6 +54,34 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Firebase Setup (optional)
+
+Accounts, mentor groups, saved runs, progress tracking, and the mentor dashboard all need Firebase. **Without it the app still runs the full scenario → simulation → feedback flow** against `localStorage`; only those features are hidden behind a "backend not connected" notice.
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Authentication → Sign-in method → Email/Password → Enable.** Nothing works until this is on.
+3. **Firestore Database → Create database.** Start in production mode; the rules below replace the defaults.
+4. **Project settings → General → Your apps → Web app.** Copy the config values into `.env.local`:
+
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project
+NEXT_PUBLIC_FIREBASE_APP_ID=...
+```
+
+5. Paste `firestore.rules` into **Firestore → Rules** and publish.
+6. Add the composite indexes from `firestore.indexes.json`. The quickest route is to use the app until a query fails — Firestore prints a one-click creation link in the browser console.
+7. Restart `npm run dev` so the new environment variables are picked up.
+
+Then: sign up as a mentor, create a group, copy the join code, and sign up as a trainee in a **separate browser profile** (not a second tab — Firebase Auth is per-origin) to redeem it.
+
+### Security model, stated plainly
+
+All access control lives in `firestore.rules`. The route guards in the app are redirects for convenience only: Firebase client auth has no server-readable session cookie without the Admin SDK, so middleware cannot enforce anything.
+
+This build uses the client SDK with no Cloud Functions, which means **the client performs the write that carries its own score**. The rules enforce shape, ownership, cohort membership, a server-set timestamp, and immutability — a scored run can never be rewritten. They cannot verify that a score is genuine. For an internship demo this is an accepted limit; a production deployment would move report generation and the run write behind a trusted server.
+
 ## Vercel Deployment
 
 1. Push this project to a Git provider connected to Vercel.
@@ -60,9 +89,13 @@ Open `http://localhost:3000`.
 3. In Vercel, open Project Settings, then Environment Variables.
 4. Add `GEMINI_API_KEY` with your Gemini API key.
 5. Optionally add `OPENAI_API_KEY` (and the optional `OPENAI_*` model/voice overrides) to enable voice.
-6. Deploy.
+6. Add all four `NEXT_PUBLIC_FIREBASE_*` values to enable accounts, groups, progress, and the mentor dashboard. Omit them and the app still deploys — it just runs in localStorage-only mode with those features hidden.
+7. In Firebase Console → Authentication → Settings → **Authorised domains**, add your Vercel domain. Sign-in is rejected from any domain not on that list, and `localhost` being there by default is why local development works without this step.
+8. Deploy.
 
-API keys are only read in server API routes (`src/app/api/gemini/route.ts`, `src/app/api/openai/transcribe/route.ts`, and `src/app/api/openai/tts/route.ts`). They are never exposed to frontend code.
+The Gemini and OpenAI keys are secrets and are only read in server API routes (`src/app/api/gemini/route.ts`, `src/app/api/openai/transcribe/route.ts`, and `src/app/api/openai/tts/route.ts`). They are never exposed to frontend code.
+
+The `NEXT_PUBLIC_FIREBASE_*` values are the one deliberate exception. They are public project identifiers, not secrets, and the Firebase client SDK requires them in the browser. They authorise nothing on their own — every access decision is made by `firestore.rules`.
 
 ## Current Features
 
@@ -74,8 +107,13 @@ API keys are only read in server API routes (`src/app/api/gemini/route.ts`, `src
 - Read-aloud of scenario messages via OpenAI text-to-speech, with a per-message speaker button and an "Auto-read new patient messages" toggle. The audio only voices the exact text Gemini already produced.
 - Gemini-powered next-turn generation.
 - Feedback report generation focused on communication, empathy, clarity, and pressure handling.
+- Per-dimension subscores (empathy, clarity, structure & next steps, professionalism, pressure & de-escalation) alongside the overall score.
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
+- Mentor and trainee accounts with a fixed role, and mentor-run groups joined by a six-character code.
+- Completed runs saved per trainee, with a skill tree derived from the case library, score trends, and per-dimension movement.
+- Anonymized cohort comparison within a group, suppressed below 3 trainees and 5 cases so a tiny sample never masquerades as a ranking.
+- Mentor dashboard: group score distribution, per-dimension averages, a trainee roster, and drilldown into any run's report and full transcript.
 
 ## How to Test This Prototype
 
@@ -168,10 +206,9 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 - Video scenario playback.
 - Audio conversation mode.
 - Document/chart preview.
-- Backend database.
-- Trainer and trainee login.
-- Scenario library.
-- Analytics dashboard.
+- Server-side score attestation (see the security note above).
+- Scenario templates saved per mentor, with search and versioning.
+- Exportable training summaries for facilitators.
 
 ## Folder Structure
 
@@ -194,16 +231,26 @@ src/
   lib/
     ai/
     export/
+    firebase/
+    groups/
     hooks/
+    progress/
     prompts/
+    runs/
     safety/
+    scenarios/
     simulation/
     storage/
   types/
     feedback.ts
+    group.ts
     media.ts
+    run.ts
     scenario.ts
     simulation.ts
+    user.ts
+firestore.rules
+firestore.indexes.json
 roadmap/
   futureMediaArchitecture.md
 ```

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MetricChip } from "@/components/common/VisualCards";
@@ -12,6 +13,8 @@ import { Reveal } from "@/components/motion/Reveal";
 import { generateFeedbackReport } from "@/lib/ai/geminiClient";
 import { exportFeedback } from "@/lib/export/exportFeedback";
 import { getScenarioMessages } from "@/lib/feedback/betterResponses";
+import { useRequireAuth } from "@/lib/firebase/useAuth";
+import { saveCompletedRun } from "@/lib/runs/runRepository";
 import {
   clearPendingFeedbackGeneration,
   clearSimulationState,
@@ -26,7 +29,10 @@ import type { SimulationState } from "@/types/simulation";
 
 export default function FeedbackPage() {
   const router = useRouter();
+  const gate = useRequireAuth();
+  const profile = gate.blocked ? null : gate.profile;
   const autoGenerationStartedRef = useRef(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [hasLoaded, setHasLoaded] = useState(false);
   const [pendingAutoGenerate, setPendingAutoGenerate] = useState(false);
   const [state, setState] = useState<SimulationState | null>(null);
@@ -77,12 +83,30 @@ export default function FeedbackPage() {
       saveSimulationState(completedState);
       saveFeedbackReport(nextReport);
       clearPendingFeedbackGeneration();
+
+      // The one and only Firestore write for a run. Awaited so the chip can
+      // report the outcome, but never fatal: a failed save must not cost the
+      // trainee the report they just earned. The run id is deterministic, so
+      // retrying overwrites rather than duplicating.
+      if (profile?.groupId) {
+        setSaveStatus("saving");
+        try {
+          await saveCompletedRun({
+            state: completedState,
+            report: nextReport,
+            profile,
+          });
+          setSaveStatus("saved");
+        } catch {
+          setSaveStatus("failed");
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to generate feedback.");
     } finally {
       setLoading(false);
     }
-  }, [report, state]);
+  }, [profile, report, state]);
 
   useEffect(() => {
     if (
@@ -107,6 +131,24 @@ export default function FeedbackPage() {
   function handleRestart() {
     clearSimulationState();
     router.push("/scenario");
+  }
+
+  async function handleRetrySave() {
+    if (!state || !report || !profile?.groupId) {
+      return;
+    }
+
+    setSaveStatus("saving");
+    try {
+      await saveCompletedRun({ state, report, profile });
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("failed");
+    }
+  }
+
+  if (gate.blocked) {
+    return <AuthGate gate={gate} />;
   }
 
   if (!hasLoaded) {
@@ -146,7 +188,7 @@ export default function FeedbackPage() {
           <h1 className="display-md mt-2 max-w-3xl">{state.scenario.title}</h1>
           {/* What was practised and how long it ran, so the report opens with
               the context it is judging rather than a bare score. */}
-          <p className="mt-2 max-w-3xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+          <p className="mt-2 max-w-3xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
             {state.scenario.summary}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -241,9 +283,20 @@ export default function FeedbackPage() {
             {/* Session actions sit below the deck: they act on the whole
                 report, not on whichever page happens to be open. */}
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 shadow-[var(--shadow-card)]">
-              <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
-                Keep a copy of this report, or start a new scenario.
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+                  Keep a copy of this report, or start a new scenario.
+                </p>
+                {saveStatus === "saving" ? (
+                  <MetricChip label="Saving to your record" tone="slate" />
+                ) : saveStatus === "saved" ? (
+                  <MetricChip label="Saved to your record" tone="emerald" />
+                ) : saveStatus === "failed" ? (
+                  <button type="button" onClick={() => void handleRetrySave()}>
+                    <MetricChip label="Not saved" value="Retry" tone="rose" />
+                  </button>
+                ) : null}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

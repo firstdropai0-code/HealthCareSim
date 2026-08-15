@@ -1,0 +1,226 @@
+rules_version = '2';
+
+// FirstDrop security rules.
+//
+// This project runs the Firebase client SDK with no Cloud Functions and no
+// Admin SDK, so these rules are the ONLY access-control boundary — the route
+// guards in the app are redirects for convenience, nothing more.
+//
+// Two constraints shape everything below:
+//   1. Rules cannot run a query. Any lookup must be a get() by document id,
+//      which is why join codes are keyed by the code itself.
+//   2. A rule that get()s a document written in the same writeBatch sees the
+//      PRE-batch state. Writes that depend on each other are sequential awaits,
+//      never batched.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isMentor() {
+      return signedIn() && profile().role == 'mentor';
+    }
+
+    // ---- users -------------------------------------------------------------
+    // Readable by any signed-in user: group screens show member display names.
+    // Role is set once at create and can never change.
+    match /users/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['mentor', 'trainee']
+        && request.resource.data.groupId == null;
+
+      // groupId may only be pointed at a group the user already holds a
+      // membership document in — that document is written first, in a separate
+      // request, precisely so this check can see it.
+      allow update: if request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.uid == resource.data.uid
+        && (
+          request.resource.data.groupId == resource.data.groupId
+          || request.resource.data.groupId == null
+          || exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(uid))
+          || get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.mentorId == uid
+        );
+
+      allow delete: if false;
+    }
+
+    // ---- groups ------------------------------------------------------------
+    match /groups/{groupId} {
+      allow create: if isMentor()
+        && request.resource.data.mentorId == request.auth.uid
+        && request.resource.data.id == groupId;
+
+      // Any signed-in user can read a group: the join screen shows the group
+      // name for confirmation before the trainee commits to the code.
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow update: if resource.data.mentorId == request.auth.uid
+        && request.resource.data.mentorId == resource.data.mentorId;
+
+      allow delete: if false;
+
+      match /members/{uid} {
+        // A trainee may only add THEMSELVES, and only by naming a live code
+        // that really points at this group. Rules cannot query, so the code
+        // they used is stored on the membership and looked up by id.
+        allow create: if request.auth.uid == uid
+          && request.resource.data.uid == uid
+          && request.resource.data.role == 'trainee'
+          && exists(/databases/$(database)/documents/joinCodes/$(request.resource.data.usedCode))
+          && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.usedCode)).data.groupId == groupId
+          && get(/databases/$(database)/documents/joinCodes/$(request.resource.data.usedCode)).data.active == true;
+
+        allow read: if request.auth.uid == uid
+          || get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
+
+        // Only the mentor curates the roster.
+        allow update, delete: if get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
+      }
+    }
+
+    // ---- joinCodes ---------------------------------------------------------
+    // Keyed BY THE CODE so redemption is a get() by id, which is the only
+    // lookup rules can authorise. Readable by any signed-in user, so these
+    // documents carry nothing sensitive — group id, mentor id, active flag.
+    //
+    // Accepted residual risk: codes are guessable in principle. ~1e9 space, an
+    // active flag, and mentor rotation are the mitigation; with no server there
+    // is nowhere to rate limit.
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if isMentor()
+        && request.resource.data.mentorId == request.auth.uid
+        && request.resource.data.code == code;
+
+      allow update: if resource.data.mentorId == request.auth.uid
+        && request.resource.data.mentorId == resource.data.mentorId
+        && request.resource.data.groupId == resource.data.groupId;
+
+      allow delete: if false;
+    }
+
+    // ---- scenarios ---------------------------------------------------------
+    // Cases a mentor has published to their group. Only mentors write them;
+    // trainees read the ones assigned to the group they belong to. This is what
+    // makes "the mentor creates, the trainee chooses" a real boundary rather
+    // than a convention in the navigation.
+    match /scenarios/{scenarioId} {
+      allow create: if isMentor()
+        && request.resource.data.mentorId == request.auth.uid
+        && request.resource.data.id == scenarioId
+        && request.resource.data.groupId == profile().groupId;
+
+      // Written as a plain field comparison, NOT an exists() on a path built
+      // from resource.data. Rules are not filters: for a list query Firestore
+      // must be able to prove from the query alone that every document it
+      // could return is readable, and it cannot do that through a subcollection
+      // lookup. The client always queries `where groupId == <my groupId>`,
+      // which this matches. A mentor's own profile carries their group too, so
+      // one clause covers both roles.
+      allow read: if signedIn() && resource.data.groupId == profile().groupId;
+
+      allow update, delete: if resource.data.mentorId == request.auth.uid;
+    }
+
+    // ---- runs --------------------------------------------------------------
+    // BE HONEST ABOUT THE LIMIT: with a client SDK and no trusted server, the
+    // client performs the write that carries its own score. These rules enforce
+    // shape, ownership, cohort, and immutability. They cannot enforce truth.
+    //
+    // What they DO close:
+    //   - editing a score upward after reading the report (runs are immutable);
+    //   - injecting fake runs into somebody else's cohort (groupId is pinned to
+    //     the writer's own profile, and a live membership is required, so a
+    //     trainee the mentor removed cannot keep adding results);
+    //   - back-dating (completedAt must be the server's own request time).
+    match /runs/{runId} {
+      allow create: if request.auth.uid == request.resource.data.userId
+        && request.resource.data.id == runId
+        && request.resource.data.groupId == profile().groupId
+        && (
+          exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/members/$(request.auth.uid))
+          || get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.mentorId == request.auth.uid
+        )
+        && request.resource.data.mentorId == get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.mentorId
+        && request.resource.data.reportSource in ['ai', 'fallback']
+        && request.resource.data.completedAt == request.time
+        && (
+          request.resource.data.score == null
+          || (request.resource.data.score is int
+              && request.resource.data.score >= 1
+              && request.resource.data.score <= 10)
+        );
+
+      // Runs are immutable, with ONE carve-out: a run saved from the offline
+      // fallback report (score null, excluded from every aggregate) may be
+      // upgraded once a real AI report is generated for it. This grants no new
+      // capability — a trainee could already have written that same 'ai' run on
+      // create, since rules cannot verify a score either way — and without it a
+      // Gemini outage would permanently strand the run as unscored.
+      //
+      // What stays closed: a scored run can never be rewritten.
+      allow update: if request.auth.uid == resource.data.userId
+        && resource.data.reportSource == 'fallback'
+        && request.resource.data.reportSource == 'ai'
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.mentorId == resource.data.mentorId
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.completedAt == request.time
+        && request.resource.data.score is int
+        && request.resource.data.score >= 1
+        && request.resource.data.score <= 10;
+
+      allow delete: if false;
+
+      allow get, list: if signedIn()
+        && (request.auth.uid == resource.data.userId
+            || request.auth.uid == resource.data.mentorId);
+
+      // Transcripts follow the run they belong to. Written after the run, in a
+      // separate request, so this get() can see it.
+      match /transcript/{docId} {
+        allow write: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid;
+        allow read: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
+          || get(/databases/$(database)/documents/runs/$(runId)).data.mentorId == request.auth.uid;
+      }
+    }
+
+    // ---- cohort projection -------------------------------------------------
+    // Firestore has no field-level security: `allow read` hands over the whole
+    // document. A trainee needs the group's score distribution but must never
+    // see a peer's name, report, or transcript — so the numbers get their own
+    // copy that contains nothing identifying. Do not add a uid or a name here.
+    match /groups/{groupId}/runStats/{runId} {
+      allow read: if signedIn()
+        && (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
+            || get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid);
+
+      // Ownership is proved by pointing at the real run, so this document never
+      // has to name anyone. Written after the run, never in the same batch.
+      allow create: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
+        && get(/databases/$(database)/documents/runs/$(runId)).data.groupId == groupId;
+
+      // Mirrors the run's fallback-to-scored carve-out, and nothing else.
+      allow update: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
+        && resource.data.countsTowardStats == false;
+
+      allow delete: if false;
+    }
+  }
+}

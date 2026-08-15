@@ -1,19 +1,28 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { springSoft } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { DifficultySelector } from "@/components/scenario/DifficultySelector";
 import { ScenarioLibraryBar } from "@/components/scenario/ScenarioLibrary";
 import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
-import type { LibraryScenario } from "@/lib/scenarios/scenarioLibrary";
+import { publishCase } from "@/lib/cases/caseRepository";
+import { useRequireAuth } from "@/lib/firebase/useAuth";
+import {
+  difficultyMeta,
+  type LibraryScenario,
+  type ScenarioDifficulty,
+} from "@/lib/scenarios/scenarioLibrary";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
 import {
   clearSimulationState,
@@ -24,11 +33,23 @@ import type { Scenario } from "@/types/scenario";
 export default function ScenarioCreatorPage() {
   const shouldAnimate = useShouldAnimate();
   const router = useRouter();
+  // "mentor" rather than any signed-in user: trainees pick from published cases
+  // instead of authoring their own. Still passes through when Firebase is
+  // unconfigured, so the standalone demo keeps working.
+  const gate = useRequireAuth("mentor");
+  const profile = gate.blocked ? null : gate.profile;
   const [idea, setIdea] = useState("");
-  const [libraryId, setLibraryId] = useState<string | null>(null);
+  // The whole entry is kept, not just the id: `category` travels with the run
+  // and is what groups the skill tree into tracks.
+  const [libraryEntry, setLibraryEntry] = useState<LibraryScenario | null>(null);
+  const [difficulty, setDifficulty] = useState<ScenarioDifficulty>("intermediate");
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [publishState, setPublishState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  // The tier the current preview was actually generated at. Changing the chips
+  // afterwards only relabels it, so the mismatch needs saying out loud.
+  const [generatedDifficulty, setGeneratedDifficulty] = useState<ScenarioDifficulty | null>(null);
 
   async function handleGenerate() {
     setLoading(true);
@@ -36,11 +57,15 @@ export default function ScenarioCreatorPage() {
     setScenario(null);
 
     try {
-      const nextScenario = await generateScenarioFromIdea(idea);
+      const nextScenario = await generateScenarioFromIdea(idea, difficulty);
       setScenario({
         ...nextScenario,
         defaultEvaluationCriteria: [...nextScenario.evaluationCriteria],
+        // Attached client-side. The model never sees or invents these.
+        ...(libraryEntry ? { libraryId: libraryEntry.id, category: libraryEntry.category } : {}),
+        difficulty,
       });
+      setGeneratedDifficulty(difficulty);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to generate scenario.");
     } finally {
@@ -49,13 +74,14 @@ export default function ScenarioCreatorPage() {
   }
 
   function handleTranscript(text: string) {
-    setLibraryId(null);
+    setLibraryEntry(null);
     setIdea((current) => (current.trim() ? `${current.trim()} ${text}` : text));
   }
 
   function handleLibraryPick(entry: LibraryScenario) {
     setIdea(entry.idea);
-    setLibraryId(entry.id);
+    setLibraryEntry(entry);
+    setDifficulty(entry.difficulty);
     setScenario(null);
     setError(null);
   }
@@ -64,11 +90,31 @@ export default function ScenarioCreatorPage() {
     setIdea(next);
     // Once the trainer edits the text it is no longer that library case, so the
     // marker in the bar is dropped rather than left claiming something stale.
-    setLibraryId(null);
+    // The difficulty they were shown is kept — it is still the tier they chose,
+    // and every run needs one.
+    setLibraryEntry(null);
   }
 
   function handleScenarioChange(updates: Partial<Scenario>) {
     setScenario((current) => (current ? { ...current, ...updates } : current));
+    // Any edit makes the published copy stale, so the confirmation is dropped.
+    setPublishState("idle");
+  }
+
+  async function handlePublish() {
+    if (!scenario || !profile) {
+      return;
+    }
+
+    setPublishState("saving");
+
+    try {
+      await publishCase(profile, scenario);
+      setPublishState("saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not publish this case.");
+      setPublishState("failed");
+    }
   }
 
   function handleStartSimulation() {
@@ -79,6 +125,10 @@ export default function ScenarioCreatorPage() {
     clearSimulationState();
     saveSimulationState(createInitialSimulationState(scenario));
     router.push("/simulation");
+  }
+
+  if (gate.blocked) {
+    return <AuthGate gate={gate} />;
   }
 
   return (
@@ -152,10 +202,32 @@ export default function ScenarioCreatorPage() {
 
           <div className="mt-5">
             <ScenarioLibraryBar
-              selectedId={libraryId}
+              selectedId={libraryEntry?.id ?? null}
               onSelect={handleLibraryPick}
               disabled={loading}
             />
+          </div>
+
+          <div className="mt-5 border-t border-[var(--color-border)] pt-5">
+            <DifficultySelector
+              value={difficulty}
+              onChange={(next) => {
+                setDifficulty(next);
+                setPublishState("idle");
+              }}
+              locked={Boolean(libraryEntry)}
+              disabled={loading}
+            />
+
+            {scenario && generatedDifficulty && generatedDifficulty !== difficulty ? (
+              <p className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs leading-5">
+                The brief below was written at{" "}
+                <strong>{difficultyMeta[generatedDifficulty].label.toLowerCase()}</strong> level.
+                Generate again to rewrite it at{" "}
+                <strong>{difficultyMeta[difficulty].label.toLowerCase()}</strong>, or publish as is
+                to keep this brief under the new label.
+              </p>
+            ) : null}
           </div>
 
           <textarea
@@ -181,7 +253,7 @@ export default function ScenarioCreatorPage() {
                 type="button"
                 onClick={() => {
                   setIdea("");
-                  setLibraryId(null);
+                  setLibraryEntry(null);
                   setScenario(null);
                   setError(null);
                 }}
@@ -213,14 +285,52 @@ export default function ScenarioCreatorPage() {
             {(() => {
               const barClass =
                 "glass sticky bottom-4 z-10 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] p-3 shadow-[var(--shadow-lift)]";
+              const canPublish = Boolean(profile?.groupId);
               const cta = (
-                <button
-                  type="button"
-                  onClick={handleStartSimulation}
-                  className="btn-editorial btn-editorial--accent sheen w-full md:w-auto"
-                >
-                  Start Simulation
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {canPublish ? (
+                    <button
+                      type="button"
+                      onClick={() => void handlePublish()}
+                      disabled={publishState === "saving"}
+                      className="btn-editorial btn-editorial--accent sheen w-full md:w-auto"
+                    >
+                      {publishState === "saving"
+                        ? "Publishing..."
+                        : publishState === "saved"
+                          ? "Published to group"
+                          : "Publish to my group"}
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={handleStartSimulation}
+                    className={`btn-editorial w-full md:w-auto ${
+                      canPublish ? "btn-editorial--quiet" : "btn-editorial--accent sheen"
+                    }`}
+                  >
+                    {canPublish ? "Test run it yourself" : "Start Simulation"}
+                  </button>
+
+                  {publishState === "saved" ? (
+                    <Link
+                      href="/cases"
+                      className="link-editorial text-xs font-medium text-[var(--color-primary)]"
+                    >
+                      View published cases
+                    </Link>
+                  ) : null}
+
+                  {profile && !profile.groupId ? (
+                    <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+                      <Link href="/mentor/group" className="link-editorial font-medium">
+                        Create a group
+                      </Link>{" "}
+                      to publish this to trainees.
+                    </p>
+                  ) : null}
+                </div>
               );
 
               // Plain element when animation is off, so the primary action is

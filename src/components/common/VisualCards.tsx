@@ -168,7 +168,7 @@ export function InfoCard({
     >
       <p className={`eyebrow ${styles.label}`}>{label}</p>
       {title ? <h3 className="display-sm mt-1.5">{title}</h3> : null}
-      <div className="mt-2 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">{children}</div>
+      <div className="mt-2 text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">{children}</div>
     </article>
   );
 }
@@ -190,7 +190,7 @@ export function MetricChip({
     >
       <span>{label}</span>
       {value ? (
-        <span className="text-[0.6875rem] font-semibold normal-case tracking-normal">{value}</span>
+        <span className="text-[0.8125rem] font-semibold normal-case tracking-normal">{value}</span>
       ) : null}
     </span>
   );
@@ -258,7 +258,7 @@ export function StepProgress({
         </p>
         <div className="w-32 shrink-0 sm:w-40">{bar}</div>
         {hint ? (
-          <p className="text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">{hint}</p>
+          <p className="text-[0.8125rem] leading-4 text-[var(--color-ink-soft)]">{hint}</p>
         ) : null}
       </div>
     );
@@ -280,7 +280,7 @@ export function StepProgress({
       </div>
       <div className="mt-2">{bar}</div>
       {hint ? (
-        <p className="mt-2 text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">
+        <p className="mt-2 text-[0.8125rem] leading-4 text-[var(--color-ink-soft)]">
           {hint}
         </p>
       ) : null}
@@ -291,9 +291,12 @@ export function StepProgress({
 export function ScoreCard({
   score,
   label,
+  decimals = 0,
 }: {
   score: number;
   label: string;
+  /** 1 for averages. A single report's score is a whole number. */
+  decimals?: number;
 }) {
   const shouldAnimate = useShouldAnimate();
   const safeScore = Math.max(1, Math.min(10, score));
@@ -304,6 +307,7 @@ export function ScoreCard({
       <div className="mt-2 flex items-baseline gap-1.5">
         <AnimatedNumber
           value={safeScore}
+          decimals={decimals}
           className="text-4xl font-semibold tabular-nums leading-none text-[var(--color-primary)]"
         />
         <span className="text-base font-medium text-[var(--color-ink-soft)]">/ 10</span>

@@ -1,27 +1,75 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { AccountChip } from "@/components/auth/AccountChip";
+import { useAuthState } from "@/lib/firebase/useAuth";
+import type { Role } from "@/types/user";
 
-const navigationItems = [
+const signedOutNavigation = [
   { href: "/how-it-works", label: "How It Works" },
   { href: "/scenario", label: "Scenario" },
   { href: "/simulation", label: "Simulation" },
   { href: "/feedback", label: "Feedback" },
 ];
 
+/**
+ * The run flow (Scenario → Simulation → Feedback) stays visible for everyone;
+ * only the role-specific destinations differ.
+ */
+function navigationFor(role: Role | null) {
+  // Trainees never see the scenario creator: they run cases their mentor set.
+  if (role === "trainee") {
+    return [
+      { href: "/how-it-works", label: "How It Works" },
+      { href: "/cases", label: "My Cases" },
+      { href: "/simulation", label: "Simulation" },
+      { href: "/feedback", label: "Feedback" },
+      { href: "/progress", label: "My Progress" },
+    ];
+  }
+
+  if (role === "mentor") {
+    return [
+      { href: "/how-it-works", label: "How It Works" },
+      { href: "/scenario", label: "Create" },
+      { href: "/cases", label: "Cases" },
+      { href: "/simulation", label: "Simulation" },
+      { href: "/mentor/group", label: "My Group" },
+      { href: "/mentor", label: "Dashboard" },
+    ];
+  }
+
+  return signedOutNavigation;
+}
+
+/**
+ * The droplet mark, cropped from the full lockup. The lockup itself is too wide
+ * for the header, and its "Healthcare Simulation" strapline would be unreadable
+ * at this size — that version is used on the auth pages instead.
+ */
 function LogoMark() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
-      <path d="M11 2h2v7h7v2h-7v7h-2V11H4V9h7V2Z" />
-    </svg>
+    <Image
+      src="/logo-mark.png"
+      alt=""
+      width={128}
+      height={128}
+      priority
+      className="h-full w-full object-contain"
+    />
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const authState = useAuthState();
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const role = authState.status === "ready" ? authState.profile.role : null;
+  const navigationItems = navigationFor(role);
 
   useEffect(() => {
     function handleScroll() {
@@ -55,10 +103,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             href="/"
             className="group inline-flex items-center gap-2 text-[var(--color-ink)] transition-colors hover:text-[var(--color-primary)]"
           >
-            <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-sm)] bg-gradient-to-br from-[#14867d] to-[var(--color-primary)] text-white shadow-[var(--shadow-accent)] transition-transform duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:scale-110 group-hover:rotate-[-6deg]">
+            {/* No tinted tile behind it any more: the mark carries its own
+                colour, and a teal square under a green droplet read as two
+                different brands stacked. */}
+            {/* 44px, not 32: the mark has two figures, a heart and a cross
+                inside the droplet, and below about 40px that detail turns to
+                mush. --header-height in globals.css tracks this. */}
+            <span className="grid h-11 w-11 shrink-0 place-items-center transition-transform duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:scale-110 group-hover:rotate-[-6deg]">
               <LogoMark />
             </span>
-            <span className="text-[0.9375rem] font-semibold tracking-[-0.01em]">FirstDropAI</span>
+            <span className="text-base font-semibold tracking-[-0.01em]">FirstDropAI</span>
           </Link>
 
           <nav
@@ -74,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   data-active={isActive}
                   aria-current={isActive ? "page" : undefined}
-                  className={`link-editorial shrink-0 text-[0.8125rem] font-medium ${
+                  className={`link-editorial shrink-0 text-[0.9375rem] font-medium ${
                     isActive ? "text-[var(--color-primary)]" : "text-[var(--color-ink-muted)]"
                   }`}
                 >
@@ -84,12 +138,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
-          <Link
-            href="/scenario"
-            className="btn-editorial btn-editorial--accent min-h-9 px-3 py-1.5 text-xs"
-          >
-            New scenario
-          </Link>
+          <div className="flex items-center gap-3">
+            <AccountChip />
+            <Link
+              href={role === "trainee" ? "/cases" : "/scenario"}
+              className="btn-editorial btn-editorial--accent min-h-9 px-3 py-1.5 text-xs"
+            >
+              {role === "trainee" ? "Start a case" : "New scenario"}
+            </Link>
+          </div>
         </div>
       </header>
 

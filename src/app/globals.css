@@ -8,6 +8,28 @@
    spacing rather than scale, so nothing shouts and nothing gets clipped.
 --------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------
+   Type scale.
+
+   "Restraint in type size" had tipped over into text that is simply hard to
+   read: a 14px base with most content set at text-sm (14px) or text-xs (12px).
+   Every step is raised roughly 1-2px here rather than in ~150 individual class
+   names, so the whole app moves together and the proportions are preserved.
+
+   Line heights are set alongside each step. Tailwind pairs them automatically,
+   and raising size without raising leading just makes dense text feel denser.
+--------------------------------------------------------------------------- */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.55;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.65;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.7;
+  --text-lg: 1.1875rem;
+  --text-lg--line-height: 1.6;
+}
+
 :root {
   /* Surfaces — cool, lightly teal-tinted. The canvas sits a few steps below
      white so panels read as distinct objects laid on it rather than as areas
@@ -74,7 +96,10 @@
   --radius-lg: 8px;
   --radius-xl: 10px;
 
-  --header-height: 3.75rem;
+  /* Measured, not guessed: 44px logo + 10px padding each side + 1px border.
+     The simulation room subtracts this from the viewport height, so it drifting
+     from the real header pushes that layout off the bottom of the screen. */
+  --header-height: 4.0625rem;
   --background: var(--color-canvas);
   --foreground: var(--color-ink);
 
@@ -107,8 +132,8 @@ body {
   background-repeat: no-repeat;
   color: var(--foreground);
   font-family: var(--font-stack-body);
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -192,7 +217,7 @@ button:disabled {
 }
 
 .display-sm {
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   line-height: 1.4;
 }
 
@@ -200,7 +225,7 @@ button:disabled {
    these both shouty and prone to overflowing narrow columns. */
 .eyebrow {
   font-family: var(--font-stack-body);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -212,8 +237,8 @@ button:disabled {
 }
 
 .lede {
-  font-size: 0.875rem;
-  line-height: 1.65;
+  font-size: 1.0625rem;
+  line-height: 1.7;
   color: var(--color-ink-muted);
   text-wrap: pretty;
 }
@@ -233,7 +258,7 @@ button:disabled {
 /* The "01" marker opening a numbered section. */
 .section-num {
   font-family: var(--font-stack-body);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--color-primary);
@@ -254,7 +279,7 @@ button:disabled {
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-ink);
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1.3;
   box-shadow: var(--shadow-card);
@@ -572,3 +597,169 @@ button:disabled {
 }
 
 } /* end @layer components */
+
+/* --- Intro splash ---------------------------------------------------------
+   A drop falls the full height of the screen under gravity, hits the floor,
+   flattens, and rings out across it; the overlay then lifts to reveal the page.
+
+   Pure CSS so it is running on the first painted frame rather than waiting for
+   hydration. Timings are per-keyframe rather than one curve across the whole
+   thing, because a fall and a bounce are not the same motion.
+
+   Total 2.05s. The overlay stops intercepting clicks at 1.45s, before it has
+   finished fading, so the page is usable while it clears.
+-------------------------------------------------------------------------- */
+
+#intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  background-color: var(--color-canvas);
+  background-image:
+    radial-gradient(900px 600px at 8% -5%, rgba(15, 118, 110, 0.07), transparent 60%),
+    radial-gradient(700px 500px at 100% 0%, rgba(49, 86, 163, 0.05), transparent 55%);
+  animation: intro-lift 0.6s cubic-bezier(0.4, 0, 0.2, 1) 1.45s both;
+}
+
+/* The floor the drop lands on: a hairline that draws itself outward from the
+   point of impact, so the landing has something to land ON. */
+#intro-splash::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 18vh;
+  width: min(30rem, 70vw);
+  height: 1px;
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--color-border-strong),
+    transparent
+  );
+  animation: intro-floor 0.7s cubic-bezier(0.215, 0.61, 0.355, 1) 0.78s both;
+}
+
+.intro-splash__mark {
+  position: absolute;
+  left: 50%;
+  /* Sits ON the floor line: bottom offset matches the ::after, so the squash
+     happens exactly where the surface is. */
+  bottom: 18vh;
+  width: 6.5rem;
+  height: 6.5rem;
+  margin-left: -3.25rem;
+  transform-origin: 50% 100%;
+  animation: intro-fall 1s linear both;
+}
+
+.intro-splash__mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Impact rings travel ACROSS the floor, so they are wide and flat rather than
+   circular — a circle would read as a halo in the air. */
+.intro-splash__ripple {
+  position: absolute;
+  left: 50%;
+  bottom: 18vh;
+  /* translateY(50%) drops the box by half its own height, so its centre sits ON
+     the floor line rather than resting above it. It keeps centring as the box
+     grows, because the shift is relative to the current height. */
+  transform: translateY(50%);
+  border-radius: 9999px;
+  border: 1px solid var(--color-primary);
+  opacity: 0;
+  /* Size is animated, not transform-scaled. Scaling a bordered box stretches
+     the border with it, so a 1px hairline became a 4px smear at the wide end,
+     and thicker horizontally than vertically. */
+  animation: intro-ripple 1.1s cubic-bezier(0.215, 0.61, 0.355, 1) 0.8s both;
+}
+
+.intro-splash__ripple--late {
+  animation-delay: 0.98s;
+  border-color: var(--color-border-strong);
+}
+
+@keyframes intro-fall {
+  /* Accelerating from above the viewport, stretching as it picks up speed. */
+  0% {
+    transform: translateY(-115vh) scale(0.82, 1.18);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.3);
+  }
+  12% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.3);
+  }
+  /* Contact. */
+  72% {
+    transform: translateY(0) scale(0.8, 1.22);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  /* Flattened against the floor — the moment that sells the weight. */
+  80% {
+    transform: translateY(0) scale(1.42, 0.6);
+    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  90% {
+    transform: translateY(-1.5rem) scale(0.94, 1.08);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes intro-floor {
+  0% {
+    transform: translateX(-50%) scaleX(0);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes intro-ripple {
+  0% {
+    width: 3.5rem;
+    height: 1rem;
+    margin-left: -1.75rem;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.65;
+  }
+  100% {
+    width: 30rem;
+    height: 7rem;
+    margin-left: -15rem;
+    opacity: 0;
+  }
+}
+
+@keyframes intro-lift {
+  0% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* An unexpected full-screen animation is exactly what this setting is for. */
+@media (prefers-reduced-motion: reduce) {
+  #intro-splash {
+    display: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
+import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
@@ -23,8 +24,11 @@ async function callGemini<T>(action: GeminiAction, payload: unknown): Promise<T>
   return data.result;
 }
 
-export function generateScenarioFromIdea(input: string): Promise<Scenario> {
-  return callGemini<Scenario>("generateScenario", { input });
+export function generateScenarioFromIdea(
+  input: string,
+  difficulty: ScenarioDifficulty,
+): Promise<Scenario> {
+  return callGemini<Scenario>("generateScenario", { input, difficulty });
 }
 
 export function generateNextSimulationTurn(

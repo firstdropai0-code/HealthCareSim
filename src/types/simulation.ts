@@ -20,6 +20,12 @@ export type SimulationMessage = {
 };
 
 export type SimulationState = {
+  /**
+   * Run identity. Optional so states already in localStorage from before this
+   * existed still parse — the save path falls back to a fresh UUID.
+   */
+  id?: string;
+  startedAt?: string;
   scenario: Scenario;
   messages: SimulationMessage[];
   currentTurn: number;

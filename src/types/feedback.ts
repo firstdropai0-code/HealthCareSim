@@ -19,8 +19,51 @@ export type BetterResponse = {
   inResponseTo?: string;
 };
 
+/**
+ * Per-dimension scores, 1-10 each, from the same model call as `overallScore`.
+ * These are the axes of the skill tree and of cohort comparison.
+ *
+ * There is deliberately NO `delivery` dimension. Delivery coaching comes from a
+ * separate model call that never sees the scoring context — see the header of
+ * `src/lib/prompts/feedbackPrompt.ts`. Scoring it here would collapse that
+ * separation and make "delivery does not affect the score" untrue. Do not
+ * "complete the set".
+ *
+ * `overallScore` is NOT their mean. The rubric caps the overall at 3 for a
+ * single hostile line, and an average cannot express that.
+ */
+export type SkillSubscores = {
+  empathy: number;
+  clarity: number;
+  /** Structure & next steps: scenario management, checking understanding. */
+  structure: number;
+  professionalism: number;
+  /** Pressure & de-escalation. */
+  deEscalation: number;
+};
+
+export const subscoreDimensions = [
+  "empathy",
+  "clarity",
+  "structure",
+  "professionalism",
+  "deEscalation",
+] as const;
+
+export type SubscoreDimension = (typeof subscoreDimensions)[number];
+
+export const subscoreLabels: Record<SubscoreDimension, string> = {
+  empathy: "Empathy",
+  clarity: "Clarity",
+  structure: "Structure & next steps",
+  professionalism: "Professionalism",
+  deEscalation: "Pressure & de-escalation",
+};
+
 export type FeedbackReport = {
   overallScore: number;
+  /** Absent on older reports and on the fallback report. */
+  subscores?: SkillSubscores;
   summary: string;
   whatWentWell: string[];
   whatCouldImprove: string[];

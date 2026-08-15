@@ -7,6 +7,7 @@ import {
   ReadMoreText,
   ScoreCard,
 } from "@/components/common/VisualCards";
+import { SubscoreBars } from "@/components/feedback/SubscoreBars";
 import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import { resolveRespondedMessage } from "@/lib/feedback/betterResponses";
@@ -84,7 +85,7 @@ function BetterResponseCard({
             {speaker ? `When the ${speaker.toLowerCase()} said` : "In response to"}
             {entry.respondsToTurn ? ` · turn ${entry.respondsToTurn}` : ""}
           </p>
-          <p className="mt-1 text-[0.8125rem] italic leading-6 text-[var(--color-ink-muted)]">
+          <p className="mt-1 text-[0.9375rem] italic leading-6 text-[var(--color-ink-muted)]">
             &ldquo;{responded.content}&rdquo;
           </p>
         </div>
@@ -214,7 +215,7 @@ function buildPages(
       body: (
         <InfoCard label="Example" title="Lines you could have used" tone="blue">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-[0.625rem] font-semibold text-[var(--color-info)]">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-[0.6875rem] font-semibold text-[var(--color-info)]">
               FD
             </span>
             <span className="eyebrow text-[var(--color-info)]">FirstDrop Coach</span>
@@ -232,6 +233,35 @@ function buildPages(
       ),
     },
   ];
+
+  // Skills sits right after the overview it breaks down. Only present when the
+  // model returned subscores, so reports generated before this existed — and
+  // the fallback report, which deliberately has none — still render.
+  if (report.subscores) {
+    pages.splice(1, 0, {
+      id: "skills",
+      label: "Skills",
+      eyebrow: "By dimension",
+      title: "Where the score came from",
+      body: (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <InfoCard label="Dimensions" title="Five communication skills" tone="slate">
+            <SubscoreBars subscores={report.subscores} />
+          </InfoCard>
+          <InfoCard label="Reading this" title="What it means" tone="blue">
+            <p className="text-[0.9375rem] leading-6">
+              Each dimension is scored on its own, so being warm but unclear looks different
+              from being clear but cold. These are what your progress tracks over time.
+            </p>
+            <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
+              The overall score is a judgement of the whole conversation, not the average of
+              these five.
+            </p>
+          </InfoCard>
+        </div>
+      ),
+    });
+  }
 
   // Conditional sections become pages only when they have content, so the deck
   // never turns to a blank leaf.
@@ -473,7 +503,7 @@ export function FeedbackReportView({
         </div>
       </div>
 
-      <p className="text-center text-[0.6875rem] leading-4 text-[var(--color-ink-soft)]">
+      <p className="text-center text-[0.8125rem] leading-4 text-[var(--color-ink-soft)]">
         Page {safeIndex + 1} of {pages.length} — use the arrows or arrow keys to turn.
       </p>
     </div>

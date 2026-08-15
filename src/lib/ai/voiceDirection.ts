@@ -54,7 +54,10 @@ function emotionForSpeaker(scenario: Scenario, speaker: ScenarioSpeaker): string
     case "patient":
       return scenario.patientEmotion || "concerned";
     case "family_member":
-      return scenario.familyEmotion || scenario.patientEmotion || "worried";
+      // Never falls back to the patient's emotion. The two are routinely
+      // opposite — a sedated child is "calm" while the parent is frantic — and
+      // inheriting it read a distraught relative in a sedated voice.
+      return scenario.familyEmotion || "worried";
     case "nurse":
       return "professional and steady";
     case "bystander":

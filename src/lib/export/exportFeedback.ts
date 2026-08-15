@@ -2,11 +2,27 @@ import {
   getScenarioMessages,
   resolveRespondedMessage,
 } from "@/lib/feedback/betterResponses";
-import type { FeedbackReport } from "@/types/feedback";
+import {
+  subscoreDimensions,
+  subscoreLabels,
+  type FeedbackReport,
+} from "@/types/feedback";
 import type { SimulationState } from "@/types/simulation";
 
 function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
+}
+
+function formatSubscores(report: FeedbackReport): string {
+  if (!report.subscores) {
+    return "";
+  }
+
+  const lines = subscoreDimensions
+    .map((dimension) => `- ${subscoreLabels[dimension]}: ${report.subscores?.[dimension]}/10`)
+    .join("\n");
+
+  return `\nBy Dimension\n${lines}\n`;
 }
 
 /**
@@ -64,7 +80,7 @@ ${conversationLog}
 
 Overall Score
 ${report.overallScore}/10
-
+${formatSubscores(report)}
 Summary
 ${report.summary}
 

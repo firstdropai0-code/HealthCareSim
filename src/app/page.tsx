@@ -87,7 +87,7 @@ export default function Home() {
                 <HowItWorksCta />
                 <Link
                   href="/simulation"
-                  className="link-editorial group text-[0.8125rem] font-medium text-[var(--color-ink-muted)]"
+                  className="link-editorial group text-[0.9375rem] font-medium text-[var(--color-ink-muted)]"
                 >
                   Resume simulation
                   <span
@@ -131,7 +131,7 @@ export default function Home() {
                     <span className="display-sm block transition-colors duration-300 group-hover:text-[var(--color-primary)]">
                       {area.title}
                     </span>
-                    <span className="mt-1 block text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+                    <span className="mt-1 block text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
                       {area.description}
                     </span>
                   </span>
@@ -155,13 +155,13 @@ export default function Home() {
                 className="card-hover accent-edge group rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[0.6875rem] font-semibold text-[var(--color-primary-ink)] transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:bg-[var(--color-primary)] group-hover:text-white">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[0.8125rem] font-semibold text-[var(--color-primary-ink)] transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:bg-[var(--color-primary)] group-hover:text-white">
                     {index + 1}
                   </span>
                   <h3 className="display-sm">{title}</h3>
                 </div>
                 <p className="eyebrow eyebrow-tight mt-3 text-[var(--color-primary)]">{subtitle}</p>
-                <p className="mt-2 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">{body}</p>
+                <p className="mt-2 text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">{body}</p>
               </RevealItem>
             ))}
           </RevealGroup>
@@ -176,7 +176,7 @@ export default function Home() {
           <RevealGroup className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <RevealItem className="card-hover accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <h3 className="display-sm">Use one rough idea</h3>
-              <p className="mt-2 max-w-xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+              <p className="mt-2 max-w-xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
                 The app turns it into a structured training brief you can edit before you begin.
                 Optional voice features let you dictate a response or have messages read aloud.
               </p>
