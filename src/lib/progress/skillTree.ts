@@ -1,4 +1,5 @@
 import {
+  GENERAL_CATEGORY,
   difficultyMeta,
   difficultyOrder,
   scenarioLibrary,
@@ -48,15 +49,26 @@ export const CLEAR_SCORE = 6;
 export const CROSS_TRACK_UNLOCK_RUNS = 3;
 
 /**
+ * A missing category becomes the catch-all track rather than being dropped.
+ *
+ * Cases written from a free-typed idea carry no category, and the tree matches
+ * runs to cells by category — so anything null had no row to land in and
+ * vanished from progress entirely, case and runs alike.
+ */
+function trackOf(category: string | null | undefined): string {
+  return category && category.trim() ? category : GENERAL_CATEGORY;
+}
+
+/**
  * Categories come from the library so the map has a stable shape even before a
- * mentor has published anything. Any category the mentor invents by publishing
- * a free-typed case is folded in too, so nothing a trainee runs is homeless.
+ * mentor has published anything. Any category a mentor sets on their own case is
+ * folded in too, so nothing a trainee runs is homeless.
  */
 export function buildSkillTree(cases: AssignedCase[] = []): SkillNode[] {
   const categories = [
     ...new Set([
       ...scenarioLibrary.map((entry) => entry.category),
-      ...cases.map((entry) => entry.category).filter((value): value is string => Boolean(value)),
+      ...cases.map((entry) => trackOf(entry.category)),
     ]),
   ].sort();
 
@@ -93,13 +105,13 @@ export function computeSkillTree(
 
   return tree.map((node) => {
     const matching = runs.filter(
-      (run) => run.category === node.category && run.difficulty === node.difficulty,
+      (run) => trackOf(run.category) === node.category && run.difficulty === node.difficulty,
     );
     const scores = matching.map((run) => run.score).filter((score): score is number => score !== null);
     const cleared = scores.some((score) => score >= CLEAR_SCORE);
 
     const inCell = cases.filter(
-      (entry) => entry.category === node.category && entry.difficulty === node.difficulty,
+      (entry) => trackOf(entry.category) === node.category && entry.difficulty === node.difficulty,
     );
     const attemptedIds = new Set(matching.map((run) => run.scenarioId));
     const availableCaseIds = [
@@ -115,7 +127,7 @@ export function computeSkillTree(
 
     if (previousTier) {
       const previousInTrack = runs.filter(
-        (run) => run.category === node.category && run.difficulty === previousTier,
+        (run) => trackOf(run.category) === node.category && run.difficulty === previousTier,
       );
       const clearedPreviousInTrack = previousInTrack.some(
         (run) => run.score !== null && run.score >= CLEAR_SCORE,
@@ -131,7 +143,7 @@ export function computeSkillTree(
         // there. Otherwise it names an impossible action, which is how this
         // read before published cases drove the counts.
         const previousTierIsRunnable = cases.some(
-          (entry) => entry.category === node.category && entry.difficulty === previousTier,
+          (entry) => trackOf(entry.category) === node.category && entry.difficulty === previousTier,
         );
 
         lockedHint = previousTierIsRunnable

@@ -56,6 +56,15 @@ export const difficultyMeta: Record<ScenarioDifficulty, DifficultyMeta> = {
   },
 };
 
+/**
+ * The home for scenarios that do not belong to one of the library's tracks.
+ *
+ * A real category rather than a null: the skill tree matches runs to cells by
+ * category, so anything without one has no row to land in and silently
+ * disappears from a trainee's progress.
+ */
+export const GENERAL_CATEGORY = "General communication";
+
 export const difficultyOrder: ScenarioDifficulty[] = [
   "foundational",
   "intermediate",
@@ -176,6 +185,15 @@ export const scenarioLibrary: LibraryScenario[] = [
 ];
 
 /** Picks a random case, never returning `excludeId` unless it is the only match. */
+/**
+ * Every track the library covers, plus the catch-all. Mentors pick from these.
+ * Declared after the library array it reads, or it would throw on module load.
+ */
+export const categoryOptions: string[] = [
+  ...[...new Set(scenarioLibrary.map((entry) => entry.category))].sort(),
+  GENERAL_CATEGORY,
+];
+
 export function pickRandomScenario(
   pool: LibraryScenario[],
   excludeId?: string,
