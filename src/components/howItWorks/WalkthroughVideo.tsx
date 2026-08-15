@@ -91,7 +91,7 @@ export function WalkthroughVideo() {
             >
               <span className="inline-flex items-center gap-2.5 rounded-full border border-[var(--color-primary-strong)] bg-[var(--color-primary)] py-2.5 pl-4 pr-5 text-white shadow-[var(--shadow-accent)] transition-transform duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:scale-105">
                 <PlayIcon />
-                <span className="text-[0.8125rem] font-semibold">
+                <span className="text-[0.9375rem] font-semibold">
                   Play walkthrough
                 </span>
               </span>

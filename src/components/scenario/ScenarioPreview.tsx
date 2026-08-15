@@ -1,14 +1,54 @@
 "use client";
 
-import { useState } from "react";
-import {
-  InfoCard,
-  MetricChip,
-  ReadMoreText,
-} from "@/components/common/VisualCards";
+import { useState, type ReactNode } from "react";
+import { MetricChip } from "@/components/common/VisualCards";
 import type { Scenario } from "@/types/scenario";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
+
+/**
+ * The brief is the one screen a mentor reads closely before publishing, and a
+ * trainee scans before a roleplay. It gets its own card rather than InfoCard so
+ * the values can be set at reading size (15px ink) instead of the 13px muted
+ * caption size InfoCard uses for supporting text elsewhere.
+ */
+const toneAccent: Record<Tone, { label: string; rule: string }> = {
+  slate: { label: "text-[var(--color-ink-soft)]", rule: "border-l-[var(--color-border-strong)]" },
+  emerald: { label: "text-[var(--color-primary)]", rule: "border-l-[var(--color-primary)]" },
+  amber: { label: "text-[var(--color-warning)]", rule: "border-l-[var(--color-warning)]" },
+  rose: { label: "text-[var(--color-danger)]", rule: "border-l-[var(--color-danger)]" },
+  blue: { label: "text-[var(--color-info)]", rule: "border-l-[var(--color-info)]" },
+  indigo: { label: "text-[var(--color-ink-muted)]", rule: "border-l-[var(--color-ink-muted)]" },
+};
+
+function BriefCard({
+  label,
+  title,
+  tone,
+  children,
+  emphasis,
+}: {
+  label: string;
+  title?: string;
+  tone: Tone;
+  children: ReactNode;
+  /** Gives the card more presence for the fields that carry the most weight. */
+  emphasis?: boolean;
+}) {
+  const accent = toneAccent[tone];
+
+  return (
+    <article
+      className={`card-hover flex h-full flex-col rounded-[var(--radius-lg)] border border-l-[3px] border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)] ${accent.rule} ${
+        emphasis ? "p-5" : "p-4"
+      }`}
+    >
+      <p className={`eyebrow text-[0.8125rem] tracking-[0.14em] ${accent.label}`}>{label}</p>
+      {title ? <h3 className="display-sm mt-1.5">{title}</h3> : null}
+      <div className="mt-2.5 flex-1">{children}</div>
+    </article>
+  );
+}
 
 const compactBriefCards = [
   { key: "patientProfile", label: "Patient", tone: "slate" as const },
@@ -79,15 +119,18 @@ function EditableTextCard({
   title,
   tone,
   value,
-  maxLength,
   onSave,
+  emphasis,
+  quoted,
 }: {
   label: string;
   title?: string;
   tone: Tone;
   value: string;
-  maxLength?: number;
   onSave: (next: string) => void;
+  emphasis?: boolean;
+  /** Renders as spoken words — used for the opening line. */
+  quoted?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -108,8 +151,8 @@ function EditableTextCard({
   }
 
   return (
-    <InfoCard label={label} title={title} tone={tone}>
-      <div className="relative pr-6">
+    <BriefCard label={label} title={title} tone={tone} emphasis={emphasis}>
+      <div className="relative pr-7">
         {!isEditing ? <EditButton onClick={startEditing} label={label} /> : null}
 
         {isEditing ? (
@@ -119,15 +162,25 @@ function EditableTextCard({
               onChange={(event) => setDraft(event.target.value)}
               rows={4}
               autoFocus
-              className="w-full resize-y border border-[var(--color-border-strong)] bg-white p-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
+              className="w-full resize-y border border-[var(--color-border-strong)] bg-white p-2 text-[0.9375rem] leading-7 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
             />
             <EditActions onSave={handleSave} onCancel={handleCancel} />
           </div>
         ) : (
-          <ReadMoreText text={value || "Not specified"} maxLength={maxLength ?? 150} />
+          <p
+            className={`text-[var(--color-ink)] ${
+              quoted
+                ? "text-base leading-8"
+                : emphasis
+                  ? "text-[0.9375rem] leading-7"
+                  : "text-[0.9375rem] leading-7"
+            } ${value ? "" : "italic text-[var(--color-ink-soft)]"}`}
+          >
+            {value || "Not specified"}
+          </p>
         )}
       </div>
-    </InfoCard>
+    </BriefCard>
   );
 }
 
@@ -205,8 +258,8 @@ function EditableEvaluationCard({
   }
 
   return (
-    <InfoCard label="Evaluation" title="Checklist" tone="blue">
-      <div className="relative pr-6">
+    <BriefCard label="Evaluation" title="Checklist" tone="blue">
+      <div className="relative pr-7">
         {!isEditing ? <EditButton onClick={startEditing} label="Evaluation checklist" /> : null}
 
         {isEditing ? (
@@ -244,14 +297,24 @@ function EditableEvaluationCard({
             <EditActions onSave={handleSave} onCancel={handleCancel} />
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {criteria.map((item) => (
-              <MetricChip key={item} label={item} tone="blue" />
+          // A numbered list, not chips. MetricChip is eyebrow-styled, so each
+          // criterion rendered as ALL CAPS wrapping over two lines — the least
+          // readable thing on the page, for the content a mentor most needs to
+          // check before publishing.
+          <ol className="grid">
+            {criteria.map((item, index) => (
+              <li
+                key={item}
+                className="flex items-baseline gap-3 border-b border-[var(--color-border)] py-2 last:border-b-0"
+              >
+                <span className="section-num shrink-0">{String(index + 1).padStart(2, "0")}</span>
+                <span className="text-[0.9375rem] leading-7 text-[var(--color-ink)]">{item}</span>
+              </li>
             ))}
-          </div>
+          </ol>
         )}
       </div>
-    </InfoCard>
+    </BriefCard>
   );
 }
 
@@ -269,10 +332,10 @@ export function ScenarioPreview({
   return (
     <section className="space-y-4">
       <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
-        <div className="border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-4 md:px-6">
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-6 md:px-7">
           <p className="eyebrow text-[var(--color-primary)]">Scenario brief</p>
-          <h2 className="display-md mt-1.5">{scenario.title}</h2>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <h2 className="display-xl mt-2 max-w-3xl">{scenario.title}</h2>
+          <div className="mt-4 flex flex-wrap gap-2">
             <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
             {/* Pacing, not a limit. The roleplay ends on the scenario's ending
                 condition, and the hard cap shown in the simulation is higher. */}
@@ -282,10 +345,10 @@ export function ScenarioPreview({
               tone="blue"
             />
           </div>
-          <p className="lede mt-4 max-w-3xl text-sm">{scenario.summary}</p>
+          <p className="lede mt-4 max-w-3xl">{scenario.summary}</p>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5">
+        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5">
           {compactBriefCards.map((card) => {
             const value = scenario[card.key];
 
@@ -295,7 +358,6 @@ export function ScenarioPreview({
                 label={card.label}
                 tone={card.tone}
                 value={String(value || "")}
-                maxLength={105}
                 onSave={(next) => updateField(card.key, next as Scenario[typeof card.key])}
               />
             );
@@ -303,16 +365,20 @@ export function ScenarioPreview({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px_320px]">
-        <EditableTextCard
-          label="Starting line"
-          title="Open with this situation"
-          tone="emerald"
-          value={scenario.firstPrompt}
-          maxLength={140}
-          onSave={(next) => updateField("firstPrompt", next)}
-        />
+      {/* The opening line is what the trainee actually meets first, so it gets
+          its own full-width row at reading size rather than competing for a
+          third of a cramped one. */}
+      <EditableTextCard
+        label="Starting line"
+        title="Open with this situation"
+        tone="emerald"
+        value={scenario.firstPrompt}
+        onSave={(next) => updateField("firstPrompt", next)}
+        emphasis
+        quoted
+      />
 
+      <div className="grid gap-4 lg:grid-cols-2">
         <EditableEvaluationCard
           criteria={scenario.evaluationCriteria}
           onSave={(next) => updateField("evaluationCriteria", next)}
@@ -323,8 +389,8 @@ export function ScenarioPreview({
           title="Close when"
           tone="slate"
           value={scenario.endingCondition}
-          maxLength={140}
           onSave={(next) => updateField("endingCondition", next)}
+          emphasis
         />
       </div>
     </section>

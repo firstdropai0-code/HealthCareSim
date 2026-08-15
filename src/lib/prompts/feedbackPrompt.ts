@@ -191,6 +191,17 @@ Scoring rubric for overallScore (integer 1-10) -- score strictly from what was a
 - Any single clearly hostile, sarcastic, mocking, dismissive, or taunting trainee line (for example: telling a distressed patient or family member to "go ahead" and call a lawyer/media/complaint line in a dismissive or daring tone, or otherwise provoking rather than de-escalating) caps overallScore at 3 for the whole conversation, even if other turns were fine.
 - The overallScore value in the JSON shape below is a placeholder for formatting only -- it is not an example of a typical or expected score. Compute it strictly from the rubric above and the actual conversation.
 
+Scoring rubric for subscores (each an integer 1-10, scored on the same 1-10 scale as overallScore):
+- empathy: acknowledging emotion before explaining facts; naming what the other person is feeling rather than moving straight to information.
+- clarity: plain, jargon-free language; one idea at a time; no information overload.
+- structure: managing the conversation -- checking understanding, setting expectations, and naming a concrete next step.
+- professionalism: respectful, non-defensive, never curt, sarcastic, or blaming.
+- deEscalation: steadying the situation when the other person is angry, frightened, or pressing; not matching their heat.
+- Score each dimension independently from what was actually said. A trainee can be warm but unclear, or clear but cold.
+- The subscores must be consistent with overallScore: do not report a set of high subscores alongside a low overall, or the reverse. overallScore is a judgement of the whole conversation, NOT the average of the subscores.
+- If the hostility cap above applied, deEscalation and professionalism must also be 3 or lower.
+- The subscore values in the JSON shape below are placeholders for formatting only, not expected scores.
+
 Rules:
 - Evaluate communication, empathy, clarity, stress handling, and scenario management.
 - Do not deeply judge medical correctness.
@@ -213,6 +224,7 @@ Rules for betterResponses -- each one is a rewrite of a specific moment, not gen
 ${customCriteriaSection}- Return only valid JSON matching this shape:
 {
   "overallScore": 1,
+  "subscores": { "empathy": 1, "clarity": 1, "structure": 1, "professionalism": 1, "deEscalation": 1 },
   "summary": "string",
   "whatWentWell": ["string"],
   "whatCouldImprove": ["string"],

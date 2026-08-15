@@ -439,7 +439,7 @@ export default function HowItWorksPage() {
           <RevealGroup className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <RevealItem className="card-hover accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <h3 className="display-sm">Ready to practice</h3>
-              <p className="mt-2 max-w-xl text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+              <p className="mt-2 max-w-xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
                 Start from a rough scenario idea and the app builds the training
                 brief for you.
               </p>

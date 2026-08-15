@@ -33,17 +33,35 @@ This MVP only stores future media placeholders in the `MediaAsset` type. Media f
 - Keep documents as roleplay props and avoid clinical instruction generation.
 - Render previews in a dedicated simulation context panel.
 
-## Backend Database
+## Backend Database — done (Firebase), deliberately narrowed
 
-- Replace `localStorageProvider` with a backend implementation behind `storageProvider.ts`.
-- Candidate stores: Firebase, Supabase, MongoDB, or PostgreSQL.
-- Persist scenarios, simulation messages, feedback reports, and media metadata.
+The original plan here was to replace `localStorageProvider` with a backend
+implementation behind `storageProvider.ts`. That stub has been deleted and the
+scope narrowed on purpose:
 
-## Trainer and Trainee Login
+- The backend persists **completed runs only**, through
+  `src/lib/runs/runRepository.ts`. Live session state stays in `localStorage`.
+- The reason is the call sites, not the store. `saveSimulationState` runs on
+  every turn from synchronous handlers, and `/scenario` saves then immediately
+  navigates. Making that path async would let a flaky network break a roleplay
+  mid-conversation and would race the navigation, for no product gain — nothing
+  requires resuming an in-progress run on another device.
+- One Firestore write happens per run, on the feedback page, once a report
+  exists. It is awaited but non-fatal.
 
-- Add authentication before storing user-owned scenarios.
-- Separate trainer permissions from trainee simulation access.
-- Store ownership, session status, and audit metadata.
+## Trainer and Trainee Login — done (Firebase Auth)
+
+- Email/password auth with an immutable `role` of `mentor` or `trainee` on
+  `users/{uid}`.
+- Mentors create a group and share a six-character join code; trainees redeem
+  it. Codes are keyed by the code itself so redemption is a `get()` by id —
+  security rules cannot run a query.
+- All access control lives in `firestore.rules`. The route guards in the app are
+  redirects for convenience; with no Admin SDK there is no server-readable
+  session for middleware to check.
+- Known limit: with a client SDK and no trusted server, the client performs the
+  write that carries its own score. Rules enforce shape, cohort, and
+  immutability — they cannot enforce truth.
 
 ## Scenario Library
 

@@ -24,6 +24,10 @@ export const scenarioSchema: GeminiSchema = {
     "summary",
     "patientProfile",
     "patientEmotion",
+    // Required, not optional. Left optional the model skipped it even when the
+    // family WAS the counterpart, which left them voiced with the patient's
+    // emotion — a sedated child's "calm" read onto a frantic parent.
+    "familyEmotion",
     "traineeObjective",
     "communicationChallenge",
     "startingSituation",
@@ -40,7 +44,7 @@ export const scenarioSchema: GeminiSchema = {
     summary: { type: "STRING" },
     patientProfile: { type: "STRING" },
     patientEmotion: { type: "STRING" },
-    familyEmotion: { type: "STRING", nullable: true },
+    familyEmotion: { type: "STRING" },
     traineeObjective: { type: "STRING" },
     communicationChallenge: { type: "STRING" },
     startingSituation: { type: "STRING" },
@@ -90,10 +94,33 @@ const betterResponseItemSchema: GeminiSchema = {
   },
 };
 
+/**
+ * Per-dimension scores. These are the skill-tree axes and the cohort comparison
+ * dimensions.
+ *
+ * There is NO `delivery` dimension here, on purpose. Delivery coaching comes
+ * from a separate call that never receives the scoring context — see the header
+ * of `src/lib/prompts/feedbackPrompt.ts`. Adding one would make delivery
+ * scoreable and quietly break the guarantee that whole arrangement exists to
+ * provide. Do not "complete the set".
+ */
+const subscoresSchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["empathy", "clarity", "structure", "professionalism", "deEscalation"],
+  properties: {
+    empathy: { type: "INTEGER" },
+    clarity: { type: "INTEGER" },
+    structure: { type: "INTEGER" },
+    professionalism: { type: "INTEGER" },
+    deEscalation: { type: "INTEGER" },
+  },
+};
+
 export const feedbackReportSchema: GeminiSchema = {
   type: "OBJECT",
   required: [
     "overallScore",
+    "subscores",
     "summary",
     "whatWentWell",
     "whatCouldImprove",
@@ -103,6 +130,7 @@ export const feedbackReportSchema: GeminiSchema = {
   ],
   properties: {
     overallScore: { type: "INTEGER" },
+    subscores: subscoresSchema,
     summary: { type: "STRING" },
     whatWentWell: stringArraySchema,
     whatCouldImprove: stringArraySchema,

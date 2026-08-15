@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
@@ -18,6 +19,7 @@ import {
   stripTraineePrompt,
 } from "@/lib/ai/voiceDirection";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
+import { useRequireAuth } from "@/lib/firebase/useAuth";
 import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
@@ -60,13 +62,14 @@ function BriefItem({
   return (
     <div className="min-w-0">
       <p className={`eyebrow eyebrow-tight ${briefToneClasses[tone]}`}>{label}</p>
-      <p className="mt-1 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">{value}</p>
+      <p className="mt-1 text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">{value}</p>
     </div>
   );
 }
 
 export default function SimulationPage() {
   const router = useRouter();
+  const gate = useRequireAuth();
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
   const [hasFeedbackReport, setHasFeedbackReport] = useState(false);
@@ -324,6 +327,10 @@ export default function SimulationPage() {
 
     savePendingFeedbackGeneration();
     router.push("/feedback");
+  }
+
+  if (gate.blocked) {
+    return <AuthGate gate={gate} />;
   }
 
   if (!state) {

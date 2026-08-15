@@ -43,3 +43,6 @@ next-env.d.ts
 
 # source media — the encode the app serves lives in public/
 /How to use video/
+
+# Per-developer Claude Code permissions; launch.json is shared, this is not.
+.claude/settings.local.json

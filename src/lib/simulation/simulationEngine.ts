@@ -26,6 +26,14 @@ export const HARD_TURN_LIMIT = 12;
 
 export function createInitialSimulationState(scenario: Scenario): SimulationState {
   return {
+    // Minted here so the run has a stable identity from its first turn. It
+    // becomes the Firestore document id, which is what makes re-generating a
+    // report overwrite the same record instead of creating a duplicate.
+    id:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    startedAt: new Date().toISOString(),
     scenario,
     messages: [createMessage("scenario", scenario.firstPrompt, "narrator")],
     currentTurn: 0,

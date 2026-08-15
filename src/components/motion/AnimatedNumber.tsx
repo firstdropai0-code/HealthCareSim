@@ -13,10 +13,13 @@ export function AnimatedNumber({
   value,
   duration = 1.1,
   className = "",
+  decimals = 0,
 }: {
   value: number;
   duration?: number;
   className?: string;
+  /** Averages need a decimal place; rounding 4.5 to "5" misreports them. */
+  decimals?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.5 });
@@ -31,7 +34,7 @@ export function AnimatedNumber({
     const controls = animate(0, value, {
       duration,
       ease: EASE_OUT_CUBIC,
-      onUpdate: (latest) => setCounted(Math.round(latest)),
+      onUpdate: (latest) => setCounted(latest),
     });
 
     return () => controls.stop();
@@ -43,7 +46,7 @@ export function AnimatedNumber({
 
   return (
     <span ref={ref} className={className}>
-      {shown}
+      {shown.toFixed(decimals)}
     </span>
   );
 }

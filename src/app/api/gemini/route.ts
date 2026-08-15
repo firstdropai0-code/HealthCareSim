@@ -19,11 +19,19 @@ import {
 } from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import {
+  difficultyOrder,
+  type ScenarioDifficulty,
+} from "@/lib/scenarios/scenarioLibrary";
+import {
   buildSimulationPrompt,
   type SimulationPromptMessage,
   type SimulationPromptPayload,
 } from "@/lib/prompts/simulationPrompt";
-import type { FeedbackReport } from "@/types/feedback";
+import {
+  subscoreDimensions,
+  type FeedbackReport,
+  type SkillSubscores,
+} from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type {
   NextSimulationTurn,
@@ -32,7 +40,10 @@ import type {
 } from "@/types/simulation";
 
 type GeminiRequest =
-  | { action: "generateScenario"; payload: { input: string } }
+  | {
+      action: "generateScenario";
+      payload: { input: string; difficulty?: ScenarioDifficulty };
+    }
   | {
       action: "nextTurn";
       payload: {
@@ -50,6 +61,10 @@ const FEEDBACK_TIMEOUT_MS = 22_000;
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function isScenarioDifficulty(value: unknown): value is ScenarioDifficulty {
+  return difficultyOrder.includes(value as ScenarioDifficulty);
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -164,6 +179,13 @@ function normalizeScenario(value: unknown): Scenario {
         ? scenario.evaluationCriteria
         : ["Empathy", "Clarity", "Pressure handling", "Shared understanding"],
     mediaAssets: scenario.mediaAssets || [],
+    // Progress metadata is set on the client and is absent on the generation
+    // path. It is passed through rather than defaulted because this function
+    // rebuilds the object field by field and would otherwise silently drop it
+    // for anything that round-trips a scenario back through here.
+    ...(scenario.libraryId ? { libraryId: scenario.libraryId } : {}),
+    ...(scenario.category ? { category: scenario.category } : {}),
+    ...(scenario.difficulty ? { difficulty: scenario.difficulty } : {}),
   };
 
   // Pin voices here rather than asking the model for them: it's a closed set of
@@ -285,6 +307,32 @@ function normalizeCustomCriteriaFeedback(value: unknown): FeedbackReport["custom
     .filter((item) => item.criterion && item.assessment);
 }
 
+/**
+ * Clamps every dimension to 1-10. Returns undefined rather than filling gaps
+ * when the object is missing or partial: an invented subscore would flow
+ * straight into a trainee's skill tree and a cohort average as if it were real.
+ */
+function normalizeSubscores(value: unknown): SkillSubscores | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const result = {} as SkillSubscores;
+
+  for (const dimension of subscoreDimensions) {
+    const score = Number(raw[dimension]);
+
+    if (!Number.isFinite(score)) {
+      return undefined;
+    }
+
+    result[dimension] = Math.max(1, Math.min(10, Math.round(score)));
+  }
+
+  return result;
+}
+
 function normalizeFeedback(value: unknown): FeedbackReport {
   const report = value as Partial<FeedbackReport>;
 
@@ -292,8 +340,11 @@ function normalizeFeedback(value: unknown): FeedbackReport {
     throw new Error("Generated feedback report is missing required fields.");
   }
 
+  const subscores = normalizeSubscores(report.subscores);
+
   return {
     overallScore: Math.max(1, Math.min(10, Number(report.overallScore || 6))),
+    ...(subscores ? { subscores } : {}),
     summary: report.summary,
     whatWentWell: normalizeStringArray(report.whatWentWell),
     whatCouldImprove: normalizeStringArray(report.whatCouldImprove),
@@ -314,6 +365,10 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
   const scenarioMessages = state.messages.filter((message) => message.role === "scenario");
 
   return normalizeFeedback({
+    // No subscores on purpose. This score is a hardcoded placeholder, not a
+    // judgement, which is why the run it produces is excluded from every
+    // aggregate — fabricating five more numbers here would poison the skill
+    // tree with confident-looking noise.
     overallScore: 6,
     source: "fallback",
     fallbackReason: "Basic fallback feedback generated because Gemini feedback was unavailable.",
@@ -345,8 +400,11 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
   });
 }
 
-async function generateScenario(input: string): Promise<Scenario> {
-  const prompt = buildScenarioPrompt(input);
+async function generateScenario(
+  input: string,
+  difficulty: ScenarioDifficulty,
+): Promise<Scenario> {
+  const prompt = buildScenarioPrompt(input, difficulty);
   const result = await callGeminiJson({
     action: "scenario",
     prompt,
@@ -468,7 +526,8 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
       temperature: 0.25,
       // Extra headroom when the response must also carry the custom-criteria
       // section, so the combined JSON is never truncated.
-      maxOutputTokens: hasCustomCriteria ? 2900 : 2200,
+      // Bumped from 2900/2200 for the subscores block.
+      maxOutputTokens: hasCustomCriteria ? 3100 : 2400,
       timeoutMs: FEEDBACK_TIMEOUT_MS,
       schema: buildFeedbackReportSchema(extraCriteria.length),
     }),
@@ -494,8 +553,14 @@ export async function POST(request: Request) {
         return errorResponse("Enter a scenario idea before generating.");
       }
 
+      // Never trusted straight from the body: an unrecognised value would index
+      // the guidance map to undefined and drop the tier from the prompt.
+      const difficulty = isScenarioDifficulty(body.payload.difficulty)
+        ? body.payload.difficulty
+        : "intermediate";
+
       try {
-        return NextResponse.json({ result: await generateScenario(input) });
+        return NextResponse.json({ result: await generateScenario(input, difficulty) });
       } catch (error) {
         if (isInvalidJsonResponse(error)) {
           console.error("Gemini scenario generation returned invalid JSON, using fallback:", error);

@@ -11,6 +11,17 @@ const TRANSCRIBE_TIMEOUT_MS = 30_000;
  */
 const DEFAULT_TRANSCRIBE_MODEL = "whisper-1";
 
+/**
+ * Whisper auto-detects the language per clip when this is not sent, and on
+ * accented English it regularly guesses wrong — then transcribes into the
+ * script it guessed, so the trainee's turn comes back in Urdu or Hindi rather
+ * than as English text. Pinning the language removes the guess.
+ *
+ * Set OPENAI_TRANSCRIBE_LANGUAGE to another ISO-639-1 code to train in a
+ * different language, or to "auto" to restore detection.
+ */
+const DEFAULT_TRANSCRIBE_LANGUAGE = "en";
+
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -41,6 +52,12 @@ export async function POST(request: Request) {
   const fileName = file instanceof File ? file.name : "audio.webm";
   upstreamForm.append("file", file, fileName);
   upstreamForm.append("model", model);
+
+  const language = process.env.OPENAI_TRANSCRIBE_LANGUAGE || DEFAULT_TRANSCRIBE_LANGUAGE;
+
+  if (language !== "auto") {
+    upstreamForm.append("language", language);
+  }
 
   // Only whisper-1 accepts verbose_json; asking for it on a gpt-4o-* transcribe
   // model is a hard 400. If the env var points elsewhere, fall back to plain

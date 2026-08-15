@@ -49,5 +49,13 @@ export function staggerContainer(stagger = 0.07, delayChildren = 0): Variants {
   };
 }
 
-/** Viewport config: fire a little before the element is fully on screen, once. */
-export const viewportOnce = { once: true, amount: 0.2, margin: "0px 0px -8% 0px" };
+/**
+ * Viewport config: fire a little before the element is fully on screen, once.
+ *
+ * The bottom margin is POSITIVE, which extends the observed area below the fold
+ * so content animates in just before it is scrolled to. It was negative, which
+ * shrinks the area and does the opposite — anything sitting just past the fold
+ * stayed blank until the user scrolled it well into view, which reads as a
+ * page that failed to load rather than one that is animating.
+ */
+export const viewportOnce = { once: true, amount: 0.15, margin: "0px 0px 15% 0px" };

@@ -196,7 +196,7 @@ function CaseCard({
         <DifficultyChip difficulty={entry.difficulty} />
       </div>
 
-      <p className="mt-2 text-[0.8125rem] leading-6 text-[var(--color-ink-muted)]">
+      <p className="mt-2 text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
         {entry.summary}
       </p>
 
@@ -207,7 +207,7 @@ function CaseCard({
         {entry.tags.map((tag) => (
           <span
             key={tag}
-            className="rounded-full border border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-2 py-0.5 text-[0.6875rem] leading-5 text-[var(--color-ink-soft)]"
+            className="rounded-full border border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-2 py-0.5 text-[0.8125rem] leading-5 text-[var(--color-ink-soft)]"
           >
             {tag}
           </span>
@@ -447,7 +447,7 @@ function LibraryDrawer({
                     <p className="eyebrow text-[var(--color-ink)]">
                       {difficultyMeta[group.level].label}
                     </p>
-                    <p className="text-[0.6875rem] leading-5 text-[var(--color-ink-soft)]">
+                    <p className="text-[0.8125rem] leading-5 text-[var(--color-ink-soft)]">
                       {difficultyMeta[group.level].blurb}
                     </p>
                   </div>
