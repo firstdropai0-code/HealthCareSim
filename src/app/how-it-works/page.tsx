@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { DropGlyph } from "@/components/common/DropGlyph";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import {
   InfoCard,
@@ -280,10 +281,7 @@ export default function HowItWorksPage() {
         <RevealGroup as="header" stagger={0.08}>
           <RevealItem>
             <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[var(--color-primary)] shadow-[var(--shadow-card)]">
-              <span
-                aria-hidden
-                className="halo h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]"
-              />
+              <DropGlyph />
               How it works
             </p>
           </RevealItem>
