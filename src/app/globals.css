@@ -3,7 +3,7 @@
 /* ---------------------------------------------------------------------------
    FirstDropAI design tokens — clinical, quiet, readable.
 
-   The look is carried by a cool clinical palette, hairline rules, generous
+   The look is carried by a cool clinical green palette, hairline rules, generous
    line-height, and restraint in type size. Hierarchy comes from weight and
    spacing rather than scale, so nothing shouts and nothing gets clipped.
 --------------------------------------------------------------------------- */
@@ -31,29 +31,44 @@
 }
 
 :root {
-  /* Surfaces — cool, lightly teal-tinted. The canvas sits a few steps below
-     white so panels read as distinct objects laid on it rather than as areas
-     of the same sheet. That separation is what makes a card legible; borders
-     and shadows only reinforce an edge the tonal step has already drawn. */
-  --color-canvas: #e8eeec;
-  --color-canvas-soft: #f7faf9;
+  /* Surfaces — cool, lightly green-tinted to sit under the logo's greens; they
+     carried a cyan cast before, which reads as a second brand next to a green
+     one. The canvas sits a few steps below white so panels read as distinct
+     objects laid on it rather than as areas of the same sheet. That separation
+     is what makes a card legible; borders and shadows only reinforce an edge
+     the tonal step has already drawn. */
+  --color-canvas: #e9efe9;
+  --color-canvas-soft: #f8faf6;
   --color-surface: #ffffff;
-  --color-surface-muted: #eaf1ef;
+  --color-surface-muted: #ebf2ec;
 
   /* Text */
-  --color-ink: #16211e;
-  --color-ink-muted: #4a5b56;
-  --color-ink-soft: #74847f;
+  --color-ink: #171f18;
+  --color-ink-muted: #4c5a4e;
+  /* Darkened past a straight hue shift: at its previous lightness this was
+     3.9:1 on white and 3.3:1 on the canvas, so every caption in the app failed
+     WCAG AA. Now 5.3:1 and 4.5:1. */
+  --color-ink-soft: #656e64;
 
   /* Hairlines */
-  --color-border: #c5d6d0;
-  --color-border-strong: #a2bcb4;
+  --color-border: #c8d7c8;
+  --color-border-strong: #a6bda8;
 
-  /* Brand teal — the system colour, not a lone accent */
-  --color-primary: #0f766e;
-  --color-primary-strong: #0b5e57;
-  --color-primary-soft: #dff0ec;
-  --color-primary-ink: #06302c;
+  /* Brand green, taken from the logo — the system colour, not a lone accent.
+     Sampled from the mark: a deep forest green anchors it, with leaf green and
+     mint as the lift.
+
+     --color-primary is 5.43:1 against white, which is where the teal it replaced
+     sat (5.47:1). That was the constraint: the logo's brighter greens read well
+     as a gradient but fail as a button fill under white text, so the deep end of
+     the brand is what carries the UI and the bright end stays decorative. */
+  --color-primary: #127a3a;
+  --color-primary-strong: #0b6b2f;
+  --color-primary-soft: #dcf3e4;
+  --color-primary-ink: #06301a;
+  /* The light end of gradients and meters — the logo's mint. Never sits under
+     text, so it can be as bright as the mark is. */
+  --color-accent-mint: #2fcf8f;
 
   /* Status */
   --color-info: #3156a3;
@@ -77,8 +92,8 @@
     0 10px 22px -5px rgba(22, 33, 30, 0.13),
     0 22px 46px -12px rgba(22, 33, 30, 0.15);
   --shadow-accent:
-    0 1px 2px rgba(15, 118, 110, 0.20),
-    0 6px 16px -4px rgba(15, 118, 110, 0.28);
+    0 1px 2px rgba(18, 122, 58, 0.20),
+    0 6px 16px -4px rgba(18, 122, 58, 0.28);
 
   /* Motion. Curves and durations lifted from the Buttermax reference:
      easeOutCubic for almost everything, easeOutQuad for long reveals. */
@@ -122,11 +137,11 @@ html {
 
 body {
   margin: 0;
-  /* Two very low-opacity teal washes give the canvas depth without reading as
+  /* Two very low-opacity brand washes give the canvas depth without reading as
      a gradient. Fixed so they stay put while content scrolls over them. */
   background-color: var(--color-canvas);
   background-image:
-    radial-gradient(900px 600px at 8% -5%, rgba(15, 118, 110, 0.07), transparent 60%),
+    radial-gradient(900px 600px at 8% -5%, rgba(18, 122, 58, 0.07), transparent 60%),
     radial-gradient(700px 500px at 100% 0%, rgba(49, 86, 163, 0.05), transparent 55%);
   background-attachment: fixed;
   background-repeat: no-repeat;
@@ -164,7 +179,7 @@ button:disabled {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+  box-shadow: 0 0 0 4px rgba(18, 122, 58, 0.14);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -307,7 +322,7 @@ button:disabled {
 
 /* Primary action. A one-pixel top highlight gives the fill dimension. */
 .btn-editorial--accent {
-  background: linear-gradient(180deg, #14867d 0%, var(--color-primary) 55%, #0d6b64 100%);
+  background: linear-gradient(180deg, var(--color-primary-strong) 0%, var(--color-primary) 55%, #0d6b64 100%);
   border-color: var(--color-primary-strong);
   color: #ffffff;
   box-shadow:
@@ -321,8 +336,8 @@ button:disabled {
   color: #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 2px 4px rgba(15, 118, 110, 0.24),
-    0 10px 24px -6px rgba(15, 118, 110, 0.36);
+    0 2px 4px rgba(18, 122, 58, 0.24),
+    0 10px 24px -6px rgba(18, 122, 58, 0.36);
 }
 
 /* Secondary action: quieter than accent, firmer than quiet. */
@@ -510,7 +525,7 @@ button:disabled {
   background: linear-gradient(
     100deg,
     transparent,
-    rgba(15, 118, 110, 0.16),
+    rgba(18, 122, 58, 0.16),
     transparent
   );
   transform: translateX(-140%);
@@ -544,13 +559,13 @@ button:disabled {
 /* Soft pulsing dot for live/recording states. */
 @keyframes haloPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.4);
+    box-shadow: 0 0 0 0 rgba(18, 122, 58, 0.4);
   }
   70% {
-    box-shadow: 0 0 0 7px rgba(15, 118, 110, 0);
+    box-shadow: 0 0 0 7px rgba(18, 122, 58, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
+    box-shadow: 0 0 0 0 rgba(18, 122, 58, 0);
   }
 }
 
@@ -617,7 +632,7 @@ button:disabled {
   overflow: hidden;
   background-color: var(--color-canvas);
   background-image:
-    radial-gradient(900px 600px at 8% -5%, rgba(15, 118, 110, 0.07), transparent 60%),
+    radial-gradient(900px 600px at 8% -5%, rgba(18, 122, 58, 0.07), transparent 60%),
     radial-gradient(700px 500px at 100% 0%, rgba(49, 86, 163, 0.05), transparent 55%);
   animation: intro-lift 0.6s cubic-bezier(0.4, 0, 0.2, 1) 1.45s both;
 }

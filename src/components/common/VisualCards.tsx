@@ -240,7 +240,7 @@ export function StepProgress({
   const bar = (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-muted)]">
       <motion.div
-        className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+        className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent-mint)]"
         initial={false}
         animate={{ scaleX: progressPercent / 100 }}
         transition={{ duration: 0.6, ease: EASE_OUT_CUBIC }}
@@ -316,14 +316,14 @@ export function ScoreCard({
         {/* Scales rather than animating width, so the fill stays on the GPU. */}
         {shouldAnimate ? (
           <motion.div
-            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent-mint)]"
             initial={{ scaleX: 0 }}
             animate={{ scaleX: safeScore / 10 }}
             transition={{ duration: 1.1, ease: EASE_OUT_CUBIC }}
           />
         ) : (
           <div
-            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]"
+            className="h-full origin-left rounded-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent-mint)]"
             style={{ transform: `scaleX(${safeScore / 10})` }}
           />
         )}

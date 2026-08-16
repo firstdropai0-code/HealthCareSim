@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DropGlyph } from "@/components/common/DropGlyph";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { Section } from "@/components/editorial/Section";
 import { HeroChatSnippet } from "@/components/home/HeroChatSnippet";
@@ -64,7 +65,7 @@ export default function Home() {
           <RevealGroup stagger={0.08}>
             <RevealItem>
               <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[var(--color-primary)] shadow-[var(--shadow-card)]">
-                <span aria-hidden className="halo h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
+                <DropGlyph />
                 Healthcare communication training
               </p>
             </RevealItem>

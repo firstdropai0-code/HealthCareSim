@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { DropGlyph } from "@/components/common/DropGlyph";
 import { heroExchanges } from "@/components/home/heroExchanges";
 import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import {
@@ -102,15 +103,12 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
       >
         {/* A hairline accent along the top edge, plus a live dot. Enough to lift
             the card off the canvas without turning it into a coloured panel. */}
-        <div aria-hidden className="h-[3px] w-full bg-gradient-to-r from-[var(--color-primary)] to-[#3fb3a6]" />
+        <div aria-hidden className="h-[3px] w-full bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-accent-mint)]" />
 
         <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-4 py-3">
-          <span
-            aria-hidden
-            className={`h-1.5 w-1.5 rounded-full bg-[var(--color-primary)] ${
-              prefersReducedMotion ? "" : "halo"
-            }`}
-          />
+          {/* The pulse is kept here and nowhere else: this panel really is
+              updating as you watch, so the movement means something. */}
+          <DropGlyph className={prefersReducedMotion ? "" : "halo"} />
           <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
         </div>
 

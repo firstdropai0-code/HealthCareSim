@@ -110,7 +110,7 @@ function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatM
     <div
         className={`max-w-[92%] rounded-[var(--radius-lg)] px-4 py-3 sm:max-w-3xl ${
           isTrainee
-            ? "bg-gradient-to-br from-[#14867d] to-[var(--color-primary)] text-white shadow-[var(--shadow-accent)]"
+            ? "bg-gradient-to-br from-[var(--color-primary-strong)] to-[var(--color-primary)] text-white shadow-[var(--shadow-accent)]"
             : "border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink)] shadow-[var(--shadow-card)]"
         }`}
       >
