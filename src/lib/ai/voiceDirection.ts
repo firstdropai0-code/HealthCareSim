@@ -262,6 +262,20 @@ export type VoiceInstructionContext = {
 };
 
 /**
+ * Scenario emotions are free text and the model often writes them as a full
+ * sentence ("Anxious, hopeful, then inconsolable and disbelieving."). Dropped
+ * into the middle of another sentence that produced a stray capital and a
+ * doubled full stop: "came into this conversation Anxious, ... disbelieving.,
+ * but the line below". Only needed where the emotion is interpolated
+ * mid-sentence; after a colon it reads fine as written.
+ */
+function asClause(emotion: string): string {
+  const trimmed = emotion.trim().replace(/[.!?]+$/, "");
+
+  return trimmed ? trimmed.charAt(0).toLowerCase() + trimmed.slice(1) : trimmed;
+}
+
+/**
  * Shared framing. This is the part that stops the model reading in its default
  * announcer register, and it holds whether the concrete direction comes from a
  * per-line stage direction or from the intensity ladder.
@@ -324,7 +338,7 @@ export function buildVoiceInstructions({
       // claim about this line. Asserting it as their state "right now" was the
       // frozen-emotion bug wearing a different hat: the sentence went stale the
       // moment the scene moved.
-      `Identity: a ${role} in a hospital, speaking to a doctor face to face. They came into this conversation ${emotion}, but the line below is where they are now.`,
+      `Identity: a ${role} in a hospital, speaking to a doctor face to face. They came into this conversation ${asClause(emotion)}, but the line below is where they are now.`,
       ...COMMITMENT_DIRECTION,
       `How this line sounds: ${lineDirection}.`,
       "Take the pacing, the volume, the pitch and the breathing from that description, and let it decide where sentences break and how they end. It describes this person at this exact moment, so follow it even where it does not match how they sounded earlier in the conversation.",
