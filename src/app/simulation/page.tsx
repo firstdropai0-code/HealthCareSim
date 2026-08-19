@@ -10,6 +10,7 @@ import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { MetricChip, StepProgress } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
+import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import { speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
@@ -76,6 +77,10 @@ export default function SimulationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Paces how each new turn's text appears. Held in state rather than a ref so
+  // it is created once without being read during render.
+  const [reveal] = useState(createRevealStore);
+
   const [autoRead, setAutoRead] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [ttsError, setTtsError] = useState<string | null>(null);
@@ -83,6 +88,8 @@ export default function SimulationPage() {
   const autoReadHandledIds = useRef<Set<string>>(new Set());
   const autoReadSeeded = useRef(false);
   const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
+
+  useEffect(() => reveal.dispose, [reveal]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -281,6 +288,13 @@ export default function SimulationPage() {
         aggregateVoiceMetrics(pendingVoiceMetrics.current),
       );
 
+      // The message id is minted inside appendSimulationTurn, so the reveal has
+      // to be armed here -- and before setState, in the same synchronous tick.
+      // Reversed, every turn flashes its complete text for one frame.
+      const newestMessage = updatedState.messages[updatedState.messages.length - 1];
+      reveal.arm(newestMessage.id, countRevealWords(newestMessage.content));
+      reveal.driveWithTimer(newestMessage.id);
+
       setState(updatedState);
       saveSimulationState(updatedState);
       clearFeedbackReport();
@@ -460,6 +474,7 @@ export default function SimulationPage() {
               <div ref={contentRef} className="space-y-4">
                 <ChatMessageList
                   messages={state.messages}
+                  reveal={reveal}
                   onSpeak={speakMessage}
                   speakingMessageId={speakingMessageId}
                 />
