@@ -13,7 +13,7 @@ import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMe
 import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
-import { speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
+import { isAbortError, speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
 import {
   buildVoiceInstructions,
   getCharacterVoice,
@@ -85,6 +85,9 @@ export default function SimulationPage() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [ttsError, setTtsError] = useState<string | null>(null);
   const playbackRef = useRef<SpeechPlayback | null>(null);
+  // Cancels the TTS fetch. Playback only exists once audio is already running,
+  // so without this a stop during the network wait was simply ignored.
+  const speechAbortRef = useRef<AbortController | null>(null);
   const autoReadHandledIds = useRef<Set<string>>(new Set());
   const autoReadSeeded = useRef(false);
   const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
@@ -101,6 +104,8 @@ export default function SimulationPage() {
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    speechAbortRef.current?.abort();
+    speechAbortRef.current = null;
     playbackRef.current?.stop();
     playbackRef.current = null;
     setSpeakingMessageId(null);
@@ -121,6 +126,9 @@ export default function SimulationPage() {
       setTtsError(null);
       setSpeakingMessageId(message.id);
 
+      const controller = new AbortController();
+      speechAbortRef.current = controller;
+
       try {
         // Voice is pinned per character; the instruction is rebuilt each turn so
         // delivery tracks the current tension and how far in we are.
@@ -139,13 +147,31 @@ export default function SimulationPage() {
           : {};
         // Spoken text drops the trailing "What do you say?" prompt; the message
         // on screen keeps it.
-        const playback = await speakText(stripTraineePrompt(message.content), voiceOptions);
+        const playback = await speakText(stripTraineePrompt(message.content), {
+          ...voiceOptions,
+          signal: controller.signal,
+        });
+
+        // Stopped while the audio was still being fetched: the handle only
+        // exists now, so honour the stop here rather than letting it play.
+        if (controller.signal.aborted) {
+          playback.stop();
+          return;
+        }
+
         playbackRef.current = playback;
         await playback.finished;
       } catch (err) {
-        setTtsError(err instanceof Error ? err.message : "Could not play audio.");
+        if (!isAbortError(err)) {
+          setTtsError(err instanceof Error ? err.message : "Could not play audio.");
+        }
       } finally {
         playbackRef.current = null;
+
+        if (speechAbortRef.current === controller) {
+          speechAbortRef.current = null;
+        }
+
         setSpeakingMessageId((current) => (current === message.id ? null : current));
       }
     },
