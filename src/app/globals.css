@@ -615,11 +615,14 @@ button:disabled {
 
 /* --- Intro splash ---------------------------------------------------------
    A drop falls the full height of the screen under gravity, hits the floor,
-   flattens, and rings out across it; the overlay then lifts to reveal the page.
+   flattens, throws off a few satellites and rings out across it; the logo mark
+   then forms out of the splash and the overlay lifts to reveal the page.
+
+   The falling shape is deliberately not the logo. See IntroSplash.tsx.
 
    Pure CSS so it is running on the first painted frame rather than waiting for
    hydration. Timings are per-keyframe rather than one curve across the whole
-   thing, because a fall and a bounce are not the same motion.
+   thing, because a fall and an impact are not the same motion.
 
    Total 2.05s. The overlay stops intercepting clicks at 1.45s, before it has
    finished fading, so the page is usable while it clears.
@@ -637,8 +640,10 @@ button:disabled {
   animation: intro-lift 0.6s cubic-bezier(0.4, 0, 0.2, 1) 1.45s both;
 }
 
-/* The floor the drop lands on: a hairline that draws itself outward from the
-   point of impact, so the landing has something to land ON. */
+/* The floor the drop lands on: a hairline that draws itself outward, finishing
+   exactly as the drop arrives so there is a surface to land ON. It used to
+   start at 0.78s — 60ms AFTER contact — so the drop hit nothing and the floor
+   materialised afterwards. */
 #intro-splash::after {
   content: "";
   position: absolute;
@@ -654,20 +659,45 @@ button:disabled {
     var(--color-border-strong),
     transparent
   );
-  animation: intro-floor 0.7s cubic-bezier(0.215, 0.61, 0.355, 1) 0.78s both;
+  animation: intro-floor 0.34s cubic-bezier(0.215, 0.61, 0.355, 1) 0.38s both;
 }
 
+/* The falling silhouette. Free to deform as hard as the motion needs, because
+   it carries no artwork — see the note in IntroSplash.tsx. */
+.intro-splash__drop {
+  position: absolute;
+  left: 50%;
+  bottom: 18vh;
+  width: 3.1rem;
+  height: 4.6rem;
+  margin-left: -1.55rem;
+  transform-origin: 50% 100%;
+  animation: intro-drop 1s linear both;
+}
+
+/* Stops are coloured here rather than inline so the drop stays on the same
+   palette tokens as everything else. */
+.intro-splash__drop-from {
+  stop-color: var(--color-primary);
+}
+
+.intro-splash__drop-to {
+  stop-color: var(--color-accent-mint);
+}
+
+/* The mark forms out of the splash. Uniform scale only — it is never stretched
+   or squashed at any point. Growing from `50% 100%` means it rises off the
+   floor rather than inflating around its own middle. */
 .intro-splash__mark {
   position: absolute;
   left: 50%;
-  /* Sits ON the floor line: bottom offset matches the ::after, so the squash
-     happens exactly where the surface is. */
   bottom: 18vh;
   width: 6.5rem;
   height: 6.5rem;
   margin-left: -3.25rem;
   transform-origin: 50% 100%;
-  animation: intro-fall 1s linear both;
+  opacity: 0;
+  animation: intro-mark 0.55s cubic-bezier(0.34, 1.3, 0.64, 1) 0.8s both;
 }
 
 .intro-splash__mark img {
@@ -677,57 +707,132 @@ button:disabled {
 }
 
 /* Impact rings travel ACROSS the floor, so they are wide and flat rather than
-   circular — a circle would read as a halo in the air. */
+   circular — a circle would read as a halo in the air.
+
+   Each ring is weaker, shorter and quicker than the one before it. They were
+   previously identical but for their delay and colour, all reaching the same
+   width, which read as three copies of one animation rather than as a wave
+   losing energy.
+
+   The reach is capped to the floor's own width. At 30rem flat, a 375px phone
+   put the floor at 263px and the rings at 475px, so they shot 80% past the
+   surface they are supposed to be crossing and off both edges of the screen.
+   Height follows width, so the ellipse keeps its proportions at any size. */
 .intro-splash__ripple {
+  --ripple-reach: min(30rem, 70vw);
+  --ripple-peak: 0.7;
+
   position: absolute;
   left: 50%;
   bottom: 18vh;
   /* translateY(50%) drops the box by half its own height, so its centre sits ON
      the floor line rather than resting above it. It keeps centring as the box
-     grows, because the shift is relative to the current height. */
-  transform: translateY(50%);
+     grows, because the shift is relative to the current height. translateX
+     does the same job horizontally, which is why no width-matched margin has
+     to be animated alongside the size. */
+  transform: translate(-50%, 50%);
   border-radius: 9999px;
-  border: 1px solid var(--color-primary);
+  border: 1.5px solid var(--color-primary);
   opacity: 0;
   /* Size is animated, not transform-scaled. Scaling a bordered box stretches
      the border with it, so a 1px hairline became a 4px smear at the wide end,
      and thicker horizontally than vertically. */
-  animation: intro-ripple 1.1s cubic-bezier(0.215, 0.61, 0.355, 1) 0.8s both;
+  animation: intro-ripple 1.1s cubic-bezier(0.215, 0.61, 0.355, 1) 0.79s both;
 }
 
 .intro-splash__ripple--late {
-  animation-delay: 0.98s;
-  border-color: var(--color-border-strong);
+  --ripple-reach: min(23rem, 54vw);
+  --ripple-peak: 0.45;
+
+  border-width: 1px;
+  animation-duration: 1s;
+  animation-delay: 0.96s;
 }
 
-@keyframes intro-fall {
-  /* Accelerating from above the viewport, stretching as it picks up speed. */
+/* Ends with the overlay rather than after it, so nothing is still expanding
+   underneath a page that has already been revealed. */
+.intro-splash__ripple--last {
+  --ripple-reach: min(17rem, 40vw);
+  --ripple-peak: 0.3;
+
+  border-width: 1px;
+  border-color: var(--color-border-strong);
+  animation-duration: 0.85s;
+  animation-delay: 1.16s;
+}
+
+.intro-splash__satellite {
+  position: absolute;
+  left: 50%;
+  bottom: 18vh;
+  border-radius: 9999px;
+  background: var(--color-accent-mint);
+  opacity: 0;
+}
+
+.intro-splash__satellite--a {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: -0.225rem;
+  animation: intro-satellite-a 0.6s cubic-bezier(0.3, 0.5, 0.5, 1) 0.78s both;
+}
+
+.intro-splash__satellite--b {
+  width: 0.32rem;
+  height: 0.32rem;
+  margin-left: -0.16rem;
+  animation: intro-satellite-b 0.55s cubic-bezier(0.3, 0.5, 0.5, 1) 0.79s both;
+}
+
+.intro-splash__satellite--c {
+  width: 0.26rem;
+  height: 0.26rem;
+  margin-left: -0.13rem;
+  animation: intro-satellite-c 0.5s cubic-bezier(0.3, 0.5, 0.5, 1) 0.8s both;
+}
+
+@keyframes intro-drop {
+  /* Accelerating from above the viewport, drawn out by the speed. */
   0% {
-    transform: translateY(-115vh) scale(0.82, 1.18);
+    transform: translateY(-115vh) scale(0.8, 1.25);
     opacity: 0;
     animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.3);
   }
-  12% {
+  10% {
     opacity: 1;
     animation-timing-function: cubic-bezier(0.55, 0, 0.85, 0.3);
   }
   /* Contact. */
   72% {
-    transform: translateY(0) scale(0.8, 1.22);
+    transform: translateY(0) scale(0.78, 1.28);
     opacity: 1;
-    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+    animation-timing-function: cubic-bezier(0.25, 0, 0.2, 1);
   }
   /* Flattened against the floor — the moment that sells the weight. */
   80% {
-    transform: translateY(0) scale(1.42, 0.6);
-    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+    transform: translateY(0) scale(1.5, 0.52);
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.33, 0, 0.67, 1);
   }
-  90% {
-    transform: translateY(-1.5rem) scale(0.94, 1.08);
-    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  /* Spreading and thinning out instead of bouncing back up. A drop that
+     rebounds off the floor reads as rubber; one that gives up its shape reads
+     as liquid, and it hands the frame to the mark rising out of it. */
+  100% {
+    transform: translateY(0) scale(2.15, 0.16);
+    opacity: 0;
+  }
+}
+
+@keyframes intro-mark {
+  0% {
+    transform: scale(0.32);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
   }
   100% {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
     opacity: 1;
   }
 }
@@ -744,19 +849,80 @@ button:disabled {
 }
 
 @keyframes intro-ripple {
+  /* Starts rounder than it ends: a ring still close to the impact point is
+     barely foreshortened, and flattens out as it travels away. */
   0% {
     width: 3.5rem;
     height: 1rem;
-    margin-left: -1.75rem;
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--ripple-peak);
+  }
+  /* Holds most of its strength across the middle of the travel and gives the
+     rest up at the far edge, rather than fading evenly the whole way — an even
+     fade makes the ring look like it is dimming in place instead of running
+     out of energy. */
+  65% {
+    opacity: calc(var(--ripple-peak) * 0.4);
+  }
+  100% {
+    width: var(--ripple-reach);
+    height: calc(var(--ripple-reach) * 0.233);
+    opacity: 0;
+  }
+}
+
+/* Each satellite arcs: up and out, then falls away. The midpoint keyframe is
+   what bends the path — two keyframes alone would send them out in a
+   straight line. */
+@keyframes intro-satellite-a {
+  0% {
+    transform: translate(0, -0.5rem) scale(0.5);
     opacity: 0;
   }
   15% {
-    opacity: 0.65;
+    opacity: 0.95;
+  }
+  45% {
+    transform: translate(-3.4rem, -3rem) scale(1);
   }
   100% {
-    width: 30rem;
-    height: 7rem;
-    margin-left: -15rem;
+    transform: translate(-6.6rem, 0.4rem) scale(0.45);
+    opacity: 0;
+  }
+}
+
+@keyframes intro-satellite-b {
+  0% {
+    transform: translate(0, -0.5rem) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  45% {
+    transform: translate(2.9rem, -3.4rem) scale(1);
+  }
+  100% {
+    transform: translate(5.6rem, 0.4rem) scale(0.45);
+    opacity: 0;
+  }
+}
+
+@keyframes intro-satellite-c {
+  0% {
+    transform: translate(0, -0.5rem) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  45% {
+    transform: translate(1.6rem, -4.2rem) scale(1);
+  }
+  100% {
+    transform: translate(3.2rem, 0.4rem) scale(0.4);
     opacity: 0;
   }
 }
