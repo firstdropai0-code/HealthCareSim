@@ -216,16 +216,6 @@ function emotionIntensity(emotion: string): Intensity {
   return matchIntensity(emotion) ?? "medium";
 }
 
-function maxIntensity(intensity: Intensity, other: Intensity | null): Intensity {
-  if (!other) {
-    return intensity;
-  }
-
-  return INTENSITY_ORDER.indexOf(other) > INTENSITY_ORDER.indexOf(intensity)
-    ? other
-    : intensity;
-}
-
 function shift(intensity: Intensity, steps: number): Intensity {
   const index = INTENSITY_ORDER.indexOf(intensity) + steps;
   return INTENSITY_ORDER[Math.max(0, Math.min(INTENSITY_ORDER.length - 1, index))];
@@ -272,10 +262,39 @@ export type VoiceInstructionContext = {
 };
 
 /**
- * Build the per-turn delivery instruction. Emotion comes from the character,
- * intensity from the current tension, and the arc from how far into the
- * conversation we are -- so an anxious parent genuinely softens as the trainee
- * de-escalates, rather than staying pinned at the same pitch of panic.
+ * Shared framing. This is the part that stops the model reading in its default
+ * announcer register, and it holds whether the concrete direction comes from a
+ * per-line stage direction or from the intensity ladder.
+ */
+const COMMITMENT_DIRECTION = [
+  // Naturalism and emotional commitment are both required, and they pull in
+  // opposite directions. Asking only for naturalism produces an underplayed,
+  // subtle read -- so commitment is stated first and explicitly.
+  "Affect: commit fully to how this person feels. It should be immediately obvious to a listener, from the very first word.",
+  "Do not underplay, do not hold back, and do not sound polite or composed when the character is not.",
+  "Keep it real rather than theatrical: the feeling belongs in the breath, the pacing and the pitch, not in over-articulated words. This is a real person in a hospital, not a stage performance -- but a real person in this state is far from neutral.",
+  "Never read these lines in a flat, announcer-like, or assistant-like register -- even when the words themselves are calm or polite.",
+];
+
+/**
+ * Build the per-turn delivery instruction.
+ *
+ * There are two routes through this, and the important thing is that they never
+ * run at once.
+ *
+ * When the turn came with its own stage direction, that direction is the whole
+ * concrete instruction: it was written for this line, by the call that wrote the
+ * line, knowing what has just happened. Layering the generic ladder on top of it
+ * produced flatly contradictory prompts -- a mother who has just been told her
+ * daughter died carrying "pushed volume, pitch riding high" from the tension
+ * level, "worn down and flat-angry, less volume" from the arc, and "whispering,
+ * disbelieving" from the line itself, with her identity line still asserting the
+ * scenario's frozen "anxious". Four directions, three of them incompatible. The
+ * model splits the difference and lands neutral, which is why the voice was
+ * convincing exactly when these happened to agree and dead when they did not.
+ *
+ * Without a stage direction -- an older message, a fallback turn -- the ladder
+ * is all we have, and it still does its job.
  */
 export function buildVoiceInstructions({
   scenario,
@@ -296,27 +315,32 @@ export function buildVoiceInstructions({
   }
 
   const { emotion } = getCharacterVoice(scenario, speaker);
+  const role = speaker.replace("_", " ");
+  const lineDirection = (delivery ?? "").trim();
+
+  if (lineDirection) {
+    return [
+      // The scenario emotion is stated as where this person started, not as a
+      // claim about this line. Asserting it as their state "right now" was the
+      // frozen-emotion bug wearing a different hat: the sentence went stale the
+      // moment the scene moved.
+      `Identity: a ${role} in a hospital, speaking to a doctor face to face. They came into this conversation ${emotion}, but the line below is where they are now.`,
+      ...COMMITMENT_DIRECTION,
+      `How this line sounds: ${lineDirection}.`,
+      "Take the pacing, the volume, the pitch and the breathing from that description, and let it decide where sentences break and how they end. It describes this person at this exact moment, so follow it even where it does not match how they sounded earlier in the conversation.",
+      // Rules stays last. It is the safety boundary.
+      "Rules: stay in character, never narrate, never add commentary, and speak only the words given.",
+    ].join("\n");
+  }
 
   // Late in the conversation the tension level tells us which way the trainee
   // moved things, so the delivery lands on either relief or hardening.
   const isLate = turnRatio >= 0.6;
-  // Delivery raises the rung but never lowers it. Someone breaking down during
-  // a de-escalated ending is still at high intensity, and the relief branch
-  // below should not soften them back down.
-  const intensity = maxIntensity(
-    resolveIntensity(emotion, tensionLevel, isLate),
-    matchIntensity(delivery ?? ""),
-  );
+  const intensity = resolveIntensity(emotion, tensionLevel, isLate);
 
   const parts = [
-    `Identity: a ${speaker.replace("_", " ")} in a hospital, speaking to a doctor face to face. Their emotional state right now is: ${emotion}.`,
-    // Naturalism and emotional commitment are both required, and they pull in
-    // opposite directions. Asking only for naturalism produces an underplayed,
-    // subtle read -- so commitment is stated first and explicitly.
-    "Affect: commit fully to this emotion. It should be immediately obvious to a listener how this person feels, from the very first word.",
-    "Do not underplay, do not hold back, and do not sound polite or composed when the character is not.",
-    "Keep it real rather than theatrical: the emotion belongs in the breath, the pacing and the pitch, not in over-articulated words. This is a real person in a hospital, not a stage performance -- but a real person in this state is far from neutral.",
-    `Never read these lines in a flat, announcer-like, or assistant-like register -- even when the words themselves are calm or polite.`,
+    `Identity: a ${role} in a hospital, speaking to a doctor face to face. Their emotional state right now is: ${emotion}.`,
+    ...COMMITMENT_DIRECTION,
     INTENSITY_DIRECTION[intensity],
   ];
 
@@ -330,16 +354,6 @@ export function buildVoiceInstructions({
     );
   } else if (turnRatio <= 0.2) {
     parts.push("Arc: this is your first moment with this doctor. The emotion is raw and unfiltered.");
-  }
-
-  // Second to last, as the most specific direction in the stack. It modifies
-  // the intensity block above rather than replacing it: that block's three-axis
-  // structure and its anti-flat-announcer lines were written to fix particular
-  // failures a ten-word model string will not cover.
-  if (delivery) {
-    parts.push(
-      `This line specifically: ${delivery}. Where this conflicts with the general direction above, follow this.`,
-    );
   }
 
   // Rules stays last. It is the safety boundary.
