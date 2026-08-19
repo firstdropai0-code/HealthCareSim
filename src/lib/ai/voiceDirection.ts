@@ -167,34 +167,63 @@ const EMOTION_INTENSITY: Record<Intensity, string[]> = {
   high: [
     "panicked", "panicking", "frantic", "terrified", "furious", "enraged", "hysterical",
     "desperate", "distraught", "irate", "outraged", "screaming",
+    // Physical markers, which is how a per-line stage direction describes the
+    // same states an emotion word names.
+    "crying", "sobbing", "breaking", "choking", "trembling", "shaking", "shouting",
   ],
   medium: [
     "worried", "anxious", "afraid", "scared", "frightened", "upset", "angry", "frustrated",
     "agitated", "tense", "nervous", "concerned", "distressed", "defensive", "impatient",
     "protective", "grieving", "overwhelmed", "confused", "suspicious", "guarded",
   ],
-  low: ["calm", "relieved", "reassured", "resigned", "tired", "composed", "accepting", "hopeful"],
+  low: [
+    "calm", "relieved", "reassured", "resigned", "tired", "composed", "accepting", "hopeful",
+    "steady", "matter-of-fact", "gentle", "soft", "flat", "measured", "whisper",
+  ],
 };
 
-/** Rank an emotion string by its strongest matching keyword. */
-function emotionIntensity(emotion: string): Intensity {
-  const text = emotion.toLowerCase();
+/**
+ * Rank a phrase by its strongest matching keyword, or null when nothing in it
+ * is recognised.
+ *
+ * Kept separate from the defaulting below because a per-line stage direction
+ * has to be allowed to say "steady, matter-of-fact" and be believed. Running it
+ * through a function that turns anything unmatched into "medium" would put a
+ * floor under every delivery string.
+ */
+function matchIntensity(text: string): Intensity | null {
+  const normalized = text.toLowerCase();
 
-  if (EMOTION_INTENSITY.high.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.high.some((word) => normalized.includes(word))) {
     return "high";
   }
 
-  if (EMOTION_INTENSITY.medium.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.medium.some((word) => normalized.includes(word))) {
     return "medium";
   }
 
-  if (EMOTION_INTENSITY.low.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.low.some((word) => normalized.includes(word))) {
     return "low";
   }
 
+  return null;
+}
+
+/** Rank an emotion string by its strongest matching keyword. */
+function emotionIntensity(emotion: string): Intensity {
   // Unrecognised wording: assume there is real feeling in the scene rather than
   // defaulting to the flat register.
-  return "medium";
+  return matchIntensity(emotion) ?? "medium";
+}
+
+function maxIntensity(intensity: Intensity, other: Intensity | null): Intensity {
+  if (!other) {
+    return intensity;
+  }
+
+  return INTENSITY_ORDER.indexOf(other) > INTENSITY_ORDER.indexOf(intensity)
+    ? other
+    : intensity;
 }
 
 function shift(intensity: Intensity, steps: number): Intensity {
@@ -233,6 +262,13 @@ export type VoiceInstructionContext = {
   tensionLevel: TensionLevel;
   /** 0 at the opening turn, approaching 1 at the final turn. */
   turnRatio: number;
+  /**
+   * Stage direction written for this specific line, from the same model call
+   * that wrote the line. This is the only input that knows what just happened
+   * in the scene -- the scenario's emotion was frozen when it was created, and
+   * character messages carry no third-person description to recover it from.
+   */
+  delivery?: string;
 };
 
 /**
@@ -246,7 +282,10 @@ export function buildVoiceInstructions({
   speaker,
   tensionLevel,
   turnRatio,
+  delivery,
 }: VoiceInstructionContext): string {
+  // The narrator ignores delivery entirely. A narrator handed stage direction
+  // would act out the scene it is describing, which its own block forbids.
   if (speaker === "narrator") {
     return [
       "Identity: a calm, neutral narrator setting a scene. Not a character in it.",
@@ -261,7 +300,13 @@ export function buildVoiceInstructions({
   // Late in the conversation the tension level tells us which way the trainee
   // moved things, so the delivery lands on either relief or hardening.
   const isLate = turnRatio >= 0.6;
-  const intensity = resolveIntensity(emotion, tensionLevel, isLate);
+  // Delivery raises the rung but never lowers it. Someone breaking down during
+  // a de-escalated ending is still at high intensity, and the relief branch
+  // below should not soften them back down.
+  const intensity = maxIntensity(
+    resolveIntensity(emotion, tensionLevel, isLate),
+    matchIntensity(delivery ?? ""),
+  );
 
   const parts = [
     `Identity: a ${speaker.replace("_", " ")} in a hospital, speaking to a doctor face to face. Their emotional state right now is: ${emotion}.`,
@@ -287,6 +332,17 @@ export function buildVoiceInstructions({
     parts.push("Arc: this is your first moment with this doctor. The emotion is raw and unfiltered.");
   }
 
+  // Second to last, as the most specific direction in the stack. It modifies
+  // the intensity block above rather than replacing it: that block's three-axis
+  // structure and its anti-flat-announcer lines were written to fix particular
+  // failures a ten-word model string will not cover.
+  if (delivery) {
+    parts.push(
+      `This line specifically: ${delivery}. Where this conflicts with the general direction above, follow this.`,
+    );
+  }
+
+  // Rules stays last. It is the safety boundary.
   parts.push(
     "Rules: stay in character, never narrate, never add commentary, and speak only the words given.",
   );

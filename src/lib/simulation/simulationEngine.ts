@@ -1,11 +1,18 @@
 import type { Scenario } from "@/types/scenario";
-import type { ScenarioSpeaker, SimulationMessage, SimulationState } from "@/types/simulation";
+import type {
+  NextSimulationTurn,
+  ScenarioSpeaker,
+  SimulationMessage,
+  SimulationState,
+} from "@/types/simulation";
 import type { VoiceMetrics } from "@/types/voice";
 
 export function createMessage(
   role: SimulationMessage["role"],
   content: string,
   speaker?: ScenarioSpeaker,
+  /** How this line should sound when read aloud. Empty or absent for none. */
+  delivery?: string,
 ): SimulationMessage {
   return {
     id:
@@ -16,6 +23,9 @@ export function createMessage(
     content,
     timestamp: new Date().toISOString(),
     ...(speaker ? { speaker } : {}),
+    // Conditional spread, never `delivery: undefined`: these messages are
+    // written straight to Firestore, which rejects undefined values.
+    ...(delivery ? { delivery } : {}),
   };
 }
 
@@ -43,15 +53,17 @@ export function createInitialSimulationState(scenario: Scenario): SimulationStat
   };
 }
 
+export type SimulationTurnInput = {
+  traineeResponse: string;
+  /** The generated turn, passed whole rather than unpacked into arguments. */
+  turn: NextSimulationTurn;
+  /** Present only when the trainee spoke this turn and analysis succeeded. */
+  traineeVoiceMetrics?: VoiceMetrics | null;
+};
+
 export function appendSimulationTurn(
   state: SimulationState,
-  traineeResponse: string,
-  scenarioMessage: string,
-  scenarioSpeaker: ScenarioSpeaker,
-  tensionLevel: SimulationState["tensionLevel"],
-  shouldEnd: boolean,
-  /** Present only when the trainee spoke this turn and analysis succeeded. */
-  traineeVoiceMetrics?: VoiceMetrics | null,
+  { traineeResponse, turn, traineeVoiceMetrics }: SimulationTurnInput,
 ): SimulationState {
   const nextTurn = state.currentTurn + 1;
   const reachedMaxTurns = nextTurn >= state.maxTurns;
@@ -65,10 +77,10 @@ export function appendSimulationTurn(
       traineeVoiceMetrics
         ? { ...traineeMessage, voiceMetrics: traineeVoiceMetrics }
         : traineeMessage,
-      createMessage("scenario", scenarioMessage, scenarioSpeaker),
+      createMessage("scenario", turn.message, turn.speaker, turn.delivery),
     ],
     currentTurn: nextTurn,
-    tensionLevel,
-    status: shouldEnd || reachedMaxTurns ? "completed" : "in_progress",
+    tensionLevel: turn.tensionLevel,
+    status: turn.shouldEnd || reachedMaxTurns ? "completed" : "in_progress",
   };
 }

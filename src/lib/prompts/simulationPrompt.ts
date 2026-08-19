@@ -65,6 +65,7 @@ Rules:
 - Keep the next scenario message short, realistic, and spoken from the patient/family/situation perspective.
 - message: 1 to 3 sentences, under 55 words.
 - speaker must identify who is speaking or narrating: patient, family_member, nurse, bystander, or narrator.
+- delivery: a short stage direction, 3 to 12 words, for how this line sounds when spoken -- breath, pace, volume, voice quality. Example: "crying, voice breaking, can't finish the sentence" or "flat and clipped, holding back anger". Describe only how it sounds, never what is said and never what the character is thinking. It must match what the message and any narration actually describe. If speaker is "narrator", return an empty string.
 - Never mix narration and character speech in the same message. Pick exactly one of these two message shapes and set speaker to match:
   1. Character speech (speaker is patient, family_member, nurse, or bystander): the entire message must be that character's own first-person spoken words, exactly as if you can hear them talking. Do not describe their face, body, or actions in third person anywhere in the message (no "they look...", "their face turns...", "they take a breath...").
   2. Narration (speaker is narrator): the entire message describes what is happening or how a character looks/acts in third person, and ends by asking what the trainee does or says next. A narrator message may quote a short line the character says, but the message as a whole is still a third-person description, not that character's own turn to speak.
@@ -95,6 +96,7 @@ Rules:
 {
   "speaker": "patient" | "family_member" | "nurse" | "bystander" | "narrator",
   "message": "string",
+  "delivery": "string",
   "tensionLevel": "low" | "medium" | "high",
   "shouldEnd": false
 }`,

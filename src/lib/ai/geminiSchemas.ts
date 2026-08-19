@@ -64,13 +64,18 @@ export const scenarioSchema: GeminiSchema = {
 
 export const nextSimulationTurnSchema: GeminiSchema = {
   type: "OBJECT",
-  required: ["speaker", "message", "tensionLevel", "shouldEnd"],
+  // delivery is required rather than optional. Gemini reliably fills required
+  // fields and reliably skips optional ones, and a turn without its stage
+  // direction falls back to the scenario's frozen emotion -- which is the
+  // problem the field exists to fix. The narrator case returns "" instead.
+  required: ["speaker", "message", "delivery", "tensionLevel", "shouldEnd"],
   properties: {
     speaker: {
       type: "STRING",
       enum: ["patient", "family_member", "nurse", "bystander", "narrator"],
     },
     message: { type: "STRING" },
+    delivery: { type: "STRING" },
     tensionLevel: {
       type: "STRING",
       enum: ["low", "medium", "high"],

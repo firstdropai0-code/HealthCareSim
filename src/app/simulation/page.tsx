@@ -202,6 +202,9 @@ export default function SimulationPage() {
                 tensionLevel: state.tensionLevel,
                 turnRatio:
                   state.maxTurns > 0 ? Math.min(1, state.currentTurn / state.maxTurns) : 0,
+                // Read off the message, not off the current turn: re-reading an
+                // older line has to sound the way it did the first time.
+                delivery: message.delivery,
               }),
             }
           : {};
@@ -417,15 +420,11 @@ export default function SimulationPage() {
 
     try {
       const turn = await generateNextSimulationTurn(state, traineeResponse);
-      const updatedState = appendSimulationTurn(
-        state,
+      const updatedState = appendSimulationTurn(state, {
         traineeResponse,
-        turn.message,
-        turn.speaker,
-        turn.tensionLevel,
-        turn.shouldEnd,
-        aggregateVoiceMetrics(pendingVoiceMetrics.current),
-      );
+        turn,
+        traineeVoiceMetrics: aggregateVoiceMetrics(pendingVoiceMetrics.current),
+      });
 
       // The message id is minted inside appendSimulationTurn, so the reveal has
       // to be armed here -- and before setState, in the same synchronous tick.
