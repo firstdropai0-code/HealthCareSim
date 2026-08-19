@@ -21,31 +21,46 @@ const speakerLabels: Record<NonNullable<SimulationMessage["speaker"]>, string> =
   narrator: "Narrator",
 };
 
-export function useTypedWords(text: string, enabled: boolean, wordDelayMs = 55) {
-  const [wordCount, setWordCount] = useState(enabled ? 0 : Infinity);
+/**
+ * Reveal `text` one word at a time on a fixed timer.
+ *
+ * The disabled case is handled in the return value rather than by writing a
+ * sentinel count from an effect: an effect that calls setState synchronously
+ * cascades an extra render for every bubble in the transcript.
+ */
+function useTypedWords(text: string, enabled: boolean, wordDelayMs = 55) {
   const words = text.split(" ");
+  const wordCountTotal = words.length;
+  const [wordCount, setWordCount] = useState(0);
+  // Restart from the first word when the text itself changes. Adjusting state
+  // during render is React's own answer to this; an effect would paint the
+  // previous message's tail for a frame first.
+  const [typedText, setTypedText] = useState(text);
+
+  if (typedText !== text) {
+    setTypedText(text);
+    setWordCount(0);
+  }
 
   useEffect(() => {
     if (!enabled) {
-      setWordCount(Infinity);
       return undefined;
     }
 
-    setWordCount(0);
     let index = 0;
     const interval = window.setInterval(() => {
       index += 1;
       setWordCount(index);
-      if (index >= words.length) {
+
+      if (index >= wordCountTotal) {
         window.clearInterval(interval);
       }
     }, wordDelayMs);
 
     return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, enabled]);
+  }, [text, enabled, wordDelayMs, wordCountTotal]);
 
-  return words.slice(0, wordCount).join(" ");
+  return enabled ? words.slice(0, wordCount).join(" ") : text;
 }
 
 function TypingCursor() {
