@@ -14,7 +14,12 @@ import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMe
 import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
-import { isAbortError, speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
+import {
+  isAbortError,
+  isAutoplayBlockedError,
+  speakText,
+  type SpeechPlayback,
+} from "@/lib/ai/openaiClient";
 import {
   buildVoiceInstructions,
   getCharacterVoice,
@@ -26,8 +31,10 @@ import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
   clearFeedbackReport,
+  loadAutoRead,
   loadFeedbackReport,
   loadSimulationState,
+  saveAutoRead,
   savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
@@ -96,9 +103,17 @@ export default function SimulationPage() {
   // it is created once without being read during render.
   const [reveal] = useState(createRevealStore);
 
-  const [autoRead, setAutoRead] = useState(false);
+  // On by default: the voice is most of what makes the roleplay feel like a
+  // conversation, and a toggle nobody finds is a feature nobody hears. Any
+  // saved preference overrides this in the load effect below.
+  const [autoRead, setAutoRead] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  /**
+   * The turn a browser refused to play without a user gesture. Held so the
+   * affordance replays that exact turn rather than guessing at the latest one.
+   */
+  const [audioGestureMessage, setAudioGestureMessage] = useState<SimulationMessage | null>(null);
   const playbackRef = useRef<SpeechPlayback | null>(null);
   // Cancels the TTS fetch. Playback only exists once audio is already running,
   // so without this a stop during the network wait was simply ignored.
@@ -116,6 +131,14 @@ export default function SimulationPage() {
     const timer = window.setTimeout(() => {
       setState(loadSimulationState());
       setHasFeedbackReport(Boolean(loadFeedbackReport()));
+
+      // Read inside the same deferral as the rest of the local state, so the
+      // first paint still matches what the server rendered.
+      const savedAutoRead = loadAutoRead();
+
+      if (savedAutoRead !== null) {
+        setAutoRead(savedAutoRead);
+      }
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -150,6 +173,7 @@ export default function SimulationPage() {
 
       stopSpeaking();
       setTtsError(null);
+      setAudioGestureMessage(null);
       setSpeakingMessageId(message.id);
       speakingMessageIdRef.current = message.id;
 
@@ -228,6 +252,16 @@ export default function SimulationPage() {
         // Every failure ends with the whole turn on screen. Sound is the only
         // thing that is ever lost.
         reveal.driveWithTimer(message.id);
+
+        if (isAutoplayBlockedError(err)) {
+          // Not an error: the browser is waiting for a gesture, and one click
+          // gives the document sticky activation for every later turn. The
+          // saved preference stays on -- this is a transient browser condition,
+          // not a change of mind.
+          setAudioGestureMessage(message);
+          return;
+        }
+
         setTtsError(err instanceof Error ? err.message : "Could not play audio.");
       } finally {
         window.clearTimeout(holdTimer);
@@ -251,7 +285,17 @@ export default function SimulationPage() {
   // new AI turns, never for messages already on screen when the toggle flips on.
   useEffect(() => {
     if (state && !autoReadSeeded.current) {
-      state.messages.forEach((message) => autoReadHandledIds.current.add(message.id));
+      // A run that is only just starting should hear its opening line, so that
+      // one message is left unhandled. A reloaded run should not be read the
+      // turn it was left on, so everything it already has is marked handled.
+      const isFreshRun = state.currentTurn === 0 && state.messages.length === 1;
+
+      state.messages.forEach((message) => {
+        if (!(isFreshRun && message.role === "scenario")) {
+          autoReadHandledIds.current.add(message.id);
+        }
+      });
+
       autoReadSeeded.current = true;
     }
   }, [state]);
@@ -555,7 +599,10 @@ export default function SimulationPage() {
                     checked={autoRead}
                     onChange={(event) => {
                       setAutoRead(event.target.checked);
+                      saveAutoRead(event.target.checked);
+
                       if (!event.target.checked) {
+                        setAudioGestureMessage(null);
                         stopSpeaking();
                       }
                     }}
@@ -588,7 +635,7 @@ export default function SimulationPage() {
 
             {/* Persistent bottom area: speech controls + composer / completed */}
             <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
-              {speakingMessageId || ttsError ? (
+              {speakingMessageId || ttsError || audioGestureMessage ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {speakingMessageId ? (
                     <button
@@ -599,6 +646,28 @@ export default function SimulationPage() {
                       <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
                       Stop reading aloud
                     </button>
+                  ) : null}
+                  {/* Deliberately quiet rather than in the danger colour: a
+                      browser waiting for a gesture is not a failure. Clicking
+                      is itself the gesture, so the call to speak has to come
+                      straight from the handler. */}
+                  {audioGestureMessage ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blocked = audioGestureMessage;
+                          setAudioGestureMessage(null);
+                          void speakMessage(blocked);
+                        }}
+                        className="btn-editorial btn-editorial--quiet min-h-9"
+                      >
+                        Turn on read-aloud
+                      </button>
+                      <p className="text-xs text-[var(--color-ink-soft)]">
+                        Your browser waits for a click before playing audio.
+                      </p>
+                    </>
                   ) : null}
                   {ttsError ? (
                     <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>

@@ -5,6 +5,7 @@ import type { SimulationState } from "@/types/simulation";
 const STORAGE_KEY = "firstdrop.currentSimulation";
 const FEEDBACK_KEY = "firstdrop.currentFeedbackReport";
 const PENDING_FEEDBACK_KEY = "firstdrop.pendingFeedbackGeneration";
+const AUTO_READ_KEY = "firstdrop.autoReadAloud";
 
 export function saveSimulationState(state: SimulationState): void {
   if (typeof window === "undefined") {
@@ -84,6 +85,28 @@ export function clearFeedbackReport(): void {
   }
 
   window.localStorage.removeItem(FEEDBACK_KEY);
+}
+
+export function saveAutoRead(value: boolean): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(AUTO_READ_KEY, value ? "true" : "false");
+}
+
+/**
+ * Null when the trainee has never touched the toggle, which is what lets the
+ * caller keep its own default rather than having one implied by storage.
+ */
+export function loadAutoRead(): boolean | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(AUTO_READ_KEY);
+
+  return raw === null ? null : raw === "true";
 }
 
 export function savePendingFeedbackGeneration(): void {
