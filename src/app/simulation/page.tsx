@@ -9,10 +9,17 @@ import { MicButton } from "@/components/common/MicButton";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { MetricChip, StepProgress } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
+import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
+import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
-import { speakText, type SpeechPlayback } from "@/lib/ai/openaiClient";
+import {
+  isAbortError,
+  isAutoplayBlockedError,
+  speakText,
+  type SpeechPlayback,
+} from "@/lib/ai/openaiClient";
 import {
   buildVoiceInstructions,
   getCharacterVoice,
@@ -24,8 +31,10 @@ import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
   clearFeedbackReport,
+  loadAutoRead,
   loadFeedbackReport,
   loadSimulationState,
+  saveAutoRead,
   savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
@@ -42,6 +51,19 @@ const speakerLabels: Record<ScenarioSpeaker, string> = {
   bystander: "Bystander",
   narrator: "Narrator",
 };
+
+/**
+ * mp3 encoders prepend a short run of silence. Subtracting it stops the first
+ * word landing a beat behind the voice.
+ */
+const AUDIO_LEAD_IN_MS = 150;
+
+/**
+ * How long a new turn's text waits for audio before giving up and typing
+ * itself out. Long enough to cover a normal TTS round trip, short enough that a
+ * slow one does not read as the app having hung.
+ */
+const AUDIO_WAIT_TIMEOUT_MS = 2_500;
 
 const briefToneClasses = {
   ink: "text-[var(--color-ink-soft)]",
@@ -70,34 +92,83 @@ function BriefItem({
 export default function SimulationPage() {
   const router = useRouter();
   const gate = useRequireAuth();
+  const shouldAnimate = useShouldAnimate();
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
   const [hasFeedbackReport, setHasFeedbackReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [autoRead, setAutoRead] = useState(false);
+  // Paces how each new turn's text appears. Held in state rather than a ref so
+  // it is created once without being read during render.
+  const [reveal] = useState(createRevealStore);
+
+  // On by default: the voice is most of what makes the roleplay feel like a
+  // conversation, and a toggle nobody finds is a feature nobody hears. Any
+  // saved preference overrides this in the load effect below.
+  const [autoRead, setAutoRead] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  /**
+   * The turn a browser refused to play without a user gesture. Held so the
+   * affordance replays that exact turn rather than guessing at the latest one.
+   */
+  const [audioGestureMessage, setAudioGestureMessage] = useState<SimulationMessage | null>(null);
+  /**
+   * Read when a turn arrives rather than closed over, so a toggle flipped while
+   * the turn was being generated is honoured. Getting this wrong leaves the
+   * turn armed for a voice that is never coming, and its text blank for good.
+   */
+  const autoReadRef = useRef(autoRead);
   const playbackRef = useRef<SpeechPlayback | null>(null);
+  // Cancels the TTS fetch. Playback only exists once audio is already running,
+  // so without this a stop during the network wait was simply ignored.
+  const speechAbortRef = useRef<AbortController | null>(null);
+  // Mirrors speakingMessageId for the callbacks that need it without taking a
+  // dependency on it, so stopSpeaking stays stable.
+  const speakingMessageIdRef = useRef<string | null>(null);
   const autoReadHandledIds = useRef<Set<string>>(new Set());
   const autoReadSeeded = useRef(false);
   const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
+
+  useEffect(() => reveal.dispose, [reveal]);
+
+  useEffect(() => {
+    autoReadRef.current = autoRead;
+  }, [autoRead]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setState(loadSimulationState());
       setHasFeedbackReport(Boolean(loadFeedbackReport()));
+
+      // Read inside the same deferral as the rest of the local state, so the
+      // first paint still matches what the server rendered.
+      const savedAutoRead = loadAutoRead();
+
+      if (savedAutoRead !== null) {
+        setAutoRead(savedAutoRead);
+      }
     }, 0);
 
     return () => window.clearTimeout(timer);
   }, []);
 
   const stopSpeaking = useCallback(() => {
+    speechAbortRef.current?.abort();
+    speechAbortRef.current = null;
     playbackRef.current?.stop();
     playbackRef.current = null;
+
+    // They asked it to stop, so show the words rather than leaving the turn
+    // half-revealed with no voice coming to finish it.
+    if (speakingMessageIdRef.current) {
+      reveal.complete(speakingMessageIdRef.current);
+      speakingMessageIdRef.current = null;
+    }
+
     setSpeakingMessageId(null);
-  }, []);
+  }, [reveal]);
 
   // Stop any in-flight playback when leaving the page.
   useEffect(() => stopSpeaking, [stopSpeaking]);
@@ -112,7 +183,21 @@ export default function SimulationPage() {
 
       stopSpeaking();
       setTtsError(null);
+      setAudioGestureMessage(null);
       setSpeakingMessageId(message.id);
+      speakingMessageIdRef.current = message.id;
+
+      const controller = new AbortController();
+      speechAbortRef.current = controller;
+
+      // The hold cap. A turn armed for audio stays at its speaker name and
+      // cursor until the voice arrives; if it does not arrive in time, the text
+      // types itself out instead. Audio that turns up afterwards can only move
+      // the reveal forward, so in practice it plays over completed text.
+      const holdTimer = window.setTimeout(
+        () => reveal.driveWithTimer(message.id),
+        AUDIO_WAIT_TIMEOUT_MS,
+      );
 
       try {
         // Voice is pinned per character; the instruction is rebuilt each turn so
@@ -125,31 +210,112 @@ export default function SimulationPage() {
                 scenario: state.scenario,
                 speaker,
                 tensionLevel: state.tensionLevel,
-                turnRatio:
-                  state.maxTurns > 0 ? Math.min(1, state.currentTurn / state.maxTurns) : 0,
+                // Paced against the scenario's own suggested length, not the
+                // hard safety cap. maxTurns is 12, so a ratio taken against it
+                // needed turn 7.2 to count as late -- which a roleplay paced
+                // for 4 or 5 turns never reaches, leaving both late-arc
+                // branches unreachable.
+                turnRatio: Math.min(
+                  1,
+                  state.currentTurn / Math.max(2, state.scenario.suggestedTurns || 4),
+                ),
+                // Read off the message, not off the current turn: re-reading an
+                // older line has to sound the way it did the first time.
+                delivery: message.delivery,
               }),
             }
           : {};
         // Spoken text drops the trailing "What do you say?" prompt; the message
         // on screen keeps it.
-        const playback = await speakText(stripTraineePrompt(message.content), voiceOptions);
+        const playback = await speakText(stripTraineePrompt(message.content), {
+          ...voiceOptions,
+          signal: controller.signal,
+          onProgress: ({ elapsedMs, durationMs }) => {
+            if (!durationMs) {
+              return;
+            }
+
+            // Mapped over the spoken prefix only. The trailing "What do you
+            // say?" is interface scaffolding rather than dialogue, so it lands
+            // after the character has stopped talking. The store clamps.
+            reveal.setAudioProgress(
+              message.id,
+              (elapsedMs - AUDIO_LEAD_IN_MS) / durationMs,
+            );
+          },
+        });
+
+        window.clearTimeout(holdTimer);
+
+        // Stopped while the audio was still being fetched: the handle only
+        // exists now, so honour the stop here rather than letting it play.
+        if (controller.signal.aborted) {
+          playback.stop();
+          return;
+        }
+
         playbackRef.current = playback;
+
+        // Nothing to map a ratio onto, so pace the words instead.
+        if (playback.durationMs === null) {
+          reveal.driveWithTimer(message.id);
+        }
+
         await playback.finished;
+        reveal.finishAudio(message.id);
       } catch (err) {
+        if (isAbortError(err)) {
+          // A deliberate stop, which has already revealed the text in full.
+          return;
+        }
+
+        // Every failure ends with the whole turn on screen. Sound is the only
+        // thing that is ever lost.
+        reveal.driveWithTimer(message.id);
+
+        if (isAutoplayBlockedError(err)) {
+          // Not an error: the browser is waiting for a gesture, and one click
+          // gives the document sticky activation for every later turn. The
+          // saved preference stays on -- this is a transient browser condition,
+          // not a change of mind.
+          setAudioGestureMessage(message);
+          return;
+        }
+
         setTtsError(err instanceof Error ? err.message : "Could not play audio.");
       } finally {
+        window.clearTimeout(holdTimer);
         playbackRef.current = null;
+
+        if (speakingMessageIdRef.current === message.id) {
+          speakingMessageIdRef.current = null;
+        }
+
+        if (speechAbortRef.current === controller) {
+          speechAbortRef.current = null;
+        }
+
         setSpeakingMessageId((current) => (current === message.id ? null : current));
       }
     },
-    [speakingMessageId, state, stopSpeaking],
+    [reveal, speakingMessageId, state, stopSpeaking],
   );
 
   // Seed the "already handled" set once so auto-read only fires for genuinely
   // new AI turns, never for messages already on screen when the toggle flips on.
   useEffect(() => {
     if (state && !autoReadSeeded.current) {
-      state.messages.forEach((message) => autoReadHandledIds.current.add(message.id));
+      // A run that is only just starting should hear its opening line, so that
+      // one message is left unhandled. A reloaded run should not be read the
+      // turn it was left on, so everything it already has is marked handled.
+      const isFreshRun = state.currentTurn === 0 && state.messages.length === 1;
+
+      state.messages.forEach((message) => {
+        if (!(isFreshRun && message.role === "scenario")) {
+          autoReadHandledIds.current.add(message.id);
+        }
+      });
+
       autoReadSeeded.current = true;
     }
   }, [state]);
@@ -271,15 +437,27 @@ export default function SimulationPage() {
 
     try {
       const turn = await generateNextSimulationTurn(state, traineeResponse);
-      const updatedState = appendSimulationTurn(
-        state,
+      const updatedState = appendSimulationTurn(state, {
         traineeResponse,
-        turn.message,
-        turn.speaker,
-        turn.tensionLevel,
-        turn.shouldEnd,
-        aggregateVoiceMetrics(pendingVoiceMetrics.current),
-      );
+        turn,
+        traineeVoiceMetrics: aggregateVoiceMetrics(pendingVoiceMetrics.current),
+      });
+
+      // The message id is minted inside appendSimulationTurn, so the reveal has
+      // to be armed here -- and before setState, in the same synchronous tick.
+      // Reversed, every turn flashes its complete text for one frame.
+      const newestMessage = updatedState.messages[updatedState.messages.length - 1];
+      reveal.arm(newestMessage.id, countRevealWords(newestMessage.content));
+
+      if (!shouldAnimate) {
+        // Metering text out over the length of a spoken turn is a worse answer
+        // to a stated reduced-motion preference than no animation at all. The
+        // audio still plays.
+        reveal.complete(newestMessage.id);
+      } else if (!autoReadRef.current) {
+        reveal.driveWithTimer(newestMessage.id);
+      }
+      // Auto-read on: the voice drives the reveal, under the hold cap above.
 
       setState(updatedState);
       saveSimulationState(updatedState);
@@ -437,7 +615,10 @@ export default function SimulationPage() {
                     checked={autoRead}
                     onChange={(event) => {
                       setAutoRead(event.target.checked);
+                      saveAutoRead(event.target.checked);
+
                       if (!event.target.checked) {
+                        setAudioGestureMessage(null);
                         stopSpeaking();
                       }
                     }}
@@ -460,6 +641,7 @@ export default function SimulationPage() {
               <div ref={contentRef} className="space-y-4">
                 <ChatMessageList
                   messages={state.messages}
+                  reveal={reveal}
                   onSpeak={speakMessage}
                   speakingMessageId={speakingMessageId}
                 />
@@ -469,7 +651,7 @@ export default function SimulationPage() {
 
             {/* Persistent bottom area: speech controls + composer / completed */}
             <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
-              {speakingMessageId || ttsError ? (
+              {speakingMessageId || ttsError || audioGestureMessage ? (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {speakingMessageId ? (
                     <button
@@ -480,6 +662,28 @@ export default function SimulationPage() {
                       <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
                       Stop reading aloud
                     </button>
+                  ) : null}
+                  {/* Deliberately quiet rather than in the danger colour: a
+                      browser waiting for a gesture is not a failure. Clicking
+                      is itself the gesture, so the call to speak has to come
+                      straight from the handler. */}
+                  {audioGestureMessage ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blocked = audioGestureMessage;
+                          setAudioGestureMessage(null);
+                          void speakMessage(blocked);
+                        }}
+                        className="btn-editorial btn-editorial--quiet min-h-9"
+                      >
+                        Turn on read-aloud
+                      </button>
+                      <p className="text-xs text-[var(--color-ink-soft)]">
+                        Your browser waits for a click before playing audio.
+                      </p>
+                    </>
                   ) : null}
                   {ttsError ? (
                     <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>

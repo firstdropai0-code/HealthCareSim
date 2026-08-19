@@ -1,7 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { useTypedWords } from "@/components/simulation/ChatMessageList";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 export const TYPED_WORD_DELAY_MS = 55;
 
@@ -23,6 +22,52 @@ export function usePrefersReducedMotion() {
 }
 
 /**
+ * Reveal `text` one word at a time on a fixed timer.
+ *
+ * Only the mocked marketing chats use this. The real simulation reveals its
+ * turns from the reveal store instead, so the text can be paced by the voice
+ * that is speaking it rather than by a constant.
+ *
+ * The disabled case is handled in the return value rather than by writing a
+ * sentinel count from an effect: an effect that calls setState synchronously
+ * cascades an extra render for every bubble on the page.
+ */
+function useTypedWords(text: string, enabled: boolean, wordDelayMs: number) {
+  const words = text.split(" ");
+  const wordCountTotal = words.length;
+  const [wordCount, setWordCount] = useState(0);
+  // Restart from the first word when the text itself changes. Adjusting state
+  // during render is React's own answer to this; an effect would paint the
+  // previous message's tail for a frame first.
+  const [typedText, setTypedText] = useState(text);
+
+  if (typedText !== text) {
+    setTypedText(text);
+    setWordCount(0);
+  }
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    let index = 0;
+    const interval = window.setInterval(() => {
+      index += 1;
+      setWordCount(index);
+
+      if (index >= wordCountTotal) {
+        window.clearInterval(interval);
+      }
+    }, wordDelayMs);
+
+    return () => window.clearInterval(interval);
+  }, [text, enabled, wordDelayMs, wordCountTotal]);
+
+  return enabled ? words.slice(0, wordCount).join(" ") : text;
+}
+
+/**
  * A single mocked chat bubble matching ChatMessageList's styling. Shared by the
  * /how-it-works step-2 preview and the homepage hero snippet.
  */
@@ -37,8 +82,7 @@ export function PreviewBubble({
   isTrainee: boolean;
   typeOut: boolean;
 }) {
-  const typed = useTypedWords(content, typeOut, TYPED_WORD_DELAY_MS);
-  const shown = typeOut ? typed : content;
+  const shown = useTypedWords(content, typeOut, TYPED_WORD_DELAY_MS);
 
   return (
     <div className={` flex ${isTrainee ? "justify-end" : "justify-start"}`}>

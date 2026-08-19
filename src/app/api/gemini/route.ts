@@ -237,6 +237,9 @@ function normalizeTurn(value: unknown): NextSimulationTurn {
   return {
     speaker,
     message: turn.message,
+    // This function rebuilds the turn field by field, so anything not listed
+    // here is silently dropped.
+    delivery: typeof turn.delivery === "string" ? turn.delivery.trim().slice(0, 160) : "",
     tensionLevel,
     shouldEnd: Boolean(turn.shouldEnd),
   };
@@ -285,6 +288,7 @@ function buildSafeNarratorTurn(): NextSimulationTurn {
     speaker: "narrator",
     message:
       "The patient or family member still seems unsure and waits for a clearer explanation. What do you say next?",
+    delivery: "",
     tensionLevel: "medium",
     shouldEnd: false,
   };
@@ -442,7 +446,9 @@ async function generateTurn(
     messages: prompt.messages,
     models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.35,
-    maxOutputTokens: 512,
+    // Headroom for the delivery field. A truncated response is invalid JSON and
+    // costs a whole extra round trip, so the insurance is cheaper than the risk.
+    maxOutputTokens: 640,
     timeoutMs: NEXT_TURN_TIMEOUT_MS,
     schema: nextSimulationTurnSchema,
     retryInvalidJson: !roleCorrection,

@@ -167,34 +167,53 @@ const EMOTION_INTENSITY: Record<Intensity, string[]> = {
   high: [
     "panicked", "panicking", "frantic", "terrified", "furious", "enraged", "hysterical",
     "desperate", "distraught", "irate", "outraged", "screaming",
+    // Physical markers, which is how a per-line stage direction describes the
+    // same states an emotion word names.
+    "crying", "sobbing", "breaking", "choking", "trembling", "shaking", "shouting",
   ],
   medium: [
     "worried", "anxious", "afraid", "scared", "frightened", "upset", "angry", "frustrated",
     "agitated", "tense", "nervous", "concerned", "distressed", "defensive", "impatient",
     "protective", "grieving", "overwhelmed", "confused", "suspicious", "guarded",
   ],
-  low: ["calm", "relieved", "reassured", "resigned", "tired", "composed", "accepting", "hopeful"],
+  low: [
+    "calm", "relieved", "reassured", "resigned", "tired", "composed", "accepting", "hopeful",
+    "steady", "matter-of-fact", "gentle", "soft", "flat", "measured", "whisper",
+  ],
 };
 
-/** Rank an emotion string by its strongest matching keyword. */
-function emotionIntensity(emotion: string): Intensity {
-  const text = emotion.toLowerCase();
+/**
+ * Rank a phrase by its strongest matching keyword, or null when nothing in it
+ * is recognised.
+ *
+ * Kept separate from the defaulting below because a per-line stage direction
+ * has to be allowed to say "steady, matter-of-fact" and be believed. Running it
+ * through a function that turns anything unmatched into "medium" would put a
+ * floor under every delivery string.
+ */
+function matchIntensity(text: string): Intensity | null {
+  const normalized = text.toLowerCase();
 
-  if (EMOTION_INTENSITY.high.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.high.some((word) => normalized.includes(word))) {
     return "high";
   }
 
-  if (EMOTION_INTENSITY.medium.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.medium.some((word) => normalized.includes(word))) {
     return "medium";
   }
 
-  if (EMOTION_INTENSITY.low.some((word) => text.includes(word))) {
+  if (EMOTION_INTENSITY.low.some((word) => normalized.includes(word))) {
     return "low";
   }
 
+  return null;
+}
+
+/** Rank an emotion string by its strongest matching keyword. */
+function emotionIntensity(emotion: string): Intensity {
   // Unrecognised wording: assume there is real feeling in the scene rather than
   // defaulting to the flat register.
-  return "medium";
+  return matchIntensity(emotion) ?? "medium";
 }
 
 function shift(intensity: Intensity, steps: number): Intensity {
@@ -233,20 +252,73 @@ export type VoiceInstructionContext = {
   tensionLevel: TensionLevel;
   /** 0 at the opening turn, approaching 1 at the final turn. */
   turnRatio: number;
+  /**
+   * Stage direction written for this specific line, from the same model call
+   * that wrote the line. This is the only input that knows what just happened
+   * in the scene -- the scenario's emotion was frozen when it was created, and
+   * character messages carry no third-person description to recover it from.
+   */
+  delivery?: string;
 };
 
 /**
- * Build the per-turn delivery instruction. Emotion comes from the character,
- * intensity from the current tension, and the arc from how far into the
- * conversation we are -- so an anxious parent genuinely softens as the trainee
- * de-escalates, rather than staying pinned at the same pitch of panic.
+ * Scenario emotions are free text and the model often writes them as a full
+ * sentence ("Anxious, hopeful, then inconsolable and disbelieving."). Dropped
+ * into the middle of another sentence that produced a stray capital and a
+ * doubled full stop: "came into this conversation Anxious, ... disbelieving.,
+ * but the line below". Only needed where the emotion is interpolated
+ * mid-sentence; after a colon it reads fine as written.
+ */
+function asClause(emotion: string): string {
+  const trimmed = emotion.trim().replace(/[.!?]+$/, "");
+
+  return trimmed ? trimmed.charAt(0).toLowerCase() + trimmed.slice(1) : trimmed;
+}
+
+/**
+ * Shared framing. This is the part that stops the model reading in its default
+ * announcer register, and it holds whether the concrete direction comes from a
+ * per-line stage direction or from the intensity ladder.
+ */
+const COMMITMENT_DIRECTION = [
+  // Naturalism and emotional commitment are both required, and they pull in
+  // opposite directions. Asking only for naturalism produces an underplayed,
+  // subtle read -- so commitment is stated first and explicitly.
+  "Affect: commit fully to how this person feels. It should be immediately obvious to a listener, from the very first word.",
+  "Do not underplay, do not hold back, and do not sound polite or composed when the character is not.",
+  "Keep it real rather than theatrical: the feeling belongs in the breath, the pacing and the pitch, not in over-articulated words. This is a real person in a hospital, not a stage performance -- but a real person in this state is far from neutral.",
+  "Never read these lines in a flat, announcer-like, or assistant-like register -- even when the words themselves are calm or polite.",
+];
+
+/**
+ * Build the per-turn delivery instruction.
+ *
+ * There are two routes through this, and the important thing is that they never
+ * run at once.
+ *
+ * When the turn came with its own stage direction, that direction is the whole
+ * concrete instruction: it was written for this line, by the call that wrote the
+ * line, knowing what has just happened. Layering the generic ladder on top of it
+ * produced flatly contradictory prompts -- a mother who has just been told her
+ * daughter died carrying "pushed volume, pitch riding high" from the tension
+ * level, "worn down and flat-angry, less volume" from the arc, and "whispering,
+ * disbelieving" from the line itself, with her identity line still asserting the
+ * scenario's frozen "anxious". Four directions, three of them incompatible. The
+ * model splits the difference and lands neutral, which is why the voice was
+ * convincing exactly when these happened to agree and dead when they did not.
+ *
+ * Without a stage direction -- an older message, a fallback turn -- the ladder
+ * is all we have, and it still does its job.
  */
 export function buildVoiceInstructions({
   scenario,
   speaker,
   tensionLevel,
   turnRatio,
+  delivery,
 }: VoiceInstructionContext): string {
+  // The narrator ignores delivery entirely. A narrator handed stage direction
+  // would act out the scene it is describing, which its own block forbids.
   if (speaker === "narrator") {
     return [
       "Identity: a calm, neutral narrator setting a scene. Not a character in it.",
@@ -257,6 +329,23 @@ export function buildVoiceInstructions({
   }
 
   const { emotion } = getCharacterVoice(scenario, speaker);
+  const role = speaker.replace("_", " ");
+  const lineDirection = (delivery ?? "").trim();
+
+  if (lineDirection) {
+    return [
+      // The scenario emotion is stated as where this person started, not as a
+      // claim about this line. Asserting it as their state "right now" was the
+      // frozen-emotion bug wearing a different hat: the sentence went stale the
+      // moment the scene moved.
+      `Identity: a ${role} in a hospital, speaking to a doctor face to face. They came into this conversation ${asClause(emotion)}, but the line below is where they are now.`,
+      ...COMMITMENT_DIRECTION,
+      `How this line sounds: ${lineDirection}.`,
+      "Take the pacing, the volume, the pitch and the breathing from that description, and let it decide where sentences break and how they end. It describes this person at this exact moment, so follow it even where it does not match how they sounded earlier in the conversation.",
+      // Rules stays last. It is the safety boundary.
+      "Rules: stay in character, never narrate, never add commentary, and speak only the words given.",
+    ].join("\n");
+  }
 
   // Late in the conversation the tension level tells us which way the trainee
   // moved things, so the delivery lands on either relief or hardening.
@@ -264,14 +353,8 @@ export function buildVoiceInstructions({
   const intensity = resolveIntensity(emotion, tensionLevel, isLate);
 
   const parts = [
-    `Identity: a ${speaker.replace("_", " ")} in a hospital, speaking to a doctor face to face. Their emotional state right now is: ${emotion}.`,
-    // Naturalism and emotional commitment are both required, and they pull in
-    // opposite directions. Asking only for naturalism produces an underplayed,
-    // subtle read -- so commitment is stated first and explicitly.
-    "Affect: commit fully to this emotion. It should be immediately obvious to a listener how this person feels, from the very first word.",
-    "Do not underplay, do not hold back, and do not sound polite or composed when the character is not.",
-    "Keep it real rather than theatrical: the emotion belongs in the breath, the pacing and the pitch, not in over-articulated words. This is a real person in a hospital, not a stage performance -- but a real person in this state is far from neutral.",
-    `Never read these lines in a flat, announcer-like, or assistant-like register -- even when the words themselves are calm or polite.`,
+    `Identity: a ${role} in a hospital, speaking to a doctor face to face. Their emotional state right now is: ${emotion}.`,
+    ...COMMITMENT_DIRECTION,
     INTENSITY_DIRECTION[intensity],
   ];
 
@@ -287,6 +370,7 @@ export function buildVoiceInstructions({
     parts.push("Arc: this is your first moment with this doctor. The emotion is raw and unfiltered.");
   }
 
+  // Rules stays last. It is the safety boundary.
   parts.push(
     "Rules: stay in character, never narrate, never add commentary, and speak only the words given.",
   );

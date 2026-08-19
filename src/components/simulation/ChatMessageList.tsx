@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { springSoft } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { completedRevealStore, type RevealStore } from "@/components/simulation/revealStore";
 import type { SimulationMessage } from "@/types/simulation";
 
 const roleLabels: Record<SimulationMessage["role"], string> = {
@@ -21,42 +22,43 @@ const speakerLabels: Record<NonNullable<SimulationMessage["speaker"]>, string> =
   narrator: "Narrator",
 };
 
-export function useTypedWords(text: string, enabled: boolean, wordDelayMs = 55) {
-  const [wordCount, setWordCount] = useState(enabled ? 0 : Infinity);
-  const words = text.split(" ");
+/**
+ * How many words of this message are currently revealed.
+ *
+ * Each bubble subscribes to its own id, so a progress tick from the voice
+ * re-renders one bubble rather than the whole transcript.
+ *
+ * The server snapshot is `Infinity`: SSR and hydration render the full
+ * transcript, matching the rule that a transcript is never gated behind an
+ * animation.
+ */
+function useRevealedWordCount(reveal: RevealStore, messageId: string) {
+  const subscribe = useCallback(
+    (onChange: () => void) => reveal.subscribe(messageId, onChange),
+    [reveal, messageId],
+  );
+  const getWordCount = useCallback(() => reveal.getWordCount(messageId), [reveal, messageId]);
 
-  useEffect(() => {
-    if (!enabled) {
-      setWordCount(Infinity);
-      return undefined;
-    }
-
-    setWordCount(0);
-    let index = 0;
-    const interval = window.setInterval(() => {
-      index += 1;
-      setWordCount(index);
-      if (index >= words.length) {
-        window.clearInterval(interval);
-      }
-    }, wordDelayMs);
-
-    return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, enabled]);
-
-  return words.slice(0, wordCount).join(" ");
+  return useSyncExternalStore(subscribe, getWordCount, () => Infinity);
 }
 
 function TypingCursor() {
   return <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-current align-middle" />;
 }
 
-export function TypingIndicator() {
+/**
+ * Three dots travelling in sequence.
+ *
+ * The movement is the whole point, which is why a cursor will not do here. A
+ * cursor blinking on an empty line is indistinguishable from one that has
+ * stopped part-way through a word, so the wait before a voice arrives read as
+ * the app having frozen rather than as a turn on its way.
+ */
+function TypingDots({ className = "" }: { className?: string }) {
   const shouldAnimate = useShouldAnimate();
 
-  const dots = (
-    <div className="flex items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`} aria-hidden>
       {[0, 1, 2].map((dot) =>
         shouldAnimate ? (
           <motion.span
@@ -69,6 +71,16 @@ export function TypingIndicator() {
           <span key={dot} className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
         ),
       )}
+    </span>
+  );
+}
+
+export function TypingIndicator() {
+  const shouldAnimate = useShouldAnimate();
+
+  const dots = (
+    <div className="flex items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
+      <TypingDots />
     </div>
   );
 
@@ -90,20 +102,25 @@ export function TypingIndicator() {
 
 type ChatMessageProps = {
   message: SimulationMessage;
-  shouldType: boolean;
+  reveal: RevealStore;
   onSpeak?: (message: SimulationMessage) => void;
   isSpeaking?: boolean;
 };
 
-function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatMessageProps) {
+function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessageProps) {
   const shouldAnimate = useShouldAnimate();
   const isTrainee = message.role === "trainee";
   const messageLabel =
     message.role === "scenario" && message.speaker
       ? speakerLabels[message.speaker]
       : roleLabels[message.role];
-  const typed = useTypedWords(message.content, shouldType && !isTrainee);
-  const isStillTyping = shouldType && !isTrainee && typed.length < message.content.length;
+  const words = message.content.split(" ");
+  const wordCount = useRevealedWordCount(reveal, message.id);
+  const isStillRevealing = wordCount < words.length;
+  const shown = isStillRevealing ? words.slice(0, wordCount).join(" ") : message.content;
+  // Armed, but not a word of it revealed yet: the turn has arrived and is
+  // waiting on the voice that will pace it.
+  const isAwaitingFirstWord = wordCount === 0;
   const canSpeak = !isTrainee && Boolean(onSpeak) && message.content.trim().length > 0;
 
   const bubble = (
@@ -134,9 +151,17 @@ function ChatMessage({ message, shouldType, onSpeak, isSpeaking = false }: ChatM
             </button>
           ) : null}
         </div>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-          {isTrainee ? message.content : typed}
-          {isStillTyping ? <TypingCursor /> : null}
+        {/* min-h-6 reserves the line so the bubble does not jump when the
+            dots give way to the first words. */}
+        <p className="mt-2 min-h-6 whitespace-pre-wrap text-sm leading-6">
+          {isAwaitingFirstWord ? (
+            <TypingDots className="py-2 align-middle" />
+          ) : (
+            <>
+              {shown}
+              {isStillRevealing ? <TypingCursor /> : null}
+            </>
+          )}
         </p>
     </div>
   );
@@ -194,33 +219,33 @@ function SpeakerStopIcon() {
 
 type ChatMessageListProps = {
   messages: SimulationMessage[];
+  /**
+   * Drives the progressive reveal of newly arrived turns. Omitted where the
+   * transcript is only being read back, in which case every message is shown
+   * in full.
+   */
+  reveal?: RevealStore;
   onSpeak?: (message: SimulationMessage) => void;
   speakingMessageId?: string | null;
 };
 
-export function ChatMessageList({ messages, onSpeak, speakingMessageId }: ChatMessageListProps) {
-  const seenIds = useRef<Set<string>>(new Set());
-  const isFirstRender = useRef(true);
-
-  if (isFirstRender.current) {
-    messages.forEach((message) => seenIds.current.add(message.id));
-    isFirstRender.current = false;
-  }
-
-  const rendered = messages.map((message) => {
-    const shouldType = !seenIds.current.has(message.id);
-    seenIds.current.add(message.id);
-
-    return (
-      <ChatMessage
-        key={message.id}
-        message={message}
-        shouldType={shouldType}
-        onSpeak={onSpeak}
-        isSpeaking={speakingMessageId === message.id}
-      />
-    );
-  });
-
-  return <div className="space-y-4">{rendered}</div>;
+export function ChatMessageList({
+  messages,
+  reveal = completedRevealStore,
+  onSpeak,
+  speakingMessageId,
+}: ChatMessageListProps) {
+  return (
+    <div className="space-y-4">
+      {messages.map((message) => (
+        <ChatMessage
+          key={message.id}
+          message={message}
+          reveal={reveal}
+          onSpeak={onSpeak}
+          isSpeaking={speakingMessageId === message.id}
+        />
+      ))}
+    </div>
+  );
 }
