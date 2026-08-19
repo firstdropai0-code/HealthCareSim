@@ -707,17 +707,32 @@ button:disabled {
 }
 
 /* Impact rings travel ACROSS the floor, so they are wide and flat rather than
-   circular — a circle would read as a halo in the air. */
+   circular — a circle would read as a halo in the air.
+
+   Each ring is weaker, shorter and quicker than the one before it. They were
+   previously identical but for their delay and colour, all reaching the same
+   width, which read as three copies of one animation rather than as a wave
+   losing energy.
+
+   The reach is capped to the floor's own width. At 30rem flat, a 375px phone
+   put the floor at 263px and the rings at 475px, so they shot 80% past the
+   surface they are supposed to be crossing and off both edges of the screen.
+   Height follows width, so the ellipse keeps its proportions at any size. */
 .intro-splash__ripple {
+  --ripple-reach: min(30rem, 70vw);
+  --ripple-peak: 0.7;
+
   position: absolute;
   left: 50%;
   bottom: 18vh;
   /* translateY(50%) drops the box by half its own height, so its centre sits ON
      the floor line rather than resting above it. It keeps centring as the box
-     grows, because the shift is relative to the current height. */
-  transform: translateY(50%);
+     grows, because the shift is relative to the current height. translateX
+     does the same job horizontally, which is why no width-matched margin has
+     to be animated alongside the size. */
+  transform: translate(-50%, 50%);
   border-radius: 9999px;
-  border: 1px solid var(--color-primary);
+  border: 1.5px solid var(--color-primary);
   opacity: 0;
   /* Size is animated, not transform-scaled. Scaling a bordered box stretches
      the border with it, so a 1px hairline became a 4px smear at the wide end,
@@ -726,16 +741,24 @@ button:disabled {
 }
 
 .intro-splash__ripple--late {
-  animation-delay: 0.95s;
-  border-color: var(--color-border-strong);
+  --ripple-reach: min(23rem, 54vw);
+  --ripple-peak: 0.45;
+
+  border-width: 1px;
+  animation-duration: 1s;
+  animation-delay: 0.96s;
 }
 
 /* Ends with the overlay rather than after it, so nothing is still expanding
    underneath a page that has already been revealed. */
 .intro-splash__ripple--last {
-  animation-duration: 0.9s;
-  animation-delay: 1.08s;
+  --ripple-reach: min(17rem, 40vw);
+  --ripple-peak: 0.3;
+
+  border-width: 1px;
   border-color: var(--color-border-strong);
+  animation-duration: 0.85s;
+  animation-delay: 1.16s;
 }
 
 .intro-splash__satellite {
@@ -826,19 +849,26 @@ button:disabled {
 }
 
 @keyframes intro-ripple {
+  /* Starts rounder than it ends: a ring still close to the impact point is
+     barely foreshortened, and flattens out as it travels away. */
   0% {
     width: 3.5rem;
     height: 1rem;
-    margin-left: -1.75rem;
     opacity: 0;
   }
-  15% {
-    opacity: 0.65;
+  12% {
+    opacity: var(--ripple-peak);
+  }
+  /* Holds most of its strength across the middle of the travel and gives the
+     rest up at the far edge, rather than fading evenly the whole way — an even
+     fade makes the ring look like it is dimming in place instead of running
+     out of energy. */
+  65% {
+    opacity: calc(var(--ripple-peak) * 0.4);
   }
   100% {
-    width: 30rem;
-    height: 7rem;
-    margin-left: -15rem;
+    width: var(--ripple-reach);
+    height: calc(var(--ripple-reach) * 0.233);
     opacity: 0;
   }
 }
