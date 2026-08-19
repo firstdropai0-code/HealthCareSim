@@ -46,11 +46,19 @@ function TypingCursor() {
   return <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-current align-middle" />;
 }
 
-export function TypingIndicator() {
+/**
+ * Three dots travelling in sequence.
+ *
+ * The movement is the whole point, which is why a cursor will not do here. A
+ * cursor blinking on an empty line is indistinguishable from one that has
+ * stopped part-way through a word, so the wait before a voice arrives read as
+ * the app having frozen rather than as a turn on its way.
+ */
+function TypingDots({ className = "" }: { className?: string }) {
   const shouldAnimate = useShouldAnimate();
 
-  const dots = (
-    <div className="flex items-center gap-1.5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
+  return (
+    <span className={`inline-flex items-center gap-1.5 ${className}`} aria-hidden>
       {[0, 1, 2].map((dot) =>
         shouldAnimate ? (
           <motion.span
@@ -63,6 +71,16 @@ export function TypingIndicator() {
           <span key={dot} className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
         ),
       )}
+    </span>
+  );
+}
+
+export function TypingIndicator() {
+  const shouldAnimate = useShouldAnimate();
+
+  const dots = (
+    <div className="flex items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5 shadow-[var(--shadow-card)]">
+      <TypingDots />
     </div>
   );
 
@@ -100,6 +118,9 @@ function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessa
   const wordCount = useRevealedWordCount(reveal, message.id);
   const isStillRevealing = wordCount < words.length;
   const shown = isStillRevealing ? words.slice(0, wordCount).join(" ") : message.content;
+  // Armed, but not a word of it revealed yet: the turn has arrived and is
+  // waiting on the voice that will pace it.
+  const isAwaitingFirstWord = wordCount === 0;
   const canSpeak = !isTrainee && Boolean(onSpeak) && message.content.trim().length > 0;
 
   const bubble = (
@@ -130,9 +151,17 @@ function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessa
             </button>
           ) : null}
         </div>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-          {shown}
-          {isStillRevealing ? <TypingCursor /> : null}
+        {/* min-h-6 reserves the line so the bubble does not jump when the
+            dots give way to the first words. */}
+        <p className="mt-2 min-h-6 whitespace-pre-wrap text-sm leading-6">
+          {isAwaitingFirstWord ? (
+            <TypingDots className="py-2 align-middle" />
+          ) : (
+            <>
+              {shown}
+              {isStillRevealing ? <TypingCursor /> : null}
+            </>
+          )}
         </p>
     </div>
   );
