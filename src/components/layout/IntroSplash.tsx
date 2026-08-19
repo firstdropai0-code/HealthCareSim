@@ -24,6 +24,43 @@ export function IntroSplash() {
           on the floor where it landed. */}
       <span className="intro-splash__ripple" />
       <span className="intro-splash__ripple intro-splash__ripple--late" />
+      <span className="intro-splash__ripple intro-splash__ripple--last" />
+
+      {/* Thrown clear by the impact. Small, few, and gone quickly — this is the
+          detail that reads as liquid rather than as a bouncing object. */}
+      <span className="intro-splash__satellite intro-splash__satellite--a" />
+      <span className="intro-splash__satellite intro-splash__satellite--b" />
+      <span className="intro-splash__satellite intro-splash__satellite--c" />
+
+      {/*
+        The thing that falls is a plain teardrop, NOT the logo.
+
+        The squash on landing is what sells the weight, and it has to be
+        violent to work — but the mark is a detailed piece of artwork with two
+        figures and a medical cross in it, and running it through a 1.42 x 0.6
+        scale smeared all of that. It also fell stretched, so the brand was
+        distorted for most of the time it was on screen.
+
+        An abstract silhouette can deform as hard as the motion needs. The mark
+        then forms out of the splash at uniform scale, and is never distorted
+        at any point.
+
+        The viewBox is cropped tight to the path so the element's box is the
+        drop's visible bounds — otherwise `transform-origin: 50% 100%` pivots
+        against empty space below it and the squash happens under the floor.
+      */}
+      <svg className="intro-splash__drop" viewBox="5.5 2.4 13 19.2" aria-hidden>
+        <defs>
+          <linearGradient id="intro-drop-fill" x1="0" y1="0" x2="1" y2="1">
+            <stop className="intro-splash__drop-from" offset="0%" />
+            <stop className="intro-splash__drop-to" offset="100%" />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#intro-drop-fill)"
+          d="M12 2.4c.4 0 .7.2.9.5 1.3 1.9 5.6 8.3 5.6 12.1a6.5 6.5 0 0 1-13 0c0-3.8 4.3-10.2 5.6-12.1.2-.3.5-.5.9-.5Z"
+        />
+      </svg>
 
       <div className="intro-splash__mark">
         <Image src="/logo-mark.png" alt="" width={256} height={256} priority />
