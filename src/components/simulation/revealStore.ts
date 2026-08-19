@@ -163,6 +163,15 @@ export function createRevealStore(): RevealStore {
 
     arm(messageId, counts) {
       forget(messageId);
+
+      // Drop any earlier position for this id, so re-arming cannot leave a
+      // stale entry in the queue that later prunes the live one.
+      const existingIndex = armedIds.indexOf(messageId);
+
+      if (existingIndex !== -1) {
+        armedIds.splice(existingIndex, 1);
+      }
+
       entries.set(messageId, {
         totalWords: Math.max(1, counts.totalWords),
         spokenWords: Math.max(0, Math.min(counts.spokenWords, counts.totalWords)),

@@ -114,6 +114,12 @@ export default function SimulationPage() {
    * affordance replays that exact turn rather than guessing at the latest one.
    */
   const [audioGestureMessage, setAudioGestureMessage] = useState<SimulationMessage | null>(null);
+  /**
+   * Read when a turn arrives rather than closed over, so a toggle flipped while
+   * the turn was being generated is honoured. Getting this wrong leaves the
+   * turn armed for a voice that is never coming, and its text blank for good.
+   */
+  const autoReadRef = useRef(autoRead);
   const playbackRef = useRef<SpeechPlayback | null>(null);
   // Cancels the TTS fetch. Playback only exists once audio is already running,
   // so without this a stop during the network wait was simply ignored.
@@ -126,6 +132,10 @@ export default function SimulationPage() {
   const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
 
   useEffect(() => reveal.dispose, [reveal]);
+
+  useEffect(() => {
+    autoReadRef.current = autoRead;
+  }, [autoRead]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -444,7 +454,7 @@ export default function SimulationPage() {
         // to a stated reduced-motion preference than no animation at all. The
         // audio still plays.
         reveal.complete(newestMessage.id);
-      } else if (!autoRead) {
+      } else if (!autoReadRef.current) {
         reveal.driveWithTimer(newestMessage.id);
       }
       // Auto-read on: the voice drives the reveal, under the hold cap above.
