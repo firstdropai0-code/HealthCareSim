@@ -200,8 +200,15 @@ export default function SimulationPage() {
                 scenario: state.scenario,
                 speaker,
                 tensionLevel: state.tensionLevel,
-                turnRatio:
-                  state.maxTurns > 0 ? Math.min(1, state.currentTurn / state.maxTurns) : 0,
+                // Paced against the scenario's own suggested length, not the
+                // hard safety cap. maxTurns is 12, so a ratio taken against it
+                // needed turn 7.2 to count as late -- which a roleplay paced
+                // for 4 or 5 turns never reaches, leaving both late-arc
+                // branches unreachable.
+                turnRatio: Math.min(
+                  1,
+                  state.currentTurn / Math.max(2, state.scenario.suggestedTurns || 4),
+                ),
                 // Read off the message, not off the current turn: re-reading an
                 // older line has to sound the way it did the first time.
                 delivery: message.delivery,
