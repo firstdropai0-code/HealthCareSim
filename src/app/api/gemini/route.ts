@@ -5,6 +5,7 @@ import {
   nextSimulationTurnSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
+import { keepAllowedTags, stripAudioTags } from "@/lib/ai/elevenLabsVoice";
 import {
   callGeminiJson,
   isGeminiCapacityError,
@@ -234,9 +235,27 @@ function normalizeTurn(value: unknown): NextSimulationTurn {
     throw new Error("Generated simulation turn is missing a message.");
   }
 
+  // Split here rather than at each consumer. This function is the single point
+  // where a generated turn enters the app, so cleaning the text once means the
+  // UI, the feedback prompt, the export and the conversation history all get
+  // clean copy without knowing tags exist at all.
+  const tagged = keepAllowedTags(turn.message);
+  const clean = stripAudioTags(turn.message);
+
+  // Whether the model actually placed tags is not visible anywhere else: the
+  // UI shows the stripped text by design, and the provider's request log
+  // records paths rather than payloads. Without this line the feature can look
+  // like it is working purely because the delivery ladder is doing the job.
+  if (tagged !== clean) {
+    console.info(`[tags] ${(turn.message.match(/\[[^\]]+\]/g) ?? []).join(" ")}`);
+  } else if (/\[[^\]]+\]/.test(turn.message)) {
+    console.info("[tags] model emitted only tags outside the allowed list; all stripped");
+  }
+
   return {
     speaker,
-    message: turn.message,
+    message: clean,
+    spokenMessage: tagged === clean ? "" : tagged,
     // This function rebuilds the turn field by field, so anything not listed
     // here is silently dropped.
     delivery: typeof turn.delivery === "string" ? turn.delivery.trim().slice(0, 160) : "",
@@ -286,6 +305,8 @@ function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
 function buildSafeNarratorTurn(): NextSimulationTurn {
   return {
     speaker: "narrator",
+    // Written here rather than by the model, so there is nothing to perform.
+    spokenMessage: "",
     message:
       "The patient or family member still seems unsure and waits for a clearer explanation. What do you say next?",
     delivery: "",
@@ -603,9 +624,21 @@ export async function POST(request: Request) {
           rejectedMessage: firstResult.message,
         });
 
-        return NextResponse.json({
-          result: appearsToSpeakAsTrainee(correctedResult) ? buildSafeNarratorTurn() : correctedResult,
-        });
+        if (appearsToSpeakAsTrainee(correctedResult)) {
+          // Both attempts spoke as the doctor, so the trainee gets a canned
+          // narrator line in the middle of a roleplay. That is a visible
+          // downgrade and it used to happen silently -- the catch below logs a
+          // thrown error, but exhausting the retry logged nothing at all, so
+          // the only trace was a stock sentence in the transcript.
+          console.warn(
+            `[turn] role correction failed twice; served safe narrator turn. ` +
+              `First: ${JSON.stringify(firstResult.message.slice(0, 120))}`,
+          );
+
+          return NextResponse.json({ result: buildSafeNarratorTurn() });
+        }
+
+        return NextResponse.json({ result: correctedResult });
       } catch (error) {
         console.error("Gemini role-correction retry failed, using safe narrator turn:", error);
         return NextResponse.json({ result: buildSafeNarratorTurn() });

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "audition": "node scripts/auditionVoices.mjs",
+    "baseline": "node scripts/baselineOpenAi.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.1",

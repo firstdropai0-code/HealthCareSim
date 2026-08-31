@@ -44,6 +44,20 @@ export type SpeakTextOptions = {
   voice?: string;
   instructions?: string;
   /**
+   * Delivery rank for this line. Only ElevenLabs uses it -- OpenAI takes its
+   * direction as prose in `instructions` -- but it is resolved from the same
+   * inputs so both providers rank a line the same way.
+   */
+  intensity?: string;
+  /** Raw per-line stage direction, for ElevenLabs' optional audio tags. */
+  delivery?: string;
+  /**
+   * The same line with its audio tags intact. Sent alongside rather than
+   * instead of `text`: only a provider that performs tags should ever see them,
+   * and which provider is running is a server-side decision.
+   */
+  spokenText?: string;
+  /**
    * Cancels the TTS fetch. Without this a stop pressed during the network wait
    * could not be honoured -- the playback handle does not exist yet, so there
    * is nothing to call stop() on and the audio starts anyway.
@@ -162,6 +176,9 @@ export async function speakText(
       text: trimmed,
       ...(options.voice ? { voice: options.voice } : {}),
       ...(options.instructions ? { instructions: options.instructions } : {}),
+      ...(options.intensity ? { intensity: options.intensity } : {}),
+      ...(options.delivery ? { delivery: options.delivery } : {}),
+      ...(options.spokenText ? { spokenText: options.spokenText } : {}),
     }),
     ...(options.signal ? { signal: options.signal } : {}),
   });

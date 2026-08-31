@@ -127,7 +127,7 @@ export function stripTraineePrompt(text: string): string {
   return stripped.length > 0 ? stripped : text.trim();
 }
 
-type Intensity = "low" | "medium" | "high";
+export type Intensity = "low" | "medium" | "high";
 
 const INTENSITY_ORDER: Intensity[] = ["low", "medium", "high"];
 
@@ -376,4 +376,46 @@ export function buildVoiceInstructions({
   );
 
   return parts.join("\n");
+}
+
+/**
+ * The same delivery decision buildVoiceInstructions() makes, exposed as a bare
+ * intensity rank.
+ *
+ * OpenAI takes its direction as prose, so buildVoiceInstructions() can hand the
+ * per-line stage direction straight through. ElevenLabs takes numeric voice
+ * settings instead, so it needs the *rank* rather than the words -- and it has
+ * to be the same rank, or the two providers stop being comparable and the A/B
+ * measures the mapping rather than the model.
+ *
+ * Precedence matches buildVoiceInstructions(): a per-line stage direction wins
+ * outright when it names something recognisable, because it is the only input
+ * that knows what just happened in the scene. It falls through to the ladder
+ * when the line direction is missing or says nothing rankable, rather than
+ * defaulting straight to medium -- an unrecognised direction should not erase
+ * an emotion the scenario does know about.
+ */
+export function resolveVoiceIntensity({
+  scenario,
+  speaker,
+  tensionLevel,
+  turnRatio,
+  delivery,
+}: VoiceInstructionContext): Intensity {
+  // The narrator is never performed. Its block in buildVoiceInstructions()
+  // explicitly forbids acting out the scene it describes.
+  if (speaker === "narrator") {
+    return "low";
+  }
+
+  const lineDirection = (delivery ?? "").trim();
+  const fromLine = lineDirection ? matchIntensity(lineDirection) : null;
+
+  if (fromLine) {
+    return fromLine;
+  }
+
+  const { emotion } = getCharacterVoice(scenario, speaker);
+
+  return resolveIntensity(emotion, tensionLevel, turnRatio >= 0.6);
 }

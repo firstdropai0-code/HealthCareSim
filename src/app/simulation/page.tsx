@@ -24,6 +24,7 @@ import {
   buildVoiceInstructions,
   getCharacterVoice,
   stripTraineePrompt,
+  resolveVoiceIntensity,
 } from "@/lib/ai/voiceDirection";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
@@ -59,11 +60,31 @@ const speakerLabels: Record<ScenarioSpeaker, string> = {
 const AUDIO_LEAD_IN_MS = 150;
 
 /**
- * How long a new turn's text waits for audio before giving up and typing
- * itself out. Long enough to cover a normal TTS round trip, short enough that a
- * slow one does not read as the app having hung.
+ * How long a new turn's text waits for audio before giving up and typing itself
+ * out.
+ *
+ * Scaled by message length, because generation time is dominated by how much
+ * speech there is rather than by a fixed round trip. Measured against the live
+ * providers: a 77-character line comes back in ~1.1s on the fast model and
+ * ~1.7s on the dramatic one, while a 265-character line -- ordinary for a turn,
+ * still inside the prompt's 55-word cap -- takes ~3.4s and ~7.1s respectively.
+ * A flat cap either strands every long turn or makes every short one sit in
+ * silence waiting for a budget it never needed.
+ *
+ * The slope is taken from the dramatic model, which is the slow case, so the
+ * fast model always finishes with room to spare. The ceiling is a backstop: past
+ * it something has genuinely gone wrong and typing the text out beats waiting.
  */
-const AUDIO_WAIT_TIMEOUT_MS = 2_500;
+const AUDIO_WAIT_BASE_MS = 1_500;
+const AUDIO_WAIT_PER_CHAR_MS = 30;
+const AUDIO_WAIT_CEILING_MS = 12_000;
+
+function audioWaitTimeoutMs(text: string): number {
+  return Math.min(
+    AUDIO_WAIT_CEILING_MS,
+    AUDIO_WAIT_BASE_MS + text.length * AUDIO_WAIT_PER_CHAR_MS,
+  );
+}
 
 const briefToneClasses = {
   ink: "text-[var(--color-ink-soft)]",
@@ -196,35 +217,48 @@ export default function SimulationPage() {
       // the reveal forward, so in practice it plays over completed text.
       const holdTimer = window.setTimeout(
         () => reveal.driveWithTimer(message.id),
-        AUDIO_WAIT_TIMEOUT_MS,
+        audioWaitTimeoutMs(message.content),
       );
 
       try {
         // Voice is pinned per character; the instruction is rebuilt each turn so
         // delivery tracks the current tension and how far in we are.
         const speaker = message.speaker || "narrator";
-        const voiceOptions = state
+        // One context, both providers. OpenAI reads `instructions` and
+        // ElevenLabs reads `intensity`, but they are derived from the same
+        // inputs so a line is ranked identically either way -- otherwise an A/B
+        // between them compares the two mappings rather than the two models.
+        const voiceContext = state
           ? {
-              voice: getCharacterVoice(state.scenario, speaker).voiceId,
-              instructions: buildVoiceInstructions({
-                scenario: state.scenario,
-                speaker,
-                tensionLevel: state.tensionLevel,
-                // Paced against the scenario's own suggested length, not the
-                // hard safety cap. maxTurns is 12, so a ratio taken against it
-                // needed turn 7.2 to count as late -- which a roleplay paced
-                // for 4 or 5 turns never reaches, leaving both late-arc
-                // branches unreachable.
-                turnRatio: Math.min(
-                  1,
-                  state.currentTurn / Math.max(2, state.scenario.suggestedTurns || 4),
-                ),
-                // Read off the message, not off the current turn: re-reading an
-                // older line has to sound the way it did the first time.
-                delivery: message.delivery,
-              }),
+              scenario: state.scenario,
+              speaker,
+              tensionLevel: state.tensionLevel,
+              // Paced against the scenario's own suggested length, not the
+              // hard safety cap. maxTurns is 12, so a ratio taken against it
+              // needed turn 7.2 to count as late -- which a roleplay paced
+              // for 4 or 5 turns never reaches, leaving both late-arc
+              // branches unreachable.
+              turnRatio: Math.min(
+                1,
+                state.currentTurn / Math.max(2, state.scenario.suggestedTurns || 4),
+              ),
+              // Read off the message, not off the current turn: re-reading an
+              // older line has to sound the way it did the first time.
+              delivery: message.delivery,
             }
-          : {};
+          : null;
+        const voiceOptions =
+          state && voiceContext
+            ? {
+                voice: getCharacterVoice(state.scenario, speaker).voiceId,
+                instructions: buildVoiceInstructions(voiceContext),
+                intensity: resolveVoiceIntensity(voiceContext),
+                delivery: message.delivery,
+                ...(message.spokenContent
+                  ? { spokenText: stripTraineePrompt(message.spokenContent) }
+                  : {}),
+              }
+            : {};
         // Spoken text drops the trailing "What do you say?" prompt; the message
         // on screen keeps it.
         const playback = await speakText(stripTraineePrompt(message.content), {
@@ -802,8 +836,9 @@ export default function SimulationPage() {
             <SafetyNotice />
 
             <p className="text-[11px] leading-4 text-[var(--color-ink-soft)]">
-              Read-aloud audio is AI-generated (OpenAI) and voices only the text shown
-              in the conversation.
+              Read-aloud audio is AI-generated and speaks only the words shown in the
+              conversation. Delivery — pace, breath, emotion — is directed separately
+              and is not part of what is said.
             </p>
           </aside>
         </div>

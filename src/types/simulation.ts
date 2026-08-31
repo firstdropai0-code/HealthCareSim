@@ -21,6 +21,11 @@ export type SimulationMessage = {
    */
   delivery?: string;
   /**
+   * Tagged form of `content`, kept only for text-to-speech. Absent when the
+   * line had no tags, and on anything generated before this existed.
+   */
+  spokenContent?: string;
+  /**
    * Delivery metrics for a spoken trainee turn. Absent when the turn was typed
    * rather than spoken, or when analysis was unavailable.
    */
@@ -50,6 +55,13 @@ export type NextSimulationTurn = {
    * narrator turn, or a model that did not supply one.
    */
   delivery: string;
+  /**
+   * The same line with its audio tags still in it, for providers that perform
+   * them. Empty when the line carried none. `message` is always the clean text:
+   * tags are performance direction, so they must never reach the screen, the
+   * feedback report, or the conversation history sent back to the model.
+   */
+  spokenMessage: string;
   tensionLevel: TensionLevel;
   shouldEnd: boolean;
 };

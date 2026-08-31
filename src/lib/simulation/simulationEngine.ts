@@ -13,6 +13,7 @@ export function createMessage(
   speaker?: ScenarioSpeaker,
   /** How this line should sound when read aloud. Empty or absent for none. */
   delivery?: string,
+  spokenContent?: string,
 ): SimulationMessage {
   return {
     id:
@@ -26,6 +27,7 @@ export function createMessage(
     // Conditional spread, never `delivery: undefined`: these messages are
     // written straight to Firestore, which rejects undefined values.
     ...(delivery ? { delivery } : {}),
+    ...(spokenContent ? { spokenContent } : {}),
   };
 }
 
@@ -77,7 +79,7 @@ export function appendSimulationTurn(
       traineeVoiceMetrics
         ? { ...traineeMessage, voiceMetrics: traineeVoiceMetrics }
         : traineeMessage,
-      createMessage("scenario", turn.message, turn.speaker, turn.delivery),
+      createMessage("scenario", turn.message, turn.speaker, turn.delivery, turn.spokenMessage),
     ],
     currentTurn: nextTurn,
     tensionLevel: turn.tensionLevel,

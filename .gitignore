@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Per-developer Claude Code permissions; launch.json is shared, this is not.
 .claude/settings.local.json
+
+# Local voice audition output
+scratch/
