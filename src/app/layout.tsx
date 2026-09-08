@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { AuthProvider } from "@/lib/firebase/AuthProvider";
+import { MentorGroupsProvider } from "@/lib/groups/MentorGroupsProvider";
 import "./globals.css";
 
 /**
@@ -73,7 +74,9 @@ export default function RootLayout({
           AppShell from three separate return branches, so a provider in there
           would tear down and re-subscribe auth on every state transition.
         */}
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <MentorGroupsProvider>{children}</MentorGroupsProvider>
+        </AuthProvider>
       </body>
     </html>
   );

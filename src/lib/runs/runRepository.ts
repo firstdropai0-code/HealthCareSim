@@ -170,16 +170,25 @@ export async function listMyRuns(uid: string, limitN = 50): Promise<RunSummary[]
 }
 
 /**
- * Every scored run a mentor owns, newest first.
+ * Every scored run in one of a mentor's groups, newest first.
  *
- * Filtered on `mentorId`, not `groupId`, and that is load-bearing rather than a
- * style choice. The read rule authorises on `userId == me || mentorId == me`,
- * and rules are not filters: Firestore rejects a list query unless the query
- * itself proves every document it could return is readable. A `groupId` filter
- * proves nothing about either field. Since a mentor owns exactly one group, the
- * two filters select the same rows anyway.
+ * BOTH filters are required, for different reasons. `mentorId` is what the
+ * rules need: the read rule authorises on `userId == me || mentorId == me`, and
+ * rules are not filters — Firestore rejects a list query unless the query
+ * itself proves every document it could return is readable, and a `groupId`
+ * filter proves nothing about either field. `groupId` is what the dashboard
+ * needs: a mentor owns several groups now, and without it every group's runs
+ * would land in one set of averages.
+ *
+ * Narrowing in JS afterwards is NOT equivalent — the limit below would then be
+ * spent across every group, so a busy second cohort would silently truncate the
+ * first one's history.
  */
-export async function listGroupRuns(mentorId: string, limitN = 200): Promise<RunSummary[]> {
+export async function listGroupRuns(
+  mentorId: string,
+  groupId: string,
+  limitN = 200,
+): Promise<RunSummary[]> {
   const [db, { collection, getDocs, limit, orderBy, query, where }] = await Promise.all([
     getDb(),
     import("firebase/firestore"),
@@ -189,6 +198,7 @@ export async function listGroupRuns(mentorId: string, limitN = 200): Promise<Run
     query(
       collection(db, "runs"),
       where("mentorId", "==", mentorId),
+      where("groupId", "==", groupId),
       where("countsTowardStats", "==", true),
       orderBy("completedAt", "desc"),
       limit(limitN),
@@ -198,10 +208,19 @@ export async function listGroupRuns(mentorId: string, limitN = 200): Promise<Run
   return snapshot.docs.map((entry) => toSummary(entry.id, entry.data()));
 }
 
-/** One trainee's runs, from their mentor's side. Same `mentorId` reasoning. */
+/**
+ * One trainee's runs in one group, from their mentor's side. Same reasoning as
+ * `listGroupRuns` for why both filters are here.
+ *
+ * The `groupId` filter matters even though a trainee only ever belongs to one
+ * group: a trainee who left group A and joined group B under the SAME mentor
+ * would otherwise show runs from both here, and this page would disagree with
+ * the dashboard row the mentor clicked to reach it.
+ */
 export async function listTraineeRuns(
   mentorId: string,
   uid: string,
+  groupId: string,
   limitN = 50,
 ): Promise<RunSummary[]> {
   const [db, { collection, getDocs, limit, orderBy, query, where }] = await Promise.all([
@@ -213,6 +232,7 @@ export async function listTraineeRuns(
     query(
       collection(db, "runs"),
       where("mentorId", "==", mentorId),
+      where("groupId", "==", groupId),
       where("userId", "==", uid),
       orderBy("completedAt", "desc"),
       limit(limitN),

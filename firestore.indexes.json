@@ -27,6 +27,26 @@
       ]
     },
     {
+      "collectionGroup": "runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mentorId", "order": "ASCENDING" },
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "countsTowardStats", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mentorId", "order": "ASCENDING" },
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "completedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "scenarios",
       "queryScope": "COLLECTION",
       "fields": [

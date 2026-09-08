@@ -7,7 +7,12 @@ import { LoadingButton } from "@/components/common/LoadingButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal } from "@/components/motion/Reveal";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
-import { getGroup, lookupJoinCode, redeemJoinCode } from "@/lib/groups/groupRepository";
+import {
+  getGroup,
+  leaveGroup,
+  lookupJoinCode,
+  redeemJoinCode,
+} from "@/lib/groups/groupRepository";
 import {
   JOIN_CODE_LENGTH,
   isWellFormedJoinCode,
@@ -24,6 +29,8 @@ export default function JoinGroupPage() {
   const [pending, setPending] = useState<Group | null>(null);
   const [joined, setJoined] = useState<Group | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,6 +76,27 @@ export default function JoinGroupPage() {
     }
   }
 
+  async function handleLeave() {
+    if (!trainee) {
+      return;
+    }
+
+    setLeaving(true);
+    setError(null);
+
+    try {
+      await leaveGroup(trainee);
+      // The profile snapshot clears `currentGroupId` on its own, which drops
+      // this branch and renders the code form again.
+      setJoined(null);
+      setConfirmingLeave(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not leave that group.");
+    } finally {
+      setLeaving(false);
+    }
+  }
+
   async function handleJoin() {
     if (!pending || !trainee) {
       return;
@@ -106,6 +134,66 @@ export default function JoinGroupPage() {
             <Link href="/progress" className="btn-editorial btn-editorial--quiet">
               My progress
             </Link>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              className="mt-5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-left text-sm text-[var(--color-danger)]"
+            >
+              {error}
+            </div>
+          ) : null}
+
+          {/* Two steps on purpose. Leaving is recoverable — the trainee only
+              needs a code to come back — but it is not what anyone came to this
+              screen to do, and a single stray click should not do it. */}
+          <div className="mt-8 border-t border-[var(--color-border)] pt-5">
+            {confirmingLeave ? (
+              <>
+                <p className="text-sm leading-6 text-[var(--color-ink)]">
+                  Leave {joined?.name ?? "this group"}?
+                </p>
+                <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
+                  Your completed cases stay on record and your mentor keeps them. You will stop
+                  seeing this group&rsquo;s cases, and you will need a join code to enter another
+                  group.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <LoadingButton
+                    type="button"
+                    loading={leaving}
+                    onClick={() => void handleLeave()}
+                  >
+                    Yes, leave the group
+                  </LoadingButton>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingLeave(false)}
+                    disabled={leaving}
+                    className="btn-editorial btn-editorial--quiet"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+                  Joined the wrong group, or moving to a different rotation?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmingLeave(true);
+                    setError(null);
+                  }}
+                  className="link-editorial mt-2 text-sm font-medium text-[var(--color-ink-muted)]"
+                >
+                  Leave this group
+                </button>
+              </>
+            )}
           </div>
         </Reveal>
       </AppShell>

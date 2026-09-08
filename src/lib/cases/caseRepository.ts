@@ -3,13 +3,19 @@ import type { AssignedCase } from "@/types/assignedCase";
 import type { Scenario } from "@/types/scenario";
 import type { UserProfile } from "@/types/user";
 
-/** Publishes a generated scenario to the mentor's group. */
+/**
+ * Publishes a generated scenario to the mentor's ACTIVE group.
+ *
+ * A case belongs to one group. `mentor.groupId` is the right source for it and
+ * not merely a convenience: the create rule re-reads the same field server-side,
+ * so a publish that races a group switch is rejected rather than misfiled.
+ */
 export async function publishCase(
   mentor: UserProfile,
   scenario: Scenario,
 ): Promise<AssignedCase> {
   if (!mentor.groupId) {
-    throw new Error("Create a group before publishing a case.");
+    throw new Error("Select a group before publishing a case.");
   }
 
   const [db, { collection, doc, setDoc }] = await Promise.all([

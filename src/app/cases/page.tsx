@@ -9,6 +9,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import { listGroupCases, removeCase } from "@/lib/cases/caseRepository";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
+import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
 import { difficultyMeta, difficultyOrder } from "@/lib/scenarios/scenarioLibrary";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
 import {
@@ -23,13 +24,24 @@ export default function CasesPage() {
   const profile = gate.blocked ? null : gate.profile;
   const groupId = profile?.groupId ?? null;
   const isMentor = profile?.role === "mentor";
+  const { groups, activeGroup, loading: groupsLoading } = useMentorGroups();
 
   const [cases, setCases] = useState<AssignedCase[]>([]);
-  const [queryLoaded, setQueryLoaded] = useState(false);
+  const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loaded = groupId ? queryLoaded : true;
+  // Tracks which group the list belongs to, not just that a fetch finished: a
+  // mentor switching groups must not see the previous group's cases.
+  const loaded = groupId ? loadedGroupId === groupId : !(isMentor && groupsLoading);
+
+  /*
+   * For a mentor this means "owns nothing to publish to", NOT "has no active
+   * group" — one of several groups is always active, and a mentor with three
+   * must never be told to create their first. A trainee belongs to exactly one,
+   * so the profile pointer answers it directly for them.
+   */
+  const noGroup = isMentor ? groups.length === 0 && !groupsLoading : !groupId;
 
   useEffect(() => {
     if (!groupId) {
@@ -43,6 +55,9 @@ export default function CasesPage() {
         const next = await listGroupCases(groupId);
         if (!cancelled) {
           setCases(next);
+          // Cleared here rather than up front: a failure on the previous group
+          // must not stay on screen once a different one has loaded cleanly.
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -50,7 +65,7 @@ export default function CasesPage() {
         }
       } finally {
         if (!cancelled) {
-          setQueryLoaded(true);
+          setLoadedGroupId(groupId);
         }
       }
     })();
@@ -106,7 +121,9 @@ export default function CasesPage() {
             {isMentor ? "Published cases" : "My cases"}
           </p>
           <h1 className="display-md mt-2">
-            {isMentor ? "Cases you have set for your group." : "Cases set by your mentor."}
+            {isMentor
+              ? `Cases you have set for ${activeGroup ? activeGroup.name : "your group"}.`
+              : "Cases set by your mentor."}
           </h1>
           <p className="mt-2 max-w-2xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
             {isMentor
@@ -114,7 +131,8 @@ export default function CasesPage() {
               : "Pick one to start. Each attempt is recorded separately, so you can run the same case again as you improve."}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Cases" value={String(cases.length)} tone="emerald" />
+            {/* Sits above the loading branch, so it has to be gated too. */}
+            <MetricChip label="Cases" value={loaded ? String(cases.length) : "—"} tone="emerald" />
             {isMentor ? (
               <Link href="/scenario" className="btn-editorial btn-editorial--accent min-h-8 px-3 py-1 text-xs">
                 Create a case
@@ -132,7 +150,7 @@ export default function CasesPage() {
           </div>
         ) : null}
 
-        {!groupId ? (
+        {noGroup ? (
           <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm">
             {isMentor ? (
               <>
@@ -159,7 +177,7 @@ export default function CasesPage() {
             <p className="text-sm font-medium text-[var(--color-ink)]">No cases yet.</p>
             <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
               {isMentor
-                ? "Generate a scenario and publish it to your group."
+                ? `Generate a scenario and publish it to ${activeGroup ? activeGroup.name : "your group"}.`
                 : "Your mentor has not set any cases yet. Check back shortly."}
             </p>
             {isMentor ? (

@@ -10,6 +10,7 @@ import { GroupHeadline } from "@/components/progress/GroupHeadline";
 import { ScoreBands } from "@/components/progress/ScoreBands";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
 import { listMembers } from "@/lib/groups/groupRepository";
+import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
 import {
   computeProgress,
   scoreBand,
@@ -44,14 +45,20 @@ export default function MentorDashboardPage() {
   const profile = gate.blocked ? null : gate.profile;
   const groupId = profile?.groupId ?? null;
   const mentorId = profile?.uid ?? null;
+  const { groups, activeGroup, loading: groupsLoading } = useMentorGroups();
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [queryLoaded, setQueryLoaded] = useState(false);
+  const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Derived: with no group there is nothing to fetch.
-  const loaded = groupId ? queryLoaded : true;
+  /*
+   * Tracks WHICH group the state below belongs to, not merely that a fetch has
+   * finished. A boolean latch would stay true across a group switch and leave
+   * the previous group's roster, averages and score bands on screen under the
+   * new group's name — wrong numbers rather than a flicker.
+   */
+  const loaded = groupId ? loadedGroupId === groupId : true;
 
   useEffect(() => {
     if (!groupId || !mentorId) {
@@ -66,12 +73,15 @@ export default function MentorDashboardPage() {
         // Cloud Functions in this build, so there are no precomputed rollups.
         const [nextMembers, nextRuns] = await Promise.all([
           listMembers(groupId),
-          listGroupRuns(mentorId),
+          listGroupRuns(mentorId, groupId),
         ]);
 
         if (!cancelled) {
           setMembers(nextMembers);
           setRuns(nextRuns);
+          // Cleared here rather than up front: a failure on the previous group
+          // must not stay on screen once a different one has loaded cleanly.
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -79,7 +89,7 @@ export default function MentorDashboardPage() {
         }
       } finally {
         if (!cancelled) {
-          setQueryLoaded(true);
+          setLoadedGroupId(groupId);
         }
       }
     })();
@@ -163,12 +173,22 @@ export default function MentorDashboardPage() {
     return <AuthGate gate={gate} />;
   }
 
-  if (!groupId) {
+  // Keyed off owning no groups rather than off the active pointer: a mentor
+  // with three groups must never be told to create their first one.
+  if (groups.length === 0) {
+    if (groupsLoading) {
+      return (
+        <AppShell>
+          <p className="text-sm text-[var(--color-ink-soft)]">Loading your groups...</p>
+        </AppShell>
+      );
+    }
+
     return (
       <AppShell>
         <div className="mx-auto max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-soft)]">
           <p className="eyebrow text-[var(--color-primary)]">Dashboard</p>
-          <h1 className="display-md mt-2">Create your group first.</h1>
+          <h1 className="display-md mt-2">Create your first group.</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
             The dashboard fills in once trainees join and start completing cases.
           </p>
@@ -185,14 +205,22 @@ export default function MentorDashboardPage() {
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
           <p className="eyebrow text-[var(--color-primary)]">Dashboard</p>
-          <h1 className="display-md mt-2">How your group is doing.</h1>
+          <h1 className="display-md mt-2">
+            How {activeGroup ? activeGroup.name : "your group"} is doing.
+          </h1>
           <p className="mt-2 max-w-2xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
             Scored cases only. Runs that could not be scored are excluded from every figure here.
+            {groups.length > 1
+              ? " These figures cover this group alone — switch groups in the header."
+              : ""}
           </p>
+          {/* Gated on `loaded` like everything else: these sit above the loading
+              branch, so without it they would show the previous group's counts
+              under the new group's name. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Trainees" value={String(members.length)} tone="emerald" />
-            <MetricChip label="Scored cases" value={String(runs.length)} tone="blue" />
-            {groupScores.length > 0 ? (
+            <MetricChip label="Trainees" value={loaded ? String(members.length) : "—"} tone="emerald" />
+            <MetricChip label="Scored cases" value={loaded ? String(runs.length) : "—"} tone="blue" />
+            {loaded && groupScores.length > 0 ? (
               <MetricChip
                 label="Group average"
                 value={`${(mean(groupScores) ?? 0).toFixed(1)} / 10`}

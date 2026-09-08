@@ -68,9 +68,12 @@ export function AccountChip() {
             role="menu"
             className="absolute right-0 z-50 mt-2 w-52 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-[var(--shadow-lift)]"
           >
+            {/* Suppressed for mentors: the group switcher sitting next to this
+                already says which group they are in, and a mentor whose profile
+                pointer is being repaired would briefly read as having none. */}
             <p className="px-2 pb-2 pt-1 text-xs text-[var(--color-ink-soft)]">
               {roleLabel[profile.role]}
-              {profile.groupId ? "" : " · no group yet"}
+              {profile.role === "mentor" || profile.groupId ? "" : " · no group yet"}
             </p>
             <button
               type="button"

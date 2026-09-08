@@ -4,6 +4,7 @@ import { SafetyNotice } from "@/components/common/SafetyNotice";
 import { Section } from "@/components/editorial/Section";
 import { HeroChatSnippet } from "@/components/home/HeroChatSnippet";
 import { HowItWorksCta } from "@/components/home/HowItWorksCta";
+import { PrimaryCta } from "@/components/home/PrimaryCta";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 
@@ -82,9 +83,7 @@ export default function Home() {
             </RevealItem>
             <RevealItem>
               <div className="mt-7 flex flex-wrap items-center gap-3">
-                <Link href="/scenario" className="btn-editorial btn-editorial--accent sheen">
-                  Create a scenario
-                </Link>
+                <PrimaryCta defaultLabel="Create a scenario" className="sheen" />
                 <HowItWorksCta />
                 <Link
                   href="/simulation"
@@ -181,9 +180,7 @@ export default function Home() {
                 The app turns it into a structured training brief you can edit before you begin.
                 Optional voice features let you dictate a response or have messages read aloud.
               </p>
-              <Link href="/scenario" className="btn-editorial btn-editorial--accent sheen mt-5">
-                Create your first scenario
-              </Link>
+              <PrimaryCta defaultLabel="Create your first scenario" className="sheen mt-5" />
             </RevealItem>
 
             <RevealItem>

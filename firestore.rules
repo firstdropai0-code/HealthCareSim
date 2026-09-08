@@ -43,6 +43,11 @@ service cloud.firestore {
       // groupId may only be pointed at a group the user already holds a
       // membership document in — that document is written first, in a separate
       // request, precisely so this check can see it.
+      //
+      // The final clause is what lets a mentor SWITCH between the groups they
+      // own: for them groupId is the active group, not the only one. It was
+      // already here before multi-group existed, so switching needed no new
+      // permission.
       allow update: if request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.uid == resource.data.uid
@@ -65,7 +70,14 @@ service cloud.firestore {
       // Any signed-in user can read a group: the join screen shows the group
       // name for confirmation before the trainee commits to the code.
       allow get: if signedIn();
-      allow list: if false;
+
+      // A mentor owns any number of groups, and this is how they enumerate
+      // them. Strictly narrower than the get() above, which already hands any
+      // signed-in user any group by id: the mentorId equality is what makes a
+      // `where mentorId == me` query provable, and it rejects a query for
+      // anybody else's uid outright. Deliberately a plain field comparison
+      // rather than a profile() call, so it costs no document reads.
+      allow list: if signedIn() && resource.data.mentorId == request.auth.uid;
 
       allow update: if resource.data.mentorId == request.auth.uid
         && request.resource.data.mentorId == resource.data.mentorId;
@@ -87,7 +99,17 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
 
         // Only the mentor curates the roster.
-        allow update, delete: if get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
+        allow update: if get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
+
+        // The mentor removes a trainee; a trainee may additionally remove
+        // THEMSELVES, which is what "leave group" does. This grants no reach
+        // over anyone else's data and takes nothing away that mattered: runs
+        // are immutable and undeletable, so the ones they already completed
+        // stay on the mentor's dashboard either way. What it does close is a
+        // trainee stranded in the wrong group — `removeMember` cannot clear
+        // their `users/{uid}.groupId`, since only they can write that document.
+        allow delete: if request.auth.uid == uid
+          || get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid;
       }
     }
 
@@ -130,8 +152,9 @@ service cloud.firestore {
       // must be able to prove from the query alone that every document it
       // could return is readable, and it cannot do that through a subcollection
       // lookup. The client always queries `where groupId == <my groupId>`,
-      // which this matches. A mentor's own profile carries their group too, so
-      // one clause covers both roles.
+      // which this matches. A mentor's own profile carries their ACTIVE group,
+      // so one clause covers both roles — a mentor reads the cases of whichever
+      // group they have selected, which is exactly the set they can publish to.
       allow read: if signedIn() && resource.data.groupId == profile().groupId;
 
       allow update, delete: if resource.data.mentorId == request.auth.uid;

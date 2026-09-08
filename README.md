@@ -74,6 +74,8 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 6. Add the composite indexes from `firestore.indexes.json`. The quickest route is to use the app until a query fails — Firestore prints a one-click creation link in the browser console.
 7. Restart `npm run dev` so the new environment variables are picked up.
 
+**Updating an existing project?** Re-publish `firestore.rules` and re-apply `firestore.indexes.json`. A mentor owning several groups needs `list` permission on `groups` and two new `runs` indexes; without them the mentor pages fail with a permissions error. The rules also now let a trainee delete their own membership document, which is what "leave group" does.
+
 Then: sign up as a mentor, create a group, copy the join code, and sign up as a trainee in a **separate browser profile** (not a second tab — Firebase Auth is per-origin) to redeem it.
 
 ### Security model, stated plainly
@@ -111,9 +113,11 @@ The `NEXT_PUBLIC_FIREBASE_*` values are the one deliberate exception. They are p
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
 - Mentor and trainee accounts with a fixed role, and mentor-run groups joined by a six-character code.
+- Multiple groups per mentor — one per rotation or specialty, each with its own join code, roster and published cases. A header switcher picks the active group, and the dashboard, case list and publish action all follow it. A trainee still belongs to exactly one group.
+- Trainees can leave a group from the join screen, which is how a code redeemed for the wrong group gets fixed. Completed runs are immutable and stay on the mentor's dashboard.
 - Completed runs saved per trainee, with a skill tree derived from the case library, score trends, and per-dimension movement.
 - Anonymized cohort comparison within a group, suppressed below 3 trainees and 5 cases so a tiny sample never masquerades as a ranking.
-- Mentor dashboard: group score distribution, per-dimension averages, a trainee roster, and drilldown into any run's report and full transcript.
+- Mentor dashboard: group score distribution, per-dimension averages, a trainee roster, and drilldown into any run's report and full transcript — scoped to the active group.
 
 ## How to Test This Prototype
 

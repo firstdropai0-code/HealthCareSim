@@ -38,11 +38,15 @@ export default function MentorTraineePage() {
 
   const [cases, setCases] = useState<AssignedCase[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  // Which group the state below belongs to, so a group switch shows a loading
+  // state rather than the previous group's runs under this trainee's name.
+  const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const loaded = groupId ? loadedGroupId === groupId : true;
+
   useEffect(() => {
-    if (!mentorId || !uid) {
+    if (!mentorId || !uid || !groupId) {
       return;
     }
 
@@ -51,12 +55,15 @@ export default function MentorTraineePage() {
     void (async () => {
       try {
         const [nextRuns, nextCases] = await Promise.all([
-          listTraineeRuns(mentorId, uid),
-          groupId ? listGroupCases(groupId) : Promise.resolve([]),
+          listTraineeRuns(mentorId, uid, groupId),
+          listGroupCases(groupId),
         ]);
         if (!cancelled) {
           setRuns(nextRuns);
           setCases(nextCases);
+          // Cleared here rather than up front: a failure on the previous group
+          // must not stay on screen once a different one has loaded cleanly.
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -64,7 +71,7 @@ export default function MentorTraineePage() {
         }
       } finally {
         if (!cancelled) {
-          setLoaded(true);
+          setLoadedGroupId(groupId);
         }
       }
     })();
@@ -82,7 +89,7 @@ export default function MentorTraineePage() {
     return <AuthGate gate={gate} />;
   }
 
-  const traineeName = runs[0]?.userDisplayName ?? "Trainee";
+  const traineeName = loaded ? (runs[0]?.userDisplayName ?? "Trainee") : "Trainee";
 
   return (
     <AppShell>
@@ -92,12 +99,18 @@ export default function MentorTraineePage() {
             &larr; Back to dashboard
           </Link>
           <h1 className="display-md mt-2">{traineeName}</h1>
+          {/* Gated like the body below: these sit above the loading branch, and
+              a group switch would otherwise leave the old group's tallies here. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Scored cases" value={String(scoredRuns.length)} tone="emerald" />
-            {progress.lastActive ? (
+            <MetricChip
+              label="Scored cases"
+              value={loaded ? String(scoredRuns.length) : "—"}
+              tone="emerald"
+            />
+            {loaded && progress.lastActive ? (
               <MetricChip label="Last active" value={formatDate(progress.lastActive)} tone="slate" />
             ) : null}
-            {progress.weakest ? (
+            {loaded && progress.weakest ? (
               <MetricChip
                 label="Focus"
                 value={subscoreLabels[progress.weakest.dimension]}

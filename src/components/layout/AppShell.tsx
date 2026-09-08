@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AccountChip } from "@/components/auth/AccountChip";
+import { GroupSwitcher } from "@/components/groups/GroupSwitcher";
 import { useAuthState } from "@/lib/firebase/useAuth";
 import type { Role } from "@/types/user";
 
@@ -19,7 +20,7 @@ const signedOutNavigation = [
  * The run flow (Scenario → Simulation → Feedback) stays visible for everyone;
  * only the role-specific destinations differ.
  */
-function navigationFor(role: Role | null) {
+function navigationFor(role: Role | null, hasGroup: boolean) {
   // Trainees never see the scenario creator: they run cases their mentor set.
   if (role === "trainee") {
     return [
@@ -27,6 +28,17 @@ function navigationFor(role: Role | null) {
       { href: "/cases", label: "My Cases" },
       { href: "/simulation", label: "Simulation" },
       { href: "/feedback", label: "Feedback" },
+      /*
+       * A trainee's group screen, and the only signposted way into it.
+       *
+       * Signup redirects to /join, but login lands on the home page, so a
+       * returning trainee without a group had nothing to follow — the sole
+       * route was a link buried in the "My Cases" empty state. Leaving a group
+       * is now something they can do deliberately, which makes the no-group
+       * state ordinary rather than a first-run blip, so the label names the
+       * thing they need to do.
+       */
+      { href: "/join", label: hasGroup ? "My Group" : "Join a group" },
       { href: "/progress", label: "My Progress" },
     ];
   }
@@ -37,7 +49,7 @@ function navigationFor(role: Role | null) {
       { href: "/scenario", label: "Create" },
       { href: "/cases", label: "Cases" },
       { href: "/simulation", label: "Simulation" },
-      { href: "/mentor/group", label: "My Group" },
+      { href: "/mentor/group", label: "Groups" },
       { href: "/mentor", label: "Dashboard" },
     ];
   }
@@ -68,8 +80,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const authState = useAuthState();
   const [isScrolled, setIsScrolled] = useState(false);
 
-  const role = authState.status === "ready" ? authState.profile.role : null;
-  const navigationItems = navigationFor(role);
+  const profile = authState.status === "ready" ? authState.profile : null;
+  const role = profile?.role ?? null;
+  const navigationItems = navigationFor(role, Boolean(profile?.groupId));
 
   useEffect(() => {
     function handleScroll() {
@@ -138,14 +151,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
 
+          {/* No call-to-action button here. It pointed at the same route as the
+              nav link beside it — /scenario for mentors, already "Create";
+              /cases for trainees, already "My Cases" — so it spent about 120px
+              of a 1088px row on a second door to the same place, which is what
+              pushed this cluster onto its own line once the group switcher
+              arrived. The home page carries its own CTA for signed-out
+              visitors. */}
           <div className="flex items-center gap-3">
+            {/* Renders nothing until the mentor has a group, and nothing at all
+                for trainees, who belong to exactly one. */}
+            <GroupSwitcher />
             <AccountChip />
-            <Link
-              href={role === "trainee" ? "/cases" : "/scenario"}
-              className="btn-editorial btn-editorial--accent min-h-9 px-3 py-1.5 text-xs"
-            >
-              {role === "trainee" ? "Start a case" : "New scenario"}
-            </Link>
           </div>
         </div>
       </header>

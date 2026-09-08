@@ -73,8 +73,17 @@ async function claimJoinCode(groupId: string, mentorId: string): Promise<string>
   throw new GroupError("code-collision", "Could not allocate a join code. Try again.");
 }
 
+/**
+ * Creates a group and makes it the mentor's active one. A mentor may own any
+ * number of groups — one per rotation or specialty — so this appends rather
+ * than sets up "the" group.
+ *
+ * Ownership lives on `groups/{id}.mentorId`, which the create rule pins to the
+ * caller. It is deliberately NOT mirrored as an array on the user document:
+ * that copy would be a second source of truth the rules could not keep in sync.
+ */
 export async function createGroup(mentor: UserProfile, name: string): Promise<Group> {
-  const [db, { collection, doc, setDoc, updateDoc }] = await Promise.all([
+  const [db, { collection, doc, setDoc }] = await Promise.all([
     getDb(),
     import("firebase/firestore"),
   ]);
@@ -95,12 +104,52 @@ export async function createGroup(mentor: UserProfile, name: string): Promise<Gr
   };
 
   await setDoc(groupRef, group);
-  await updateDoc(doc(db, "users", mentor.uid), {
-    groupId: group.id,
-    updatedAt: new Date().toISOString(),
-  });
+  await setActiveGroup(mentor.uid, group.id);
 
   return group;
+}
+
+/**
+ * Every group this mentor owns.
+ *
+ * No `orderBy`: the list rule proves readability from the `mentorId` equality
+ * alone, and a bare equality query is served by Firestore's automatic index.
+ * Adding a sort would force a composite index to order a handful of documents
+ * that are cheaper to sort here.
+ */
+export async function listMentorGroups(mentorId: string, limitN = 50): Promise<Group[]> {
+  const [db, { collection, getDocs, limit, query, where }] = await Promise.all([
+    getDb(),
+    import("firebase/firestore"),
+  ]);
+
+  const snapshot = await getDocs(
+    query(collection(db, "groups"), where("mentorId", "==", mentorId), limit(limitN)),
+  );
+
+  return snapshot.docs
+    .map((entry) => entry.data() as Group)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/**
+ * Repoints the mentor's active group.
+ *
+ * `users/{uid}.groupId` has to be where this lives rather than localStorage or
+ * the URL: the scenarios and runs create rules both pin the written groupId to
+ * `profile().groupId`, so publishing to a group the profile does not name is
+ * rejected outright rather than merely misfiled.
+ *
+ * No rule change was needed for it — the `users` update clause already accepted
+ * any groupId whose group names this uid as its mentor.
+ */
+export async function setActiveGroup(uid: string, groupId: string): Promise<void> {
+  const [db, { doc, updateDoc }] = await Promise.all([getDb(), import("firebase/firestore")]);
+
+  await updateDoc(doc(db, "users", uid), {
+    groupId,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function getGroup(groupId: string): Promise<Group | null> {
@@ -204,4 +253,36 @@ export async function rotateJoinCode(group: Group): Promise<string> {
 export async function removeMember(groupId: string, uid: string): Promise<void> {
   const [db, { deleteDoc, doc }] = await Promise.all([getDb(), import("firebase/firestore")]);
   await deleteDoc(doc(db, "groups", groupId, "members", uid));
+}
+
+/**
+ * A trainee leaving the group they joined — the other half of `removeMember`,
+ * and the only way to fix a code redeemed for the wrong group. A mentor handing
+ * out several codes makes that a real possibility, and without this the trainee
+ * is stuck: the join screen refuses anyone who already has a groupId, and the
+ * mentor cannot clear it for them.
+ *
+ * Membership first, profile second, and never a batch — the same ordering as
+ * `redeemJoinCode` and for the same reason. If the second write fails they
+ * still hold a groupId for a group they no longer belong to, which blocks new
+ * runs rather than corrupting anything, and retrying finishes the job.
+ *
+ * Nothing is lost by leaving. Runs are immutable and undeletable, so completed
+ * cases stay on the mentor's dashboard and in the trainee's own history.
+ */
+export async function leaveGroup(profile: UserProfile): Promise<void> {
+  if (!profile.groupId) {
+    return;
+  }
+
+  const [db, { deleteDoc, doc, updateDoc }] = await Promise.all([
+    getDb(),
+    import("firebase/firestore"),
+  ]);
+
+  await deleteDoc(doc(db, "groups", profile.groupId, "members", profile.uid));
+  await updateDoc(doc(db, "users", profile.uid), {
+    groupId: null,
+    updatedAt: new Date().toISOString(),
+  });
 }

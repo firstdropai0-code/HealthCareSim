@@ -22,6 +22,7 @@ import { ScenarioPreview } from "@/components/scenario/ScenarioPreview";
 import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { publishCase } from "@/lib/cases/caseRepository";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
+import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
 import {
   GENERAL_CATEGORY,
   difficultyMeta,
@@ -43,6 +44,9 @@ export default function ScenarioCreatorPage() {
   // unconfigured, so the standalone demo keeps working.
   const gate = useRequireAuth("mentor");
   const profile = gate.blocked ? null : gate.profile;
+  // Names the group this will publish to. A mentor may own several, and the
+  // create rule pins the write to whichever one is active.
+  const { activeGroup } = useMentorGroups();
   const [idea, setIdea] = useState("");
   // The whole entry is kept, not just the id: `category` travels with the run
   // and is what groups the skill tree into tracks.
@@ -320,8 +324,8 @@ export default function ScenarioCreatorPage() {
                       {publishState === "saving"
                         ? "Publishing..."
                         : publishState === "saved"
-                          ? "Published to group"
-                          : "Publish to my group"}
+                          ? `Published to ${activeGroup ? activeGroup.name : "group"}`
+                          : `Publish to ${activeGroup ? activeGroup.name : "my group"}`}
                     </button>
                   ) : null}
 
