@@ -12,6 +12,7 @@ import {
 } from "react";
 import { getGroup, listMentorGroups, setActiveGroup } from "./groupRepository";
 import { useAuthState } from "@/lib/firebase/AuthProvider";
+import { translate } from "@/lib/i18n/strings";
 import type { Group } from "@/types/group";
 
 /**
@@ -94,7 +95,7 @@ export function MentorGroupsProvider({ children }: { children: ReactNode }) {
       setLoaded({
         uid: mentorId,
         groups: [],
-        error: err instanceof Error ? err.message : "Could not load your groups.",
+        error: err instanceof Error ? err.message : translate("error.loadGroups"),
       });
     }
   }, []);
@@ -118,7 +119,7 @@ export function MentorGroupsProvider({ children }: { children: ReactNode }) {
           setLoaded({
             uid,
             groups: [],
-            error: err instanceof Error ? err.message : "Could not load your groups.",
+            error: err instanceof Error ? err.message : translate("error.loadGroups"),
           });
         }
       }

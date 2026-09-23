@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { DocumentLanguage } from "@/components/layout/DocumentLanguage";
 import { IntroSplash } from "@/components/layout/IntroSplash";
 import { AuthProvider } from "@/lib/firebase/AuthProvider";
 import { MentorGroupsProvider } from "@/lib/groups/MentorGroupsProvider";
@@ -69,6 +70,7 @@ export default function RootLayout({
       </head>
       <body>
         <IntroSplash />
+        <DocumentLanguage />
         {/*
           Mounted here rather than inside AppShell: the feedback page renders
           AppShell from three separate return branches, so a provider in there

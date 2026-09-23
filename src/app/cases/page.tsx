@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { MetricChip } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
 import { listGroupCases, removeCase } from "@/lib/cases/caseRepository";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { categoryLabel, useT, type StringKey } from "@/lib/i18n/strings";
+import { languageLabel, type AppLanguage } from "@/types/language";
 import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
 import { difficultyMeta, difficultyOrder } from "@/lib/scenarios/scenarioLibrary";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
@@ -25,6 +28,17 @@ export default function CasesPage() {
   const groupId = profile?.groupId ?? null;
   const isMentor = profile?.role === "mentor";
   const { groups, activeGroup, loading: groupsLoading } = useMentorGroups();
+  const t = useT();
+  const language = useLanguage();
+  // The effect below runs outside render, so it needs a stable handle rather
+  // than the render-time `t`; adding `t` to its deps would refetch on every
+  // language change for no reason.
+  const tRef = useRef(t);
+  // Assigned in an effect rather than during render: refs may not be written
+  // while rendering. The fetch effect needs the current translator without listing `t` as a dependency, which would refetch on every language change.
+  useEffect(() => {
+    tRef.current = t;
+  });
 
   const [cases, setCases] = useState<AssignedCase[]>([]);
   const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
@@ -61,7 +75,7 @@ export default function CasesPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load your cases.");
+          setError(err instanceof Error ? err.message : tRef.current("cases.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -75,16 +89,33 @@ export default function CasesPage() {
     };
   }, [groupId]);
 
+  /*
+   * Only cases written in the language being read are offered.
+   *
+   * A case is an exercise in a specific language: its roleplay, its read-aloud
+   * voice and its feedback all run in the language it was authored in, so
+   * listing a Hindi case to someone reading English would hand them a run they
+   * cannot follow. Cases saved before language existed are English.
+   */
+  const inLanguage = useMemo(
+    () => cases.filter((entry) => (entry.scenario.language ?? "en") === language),
+    [cases, language],
+  );
+  const hiddenCount = cases.length - inLanguage.length;
+  // Both dictionaries inflect at one, so the count picks the key.
+  const plural = hiddenCount === 1 ? "one" : "other";
+  const otherLanguage: AppLanguage = language === "en" ? "hi" : "en";
+
   // Grouped by tier so the list reads the same way the case library does.
   const byTier = useMemo(
     () =>
       difficultyOrder
         .map((difficulty) => ({
           difficulty,
-          entries: cases.filter((entry) => entry.difficulty === difficulty),
+          entries: inLanguage.filter((entry) => entry.difficulty === difficulty),
         }))
         .filter((tier) => tier.entries.length > 0),
-    [cases],
+    [inLanguage],
   );
 
   if (gate.blocked) {
@@ -107,7 +138,7 @@ export default function CasesPage() {
       await removeCase(entry.id);
       setCases((current) => current.filter((item) => item.id !== entry.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove that case.");
+      setError(err instanceof Error ? err.message : t("mentorCases.removeError"));
     } finally {
       setRemovingId(null);
     }
@@ -118,24 +149,26 @@ export default function CasesPage() {
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
           <p className="eyebrow text-[var(--color-primary)]">
-            {isMentor ? "Published cases" : "My cases"}
+            {isMentor ? t("mentorCases.eyebrow") : t("cases.eyebrow")}
           </p>
           <h1 className="display-md mt-2">
             {isMentor
-              ? `Cases you have set for ${activeGroup ? activeGroup.name : "your group"}.`
-              : "Cases set by your mentor."}
+              ? t("mentorCases.title", {
+                  group: activeGroup ? activeGroup.name : t("dash.yourGroup"),
+                })
+              : t("cases.title")}
           </h1>
           <p className="mt-2 max-w-2xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
             {isMentor
-              ? "Trainees in your group pick from this list. Removing a case stops new attempts; results already recorded stay on your dashboard."
-              : "Pick one to start. Each attempt is recorded separately, so you can run the same case again as you improve."}
+              ? t("mentorCases.intro")
+              : t("cases.intro")}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {/* Sits above the loading branch, so it has to be gated too. */}
-            <MetricChip label="Cases" value={loaded ? String(cases.length) : "—"} tone="emerald" />
+            <MetricChip label={isMentor ? t("mentorCases.count") : t("cases.count")} value={loaded ? String(inLanguage.length) : "—"} tone="emerald" />
             {isMentor ? (
               <Link href="/scenario" className="btn-editorial btn-editorial--accent min-h-8 px-3 py-1 text-xs">
-                Create a case
+                {t("mentorCases.create")}
               </Link>
             ) : null}
           </div>
@@ -154,40 +187,64 @@ export default function CasesPage() {
           <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm">
             {isMentor ? (
               <>
-                Create a group before publishing cases.{" "}
+                {t("mentorCases.noGroup")}{" "}
                 <Link href="/mentor/group" className="font-semibold underline">
-                  Set up my group
+                  {t("mentorCases.setUp")}
                 </Link>
                 .
               </>
             ) : (
               <>
-                You are not in a group yet, so no cases have been set for you.{" "}
+                {t("cases.noGroup")}{" "}
                 <Link href="/join" className="font-semibold underline">
-                  Enter a join code
+                  {t("cases.enterCode")}
                 </Link>
                 .
               </>
             )}
           </div>
         ) : !loaded ? (
-          <p className="text-sm text-[var(--color-ink-soft)]">Loading cases...</p>
-        ) : cases.length === 0 ? (
+          <p className="text-sm text-[var(--color-ink-soft)]">{t("cases.loading")}</p>
+        ) : inLanguage.length === 0 ? (
           <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-8 text-center">
-            <p className="text-sm font-medium text-[var(--color-ink)]">No cases yet.</p>
+            <p className="text-sm font-medium text-[var(--color-ink)]">
+              {hiddenCount > 0
+                ? t("cases.noneInLanguage", { language: languageLabel[language] })
+                : t("cases.emptyTitle")}
+            </p>
             <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
-              {isMentor
-                ? `Generate a scenario and publish it to ${activeGroup ? activeGroup.name : "your group"}.`
-                : "Your mentor has not set any cases yet. Check back shortly."}
+              {hiddenCount > 0
+                ? t(`cases.othersInLanguage.${plural}` as StringKey, {
+                    count: hiddenCount,
+                    other: languageLabel[otherLanguage],
+                  })
+                : isMentor
+                  ? t("mentorCases.emptyBody", {
+                      group: activeGroup ? activeGroup.name : t("dash.yourGroup"),
+                    })
+                  : t("cases.emptyBody")}
             </p>
             {isMentor ? (
               <Link href="/scenario" className="btn-editorial btn-editorial--accent mt-5 inline-flex">
-                Create a case
+                {t("mentorCases.create")}
               </Link>
             ) : null}
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Only when something is actually withheld. A standing note about
+                language filtering on every visit would be noise; a count of
+                what is missing, when some is missing, is information. */}
+            {hiddenCount > 0 ? (
+              <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+                {t(`cases.hiddenByLanguage.${plural}` as StringKey, {
+                  count: hiddenCount,
+                  other: languageLabel[otherLanguage],
+                  language: languageLabel[language],
+                })}
+              </p>
+            ) : null}
+
             {byTier.map((tier) => {
               const meta = difficultyMeta[tier.difficulty];
 
@@ -198,8 +255,10 @@ export default function CasesPage() {
                 <RevealGroup as="section" key={tier.difficulty} stagger={0.05}>
                   <RevealItem>
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                      <h2 className="display-sm">{meta.label}</h2>
-                      <p className="text-xs text-[var(--color-ink-soft)]">{meta.blurb}</p>
+                      <h2 className="display-sm">{t(`difficulty.${tier.difficulty}`)}</h2>
+                      <p className="text-xs text-[var(--color-ink-soft)]">
+                        {t(`difficultyBlurb.${tier.difficulty}`)}
+                      </p>
                     </div>
                   </RevealItem>
 
@@ -212,10 +271,10 @@ export default function CasesPage() {
                               className={`eyebrow eyebrow-tight inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 ${meta.chip}`}
                             >
                               <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-                              {meta.label}
+                              {t(`difficulty.${tier.difficulty}`)}
                             </span>
                             {entry.category ? (
-                              <MetricChip label={entry.category} tone="slate" />
+                              <MetricChip label={categoryLabel(t, entry.category)} tone="slate" />
                             ) : null}
                           </div>
 
@@ -230,7 +289,7 @@ export default function CasesPage() {
                               onClick={() => handleStart(entry)}
                               className="btn-editorial btn-editorial--accent"
                             >
-                              {isMentor ? "Test run" : "Start case"}
+                              {isMentor ? t("mentorCases.testRun") : t("join.startCase")}
                             </button>
                             {isMentor ? (
                               <button
@@ -239,7 +298,7 @@ export default function CasesPage() {
                                 disabled={removingId === entry.id}
                                 className="link-editorial text-xs font-medium text-[var(--color-danger)] disabled:opacity-50"
                               >
-                                {removingId === entry.id ? "Removing..." : "Remove"}
+                                {removingId === entry.id ? t("common.removing") : t("common.remove")}
                               </button>
                             ) : null}
                           </div>

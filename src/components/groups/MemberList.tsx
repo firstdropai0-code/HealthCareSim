@@ -1,13 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { useT } from "@/lib/i18n/strings";
 import type { GroupMember } from "@/types/group";
+import { languageDateLocale, type AppLanguage } from "@/types/language";
 
-function formatJoined(iso: string): string {
+function formatJoined(iso: string, language: AppLanguage): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? "—"
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    : date.toLocaleDateString(languageDateLocale[language], {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
 }
 
 export function MemberList({
@@ -19,12 +26,15 @@ export function MemberList({
   onRemove?: (member: GroupMember) => void;
   removingUid?: string | null;
 }) {
+  const t = useT();
+  const language = useLanguage();
+
   if (members.length === 0) {
     return (
       <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-6 text-center">
-        <p className="text-sm font-medium text-[var(--color-ink)]">No trainees yet.</p>
+        <p className="text-sm font-medium text-[var(--color-ink)]">{t("members.emptyTitle")}</p>
         <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
-          Share the join code above. Trainees appear here as soon as they redeem it.
+          {t("members.emptyBody")}
         </p>
       </div>
     );
@@ -44,7 +54,10 @@ export function MemberList({
               {member.displayName || member.email}
             </Link>
             <p className="truncate text-xs text-[var(--color-ink-soft)]">
-              {member.email} · joined {formatJoined(member.joinedAt)}
+              {t("members.joined", {
+                email: member.email,
+                date: formatJoined(member.joinedAt, language),
+              })}
             </p>
           </div>
 
@@ -55,7 +68,7 @@ export function MemberList({
               disabled={removingUid === member.uid}
               className="link-editorial shrink-0 text-xs font-medium text-[var(--color-danger)] disabled:opacity-50"
             >
-              {removingUid === member.uid ? "Removing..." : "Remove"}
+              {removingUid === member.uid ? t("common.removing") : t("common.remove")}
             </button>
           ) : null}
         </li>

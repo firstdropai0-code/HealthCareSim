@@ -1,9 +1,9 @@
 "use client";
 
+import { useT } from "@/lib/i18n/strings";
 import { motion } from "framer-motion";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import type { DimensionProgress } from "@/lib/progress/progressModel";
-import { subscoreLabels } from "@/types/feedback";
 
 const SIZE = 220;
 const CENTER = SIZE / 2;
@@ -36,13 +36,14 @@ function polygon(values: number[], scale = 1): string {
  * animation lifecycle.
  */
 export function SubscoreRadar({ dimensions }: { dimensions: DimensionProgress[] }) {
+  const t = useT();
   const shouldAnimate = useShouldAnimate();
   const rated = dimensions.filter((entry) => entry.mastery !== null);
 
   if (rated.length < 3) {
     return (
       <p className="text-sm leading-6 text-[var(--color-ink-soft)]">
-        Complete a scored case to see your skill profile.
+        {t("radar.empty")}
       </p>
     );
   }
@@ -57,7 +58,12 @@ export function SubscoreRadar({ dimensions }: { dimensions: DimensionProgress[] 
         className="mx-auto h-auto w-full max-w-[260px]"
         role="img"
         aria-label={rated
-          .map((entry) => `${subscoreLabels[entry.dimension]} ${(entry.mastery as number).toFixed(1)} out of 10`)
+          .map((entry) =>
+            t("radar.aria", {
+              skill: t(`subscore.${entry.dimension}`),
+              value: (entry.mastery as number).toFixed(1),
+            }),
+          )
           .join(", ")}
       >
         {RINGS.map((ring) => (
@@ -135,7 +141,7 @@ export function SubscoreRadar({ dimensions }: { dimensions: DimensionProgress[] 
               className="flex items-baseline justify-between gap-3 border-b border-[var(--color-border)] pb-1.5 text-[0.8125rem] last:border-b-0"
             >
               <span className="text-[var(--color-ink-muted)]">
-                {subscoreLabels[entry.dimension]}
+                {t(`subscore.${entry.dimension}`)}
               </span>
               <span className="flex items-baseline gap-2">
                 {entry.trend !== null ? (
@@ -163,8 +169,8 @@ export function SubscoreRadar({ dimensions }: { dimensions: DimensionProgress[] 
 
       <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
         {rated.some((entry) => entry.trend !== null)
-          ? "Arrows compare your last 3 cases with the 3 before them."
-          : "Movement arrows appear once you have 6 scored cases."}
+          ? t("radar.arrows")
+          : t("radar.arrowsLater")}
       </p>
     </figure>
   );

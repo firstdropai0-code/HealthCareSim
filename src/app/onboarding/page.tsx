@@ -16,6 +16,7 @@ import {
   signOutUser,
 } from "@/lib/firebase/authRepository";
 import { useAuthState } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 import type { Role } from "@/types/user";
 
 /**
@@ -26,6 +27,7 @@ import type { Role } from "@/types/user";
 export default function OnboardingPage() {
   const state = useAuthState();
   const router = useRouter();
+  const t = useT();
   // Null means "not edited yet", so the field can fall back to whatever name
   // the auth account already carries without an effect writing state.
   const [typedName, setTypedName] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export default function OnboardingPage() {
 
   if (state.status !== "needsProfile") {
     return (
-      <AuthCard eyebrow="One moment" title="Loading your account...">
+      <AuthCard eyebrow={t("onboarding.waitEyebrow")} title={t("onboarding.waitTitle")}>
         <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
           <div className="shimmer-text h-full w-full bg-[var(--color-primary)]" />
         </div>
@@ -76,23 +78,23 @@ export default function OnboardingPage() {
 
   return (
     <AuthCard
-      eyebrow="Finish setup"
-      title="Your account needs a profile."
-      intro={`Signed in as ${user.email ?? "your account"}. This step did not complete last time — it only takes a moment.`}
+      eyebrow={t("onboarding.eyebrow")}
+      title={t("onboarding.title")}
+      intro={t("onboarding.intro", { email: user.email ?? t("onboarding.yourAccount") })}
       footer={
         <button
           type="button"
           onClick={() => void signOutUser()}
           className="link-editorial font-medium text-[var(--color-primary)]"
         >
-          Sign out instead
+          {t("onboarding.signOut")}
         </button>
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthField
           id="onboarding-name"
-          label="Full name"
+          label={t("auth.fullName")}
           autoComplete="name"
           required
           value={displayName}
@@ -109,7 +111,7 @@ export default function OnboardingPage() {
           disabled={!displayName.trim()}
           className="w-full justify-center"
         >
-          Finish setup
+          {t("onboarding.submit")}
         </LoadingButton>
       </form>
     </AuthCard>

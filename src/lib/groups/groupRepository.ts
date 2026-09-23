@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/firebase/firebaseApp";
+import { translate } from "@/lib/i18n/strings";
 import { generateJoinCode, normalizeJoinCode } from "./joinCode";
 import type { Group, GroupMember, JoinCodeDoc } from "@/types/group";
 import type { UserProfile } from "@/types/user";
@@ -47,7 +48,7 @@ async function claimJoinCode(groupId: string, mentorId: string): Promise<string>
         const existing = await transaction.get(ref);
 
         if (existing.exists()) {
-          throw new GroupError("code-collision", "Code already taken.");
+          throw new GroupError("code-collision", translate("error.codeCollision"));
         }
 
         const payload: JoinCodeDoc = {
@@ -70,7 +71,7 @@ async function claimJoinCode(groupId: string, mentorId: string): Promise<string>
     }
   }
 
-  throw new GroupError("code-collision", "Could not allocate a join code. Try again.");
+  throw new GroupError("code-collision", translate("error.codeAllocate"));
 }
 
 /**
@@ -166,17 +167,17 @@ export async function lookupJoinCode(rawCode: string): Promise<{ code: JoinCodeD
 
   const codeSnapshot = await getDoc(doc(db, "joinCodes", code));
   if (!codeSnapshot.exists()) {
-    throw new GroupError("code-not-found", "That code does not match a group.");
+    throw new GroupError("code-not-found", translate("error.codeNotFound"));
   }
 
   const codeDoc = codeSnapshot.data() as JoinCodeDoc;
   if (!codeDoc.active) {
-    throw new GroupError("code-inactive", "That code is no longer active. Ask for a new one.");
+    throw new GroupError("code-inactive", translate("error.codeInactive"));
   }
 
   const group = await getGroup(codeDoc.groupId);
   if (!group) {
-    throw new GroupError("group-missing", "The group for that code no longer exists.");
+    throw new GroupError("group-missing", translate("error.groupMissing"));
   }
 
   return { code: codeDoc, group };

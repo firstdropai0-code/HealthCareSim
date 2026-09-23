@@ -7,6 +7,7 @@ import { LoadingButton } from "@/components/common/LoadingButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal } from "@/components/motion/Reveal";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 import {
   getGroup,
   leaveGroup,
@@ -24,6 +25,7 @@ export default function JoinGroupPage() {
   const gate = useRequireBackend("trainee");
   const profile = gate.blocked ? null : gate.profile;
   const currentGroupId = profile?.groupId ?? null;
+  const t = useT();
 
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Group | null>(null);
@@ -69,7 +71,7 @@ export default function JoinGroupPage() {
       const result = await lookupJoinCode(code);
       setPending(result.group);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "That code did not work.");
+      setError(err instanceof Error ? err.message : t("join.codeError"));
       setPending(null);
     } finally {
       setBusy(false);
@@ -91,7 +93,7 @@ export default function JoinGroupPage() {
       setJoined(null);
       setConfirmingLeave(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not leave that group.");
+      setError(err instanceof Error ? err.message : t("join.leaveError"));
     } finally {
       setLeaving(false);
     }
@@ -110,7 +112,7 @@ export default function JoinGroupPage() {
       setJoined(group);
       setPending(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not join that group.");
+      setError(err instanceof Error ? err.message : t("join.joinError"));
     } finally {
       setBusy(false);
     }
@@ -120,19 +122,19 @@ export default function JoinGroupPage() {
     return (
       <AppShell>
         <Reveal className="mx-auto max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-soft)]">
-          <p className="eyebrow text-[var(--color-primary)]">You are in a group</p>
-          <h1 className="display-md mt-2">{joined?.name ?? "Your training group"}</h1>
+          <p className="eyebrow text-[var(--color-primary)]">{t("join.inAGroup")}</p>
+          <h1 className="display-md mt-2">{joined?.name ?? t("join.yourGroup")}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
             {joined?.mentorName
-              ? `Your mentor is ${joined.mentorName}. Completed cases are shared with them.`
-              : "Completed cases are shared with your mentor."}
+              ? t("join.mentorIs", { name: joined.mentorName })
+              : t("join.sharedWithMentor")}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Link href="/cases" className="btn-editorial btn-editorial--accent">
-              Start a case
+              {t("join.startCase")}
             </Link>
             <Link href="/progress" className="btn-editorial btn-editorial--quiet">
-              My progress
+              {t("join.myProgress")}
             </Link>
           </div>
 
@@ -152,12 +154,10 @@ export default function JoinGroupPage() {
             {confirmingLeave ? (
               <>
                 <p className="text-sm leading-6 text-[var(--color-ink)]">
-                  Leave {joined?.name ?? "this group"}?
+                  {t("join.leaveConfirm", { name: joined?.name ?? t("join.thisGroup") })}
                 </p>
                 <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
-                  Your completed cases stay on record and your mentor keeps them. You will stop
-                  seeing this group&rsquo;s cases, and you will need a join code to enter another
-                  group.
+                  {t("join.leaveBody")}
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <LoadingButton
@@ -165,7 +165,7 @@ export default function JoinGroupPage() {
                     loading={leaving}
                     onClick={() => void handleLeave()}
                   >
-                    Yes, leave the group
+                    {t("join.leaveYes")}
                   </LoadingButton>
                   <button
                     type="button"
@@ -173,14 +173,14 @@ export default function JoinGroupPage() {
                     disabled={leaving}
                     className="btn-editorial btn-editorial--quiet"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
-                  Joined the wrong group, or moving to a different rotation?
+                  {t("join.wrongGroup")}
                 </p>
                 <button
                   type="button"
@@ -190,7 +190,7 @@ export default function JoinGroupPage() {
                   }}
                   className="link-editorial mt-2 text-sm font-medium text-[var(--color-ink-muted)]"
                 >
-                  Leave this group
+                  {t("join.leave")}
                 </button>
               </>
             )}
@@ -204,14 +204,14 @@ export default function JoinGroupPage() {
     <AppShell>
       <Reveal className="mx-auto max-w-lg">
         <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)]">
-          <p className="eyebrow text-[var(--color-primary)]">Join a group</p>
-          <h1 className="display-md mt-2">Enter your mentor&rsquo;s code.</h1>
+          <p className="eyebrow text-[var(--color-primary)]">{t("join.title")}</p>
+          <h1 className="display-md mt-2">{t("join.enterCode")}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
-            Six characters. Your mentor can see your completed cases once you join.
+            {t("join.sixChars")}
           </p>
 
           <label htmlFor="join-code" className="eyebrow mt-6 block text-[var(--color-ink)]">
-            Join code
+            {t("join.codeLabel")}
           </label>
           <input
             id="join-code"
@@ -242,7 +242,7 @@ export default function JoinGroupPage() {
             <div className="mt-4 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-primary)] bg-[var(--color-primary-soft)] px-4 py-3">
               <p className="text-sm font-medium text-[var(--color-ink)]">{pending.name}</p>
               <p className="mt-1 text-xs text-[var(--color-ink-soft)]">
-                Mentor: {pending.mentorName}
+                {t("join.mentorLine", { name: pending.mentorName })}
               </p>
             </div>
           ) : null}
@@ -255,7 +255,7 @@ export default function JoinGroupPage() {
                 onClick={() => void handleJoin()}
                 className="w-full justify-center"
               >
-                Join {pending.name}
+                {t("join.joinNamed", { name: pending.name })}
               </LoadingButton>
             ) : (
               <LoadingButton
@@ -265,15 +265,14 @@ export default function JoinGroupPage() {
                 onClick={() => void handleLookup()}
                 className="w-full justify-center"
               >
-                Find group
+                {t("join.find")}
               </LoadingButton>
             )}
           </div>
         </div>
 
         <p className="mt-5 text-center text-sm text-[var(--color-ink-soft)]">
-          Your mentor sets the cases you practise, so you will need their code before you can
-          start.
+          {t("join.needCode")}
         </p>
       </Reveal>
     </AppShell>

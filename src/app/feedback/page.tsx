@@ -14,6 +14,7 @@ import { generateFeedbackReport } from "@/lib/ai/geminiClient";
 import { exportFeedback } from "@/lib/export/exportFeedback";
 import { getScenarioMessages } from "@/lib/feedback/betterResponses";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 import { saveCompletedRun } from "@/lib/runs/runRepository";
 import {
   clearPendingFeedbackGeneration,
@@ -30,6 +31,15 @@ import type { SimulationState } from "@/types/simulation";
 export default function FeedbackPage() {
   const router = useRouter();
   const gate = useRequireAuth();
+  const t = useT();
+  // Read through a ref inside the generation effect, so a language change does
+  // not look like a dependency change and retrigger a Gemini call.
+  const tRef = useRef(t);
+  // Assigned in an effect rather than during render: refs may not be written
+  // while rendering. Listing `t` as a dependency of the generation effect would fire a fresh Gemini call every time the language changed.
+  useEffect(() => {
+    tRef.current = t;
+  });
   const profile = gate.blocked ? null : gate.profile;
   const autoGenerationStartedRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
@@ -102,7 +112,7 @@ export default function FeedbackPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to generate feedback.");
+      setError(err instanceof Error ? err.message : tRef.current("feedback.error"));
     } finally {
       setLoading(false);
     }
@@ -155,9 +165,9 @@ export default function FeedbackPage() {
     return (
       <AppShell>
         <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
-          <p className="eyebrow text-[var(--color-ink-soft)]">Feedback report</p>
-          <h1 className="display-md mt-4 text-[var(--color-ink)]">Loading feedback</h1>
-          <p className="lede mt-5 text-sm">Preparing the feedback page.</p>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("feedback.title")}</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">{t("feedback.loadingTitle")}</h1>
+          <p className="lede mt-5 text-sm">{t("feedback.loadingBody")}</p>
         </section>
       </AppShell>
     );
@@ -167,13 +177,13 @@ export default function FeedbackPage() {
     return (
       <AppShell>
         <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
-          <p className="eyebrow text-[var(--color-ink-soft)]">Feedback report</p>
-          <h1 className="display-md mt-4 text-[var(--color-ink)]">No simulation to review</h1>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("feedback.title")}</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">{t("feedback.none")}</h1>
           <p className="lede mt-5 max-w-lg text-sm">
-            Run a simulation before generating a feedback report.
+            {t("feedback.noneBody")}
           </p>
           <Link href="/scenario" className="btn-editorial btn-editorial--solid mt-8">
-            Create scenario
+            {t("feedback.createScenario")}
           </Link>
         </section>
       </AppShell>
@@ -184,7 +194,7 @@ export default function FeedbackPage() {
     <AppShell>
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
-          <p className="eyebrow text-[var(--color-primary)]">Feedback report</p>
+          <p className="eyebrow text-[var(--color-primary)]">{t("feedback.title")}</p>
           <h1 className="display-md mt-2 max-w-3xl">{state.scenario.title}</h1>
           {/* What was practised and how long it ran, so the report opens with
               the context it is judging rather than a bare score. */}
@@ -192,16 +202,16 @@ export default function FeedbackPage() {
             {state.scenario.summary}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Setting" value={state.scenario.setting} tone="emerald" />
+            <MetricChip label={t("feedback.setting")} value={state.scenario.setting} tone="emerald" />
             <MetricChip
-              label="Ended in"
-              value={`${state.currentTurn} ${state.currentTurn === 1 ? "turn" : "turns"}`}
+              label={t("feedback.endedIn")}
+              value={t.plural("common.turns", state.currentTurn)}
               tone="blue"
             />
-            <MetricChip label="Goal" value={state.scenario.traineeObjective} tone="slate" />
+            <MetricChip label={t("feedback.goal")} value={state.scenario.traineeObjective} tone="slate" />
           </div>
           <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
-            Feedback is limited to communication behaviors and training performance.
+            {t("feedback.scopeNote")}
           </p>
         </Reveal>
         <SafetyNotice />
@@ -214,18 +224,18 @@ export default function FeedbackPage() {
               disabled={loading}
               className="ml-3 font-semibold underline disabled:opacity-50"
             >
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         ) : null}
         {loading ? (
           <section className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-soft)]">
-            <p className="eyebrow text-[var(--color-primary)]">Working</p>
+            <p className="eyebrow text-[var(--color-primary)]">{t("feedback.working")}</p>
             <h2 className="display-md mt-3 text-[var(--color-ink)]">
-              <span className="shimmer-text">Generating AI feedback</span>
+              <span className="shimmer-text">{t("feedback.generating")}</span>
             </h2>
             <p className="lede mt-3 max-w-xl text-sm">
-              The report will focus on communication, empathy, clarity, and pressure handling.
+              {t("feedback.focusNote")}
             </p>
             <div className="mt-5 flex gap-1.5" aria-hidden>
               {[0, 1, 2].map((dot) => (
@@ -240,13 +250,12 @@ export default function FeedbackPage() {
         ) : !report ? (
           <section className="grid gap-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-card)] lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
-              <p className="eyebrow text-[var(--color-ink-soft)]">Ready</p>
+              <p className="eyebrow text-[var(--color-ink-soft)]">{t("feedback.ready")}</p>
               <h2 className="display-md mt-4 text-[var(--color-ink)]">
-                Ready to generate AI feedback
+                {t("feedback.readyTitle")}
               </h2>
               <p className="lede mt-5 max-w-xl text-sm">
-                The report is formatted as a quick dashboard first, with detailed notes
-                available underneath.
+                {t("feedback.readyBody")}
               </p>
               <LoadingButton
                 type="button"
@@ -254,13 +263,19 @@ export default function FeedbackPage() {
                 onClick={handleGenerateReport}
                 className="mt-8"
               >
-                Generate Feedback
+                {t("feedback.generate")}
               </LoadingButton>
             </div>
             <div className="border-t border-[var(--color-border)] pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-              <p className="eyebrow text-[var(--color-ink-soft)]">Report sections</p>
+              <p className="eyebrow text-[var(--color-ink-soft)]">{t("feedback.sections")}</p>
               <ol className="mt-4">
-                {["Score", "Quick read", "Strengths", "Improve next", "Practice responses"].map(
+                {[
+                  t("feedback.section.score"),
+                  t("feedback.section.quickRead"),
+                  t("feedback.section.strengths"),
+                  t("feedback.improveNext"),
+                  t("feedback.practice"),
+                ].map(
                   (section, index) => (
                     <li
                       key={section}
@@ -285,32 +300,32 @@ export default function FeedbackPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-3 shadow-[var(--shadow-card)]">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
-                  Keep a copy of this report, or start a new scenario.
+                  {t("feedback.keepCopy")}
                 </p>
                 {saveStatus === "saving" ? (
-                  <MetricChip label="Saving to your record" tone="slate" />
+                  <MetricChip label={t("feedback.saving")} tone="slate" />
                 ) : saveStatus === "saved" ? (
-                  <MetricChip label="Saved to your record" tone="emerald" />
+                  <MetricChip label={t("feedback.saved")} tone="emerald" />
                 ) : saveStatus === "failed" ? (
                   <button type="button" onClick={() => void handleRetrySave()}>
-                    <MetricChip label="Not saved" value="Retry" tone="rose" />
+                    <MetricChip label={t("feedback.notSaved")} value={t("common.retry")} tone="rose" />
                   </button>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => exportFeedback(state, report)}
+                  onClick={() => exportFeedback(state, report, t)}
                   className="btn-editorial btn-editorial--solid"
                 >
-                  Export feedback as .txt
+                  {t("feedback.export")}
                 </button>
                 <button
                   type="button"
                   onClick={handleRestart}
                   className="btn-editorial btn-editorial--quiet"
                 >
-                  Restart
+                  {t("feedback.restart")}
                 </button>
               </div>
             </div>

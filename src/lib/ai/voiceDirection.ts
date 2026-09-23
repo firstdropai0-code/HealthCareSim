@@ -170,15 +170,22 @@ const EMOTION_INTENSITY: Record<Intensity, string[]> = {
     // Physical markers, which is how a per-line stage direction describes the
     // same states an emotion word names.
     "crying", "sobbing", "breaking", "choking", "trembling", "shaking", "shouting",
+    // Hindi. `patientEmotion` and `familyEmotion` are shown to the trainee, so
+    // unlike `delivery` they stay in the scenario's language -- which means the
+    // matcher has to read them, or every Hindi case falls back to "medium" and
+    // loses its register entirely.
+    "घबरा", "आतंक", "बदहवास", "रो रह", "रोती", "रोता", "चीख", "गुस्से में", "हताश", "बेहाल",
   ],
   medium: [
     "worried", "anxious", "afraid", "scared", "frightened", "upset", "angry", "frustrated",
     "agitated", "tense", "nervous", "concerned", "distressed", "defensive", "impatient",
     "protective", "grieving", "overwhelmed", "confused", "suspicious", "guarded",
+    "चिंतित", "परेशान", "डरा", "डरी", "नाराज", "नाराज़", "क्रोधित", "बेचैन", "अधीर", "दुखी", "शंकित", "घबराहट",
   ],
   low: [
     "calm", "relieved", "reassured", "resigned", "tired", "composed", "accepting", "hopeful",
     "steady", "matter-of-fact", "gentle", "soft", "flat", "measured", "whisper",
+    "शांत", "स्थिर", "राहत", "नरम", "धीरे", "आश्वस्त", "थका", "थकी",
   ],
 };
 

@@ -2,27 +2,36 @@ import {
   getScenarioMessages,
   resolveRespondedMessage,
 } from "@/lib/feedback/betterResponses";
-import {
-  subscoreDimensions,
-  subscoreLabels,
-  type FeedbackReport,
-} from "@/types/feedback";
+import { getLanguage } from "@/lib/i18n/languageStore";
+import type { StringKey, Translator } from "@/lib/i18n/strings";
+import { subscoreDimensions, type FeedbackReport } from "@/types/feedback";
+import { languageDateLocale } from "@/types/language";
 import type { SimulationState } from "@/types/simulation";
+
+/*
+ * The export is written in the reader's language, like the screen it was
+ * downloaded from. The report's own content -- summary, notes, suggestions --
+ * is whatever the model wrote, which is already in the scenario's language.
+ */
 
 function formatList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
-function formatSubscores(report: FeedbackReport): string {
+function formatSubscores(report: FeedbackReport, t: Translator): string {
   if (!report.subscores) {
     return "";
   }
 
   const lines = subscoreDimensions
-    .map((dimension) => `- ${subscoreLabels[dimension]}: ${report.subscores?.[dimension]}/10`)
+    .map((dimension) => `- ${t(`subscore.${dimension}`)}: ${report.subscores?.[dimension]}/10`)
     .join("\n");
 
-  return `\nBy Dimension\n${lines}\n`;
+  return `\n${t("export.byDimension")}\n${lines}\n`;
+}
+
+function speakerLabel(speaker: string | undefined, t: Translator): string {
+  return t(`speaker.${speaker || "narrator"}` as StringKey).toUpperCase();
 }
 
 /**
@@ -32,6 +41,7 @@ function formatSubscores(report: FeedbackReport): string {
 function formatBetterResponses(
   state: SimulationState,
   report: FeedbackReport,
+  t: Translator,
 ): string {
   const scenarioMessages = getScenarioMessages(state);
 
@@ -43,82 +53,86 @@ function formatBetterResponses(
         return `- "${entry.suggestion}"`;
       }
 
-      const speaker = formatLabel(responded.speaker || "narrator").toUpperCase();
+      const speaker = speakerLabel(responded.speaker, t);
 
-      return `- When ${speaker} said: "${responded.content}"\n  You could have said: "${entry.suggestion}"`;
+      return `- ${t("export.whenSaid", { speaker })}: "${responded.content}"\n  ${t("export.couldHaveSaid")}: "${entry.suggestion}"`;
     })
     .join("\n\n");
 }
 
-function formatLabel(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function formatRoleLabel(message: SimulationState["messages"][number]): string {
+function formatRoleLabel(message: SimulationState["messages"][number], t: Translator): string {
   if (message.role === "scenario" && message.speaker) {
-    return formatLabel(message.speaker).toUpperCase();
+    return speakerLabel(message.speaker, t);
   }
 
-  return message.role.toUpperCase();
+  return t(`role.${message.role}` as StringKey).toUpperCase();
 }
 
 export function buildFeedbackExportText(
   state: SimulationState,
   report: FeedbackReport,
+  t: Translator,
 ): string {
   const conversationLog = state.messages
-    .map((message) => `[${formatRoleLabel(message)}] ${message.content}`)
+    .map((message) => `[${formatRoleLabel(message, t)}] ${message.content}`)
     .join("\n\n");
+  const generated = new Date().toLocaleString(languageDateLocale[getLanguage()]);
 
-  return `FirstDropAI Feedback Report
+  return `${t("export.title")}
 
-Scenario: ${state.scenario.title}
-Generated: ${new Date().toLocaleString()}${report.source === "fallback" ? `\nFeedback source: ${report.fallbackReason || "Basic fallback feedback generated because Gemini feedback was unavailable."}` : ""}
+${t("export.scenario")}: ${state.scenario.title}
+${t("export.generated")}: ${generated}${report.source === "fallback" ? `\n${t("export.source")}: ${t("feedback.fallback")}` : ""}
 
-Conversation Log
+${t("export.log")}
 ${conversationLog}
 
-Overall Score
+${t("export.overall")}
 ${report.overallScore}/10
-${formatSubscores(report)}
-Summary
+${formatSubscores(report, t)}
+${t("export.summary")}
 ${report.summary}
 
-What Went Well
+${t("export.wentWell")}
 ${formatList(report.whatWentWell)}
 
-What Could Improve
+${t("export.couldImprove")}
 ${formatList(report.whatCouldImprove)}
 
-Communication Gaps
+${t("export.gaps")}
 ${formatList(report.communicationGaps)}
 
-Better Response Examples
-${formatBetterResponses(state, report)}
+${t("export.better")}
+${formatBetterResponses(state, report, t)}
 ${
   report.deliveryFeedback && report.deliveryFeedback.length > 0
-    ? `\nHow You Sounded (delivery cues, not part of the score)\n${formatList(report.deliveryFeedback)}\n`
+    ? `\n${t("export.delivery")}\n${formatList(report.deliveryFeedback)}\n`
     : ""
 }${
   report.customCriteriaFeedback && report.customCriteriaFeedback.length > 0
-    ? `\nYour Added Evaluation Criteria\n${report.customCriteriaFeedback
+    ? `\n${t("export.criteria")}\n${report.customCriteriaFeedback
         .map((item) => `- ${item.criterion}: ${item.assessment}`)
         .join("\n")}\n`
     : ""
 }
-Final Advice
+${t("export.finalAdvice")}
 ${report.finalAdvice}
 `;
 }
 
-export function exportFeedback(state: SimulationState, report: FeedbackReport): void {
-  const text = buildFeedbackExportText(state, report);
+export function exportFeedback(
+  state: SimulationState,
+  report: FeedbackReport,
+  t: Translator,
+): void {
+  const text = buildFeedbackExportText(state, report, t);
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${state.scenario.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-feedback.txt`;
+  // A Devanagari title slugs to nothing under an ASCII pattern, which named
+  // every Hindi export "-feedback.txt"; fall back to a fixed stem instead.
+  const slug = state.scenario.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  anchor.download = `${slug || "firstdrop"}-feedback.txt`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
-

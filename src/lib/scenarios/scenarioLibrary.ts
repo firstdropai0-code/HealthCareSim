@@ -4,7 +4,12 @@
  * `idea` is the text that lands in the "rough scenario idea" box, so it is
  * written the way a trainer would describe the case out loud — the structured
  * brief is still generated from it, nothing here bypasses that step.
+ *
+ * The English text here is canonical; `scenarioLibraryHi.ts` carries the Hindi
+ * for display and generation, applied through `localizeLibraryEntry`.
  */
+import type { AppLanguage } from "@/types/language";
+import { scenarioLibraryHi } from "./scenarioLibraryHi";
 
 export type ScenarioDifficulty = "foundational" | "intermediate" | "advanced";
 
@@ -22,9 +27,12 @@ export type LibraryScenario = {
   idea: string;
 };
 
+/**
+ * Styling only. The tier's name and one-line blurb are UI copy and live in the
+ * dictionaries (`difficulty.*`, `difficultyBlurb.*`), so they follow the
+ * reader's language.
+ */
 type DifficultyMeta = {
-  label: string;
-  blurb: string;
   /** Chip styling — border + ink only, matching the tone system in VisualCards. */
   chip: string;
   /** Left rule on the card, so difficulty is scannable down the list. */
@@ -34,22 +42,16 @@ type DifficultyMeta = {
 
 export const difficultyMeta: Record<ScenarioDifficulty, DifficultyMeta> = {
   foundational: {
-    label: "Foundational",
-    blurb: "Clear task, cooperative counterpart.",
     chip: "border-[var(--color-primary)] text-[var(--color-primary-ink)] bg-[var(--color-primary-soft)]",
     rule: "before:bg-[var(--color-primary)]",
     dot: "bg-[var(--color-primary)]",
   },
   intermediate: {
-    label: "Intermediate",
-    blurb: "Conflict, blame, or an anxious family to steady.",
     chip: "border-[var(--color-warning)] text-[var(--color-warning)] bg-[var(--color-warning-soft)]",
     rule: "before:bg-[var(--color-warning)]",
     dot: "bg-[var(--color-warning)]",
   },
   advanced: {
-    label: "Advanced",
-    blurb: "Death, safeguarding, or hostility under pressure.",
     chip: "border-[var(--color-danger)] text-[var(--color-danger)] bg-[var(--color-danger-soft)]",
     rule: "before:bg-[var(--color-danger)]",
     dot: "bg-[var(--color-danger)]",
@@ -193,6 +195,21 @@ export const categoryOptions: string[] = [
   ...[...new Set(scenarioLibrary.map((entry) => entry.category))].sort(),
   GENERAL_CATEGORY,
 ];
+
+/**
+ * The entry as a reader of `language` should see it. Everything that is
+ * matched on -- `id`, `category`, `difficulty` -- is left alone, so a Hindi
+ * pick still lands in the same skill-tree cell and cohort bucket as the
+ * English one. A case with no translation falls back to English rather than
+ * disappearing from the drawer.
+ */
+export function localizeLibraryEntry(
+  entry: LibraryScenario,
+  language: AppLanguage,
+): LibraryScenario {
+  const localized = language === "hi" ? scenarioLibraryHi[entry.id] : undefined;
+  return localized ? { ...entry, ...localized } : entry;
+}
 
 export function pickRandomScenario(
   pool: LibraryScenario[],

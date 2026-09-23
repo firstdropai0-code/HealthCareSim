@@ -1,6 +1,8 @@
 "use client";
 
+import type { AppLanguage } from "@/types/language";
 import { useVoiceRecorder } from "@/lib/hooks/useVoiceRecorder";
+import { useT } from "@/lib/i18n/strings";
 import type { VoiceMetrics } from "@/types/voice";
 
 type MicButtonProps = {
@@ -11,6 +13,8 @@ type MicButtonProps = {
   onTranscript: (text: string, voiceMetrics: VoiceMetrics | null) => void;
   /** Disable the control (e.g. while a request is in flight). */
   disabled?: boolean;
+  /** Language to transcribe in. The scenario's language during a roleplay. */
+  language?: AppLanguage;
   className?: string;
 };
 
@@ -19,8 +23,14 @@ type MicButtonProps = {
  * transcript is handed back to the parent via onTranscript. Degrades to a
  * disabled state (never a crash) when the browser or key is unavailable.
  */
-export function MicButton({ onTranscript, disabled = false, className = "" }: MicButtonProps) {
-  const { status, error, isSupported, start, stop } = useVoiceRecorder();
+export function MicButton({
+  onTranscript,
+  disabled = false,
+  language,
+  className = "",
+}: MicButtonProps) {
+  const { status, error, isSupported, start, stop } = useVoiceRecorder(language);
+  const t = useT();
 
   const isRecording = status === "recording";
   const isTranscribing = status === "transcribing";
@@ -39,12 +49,12 @@ export function MicButton({ onTranscript, disabled = false, className = "" }: Mi
   }
 
   const label = !isSupported
-    ? "Voice input unavailable"
+    ? t("mic.unavailable")
     : isTranscribing
-      ? "Transcribing..."
+      ? t("mic.transcribing")
       : isRecording
-        ? "Stop recording"
-        : "Record voice input";
+        ? t("mic.stopRecording")
+        : t("mic.record");
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -70,13 +80,13 @@ export function MicButton({ onTranscript, disabled = false, className = "" }: Mi
                 : "bg-[var(--color-primary)]"
           }`}
         />
-        {isTranscribing ? "Transcribing..." : isRecording ? "Stop" : "Speak"}
+        {isTranscribing ? t("mic.transcribing") : isRecording ? t("mic.stop") : t("mic.speak")}
       </button>
       {error ? (
         <span className="text-xs font-medium text-[var(--color-danger)]">{error}</span>
       ) : !isSupported ? (
         <span className="text-xs font-medium text-[var(--color-ink-soft)]">
-          Voice input unavailable in this browser.
+          {t("mic.unavailableBrowser")}
         </span>
       ) : null}
     </div>

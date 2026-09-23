@@ -1,3 +1,4 @@
+import type { AppLanguage } from "./language";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { MediaAsset } from "./media";
 import type { ScenarioSpeaker } from "./simulation";
@@ -62,4 +63,15 @@ export type Scenario = {
   category?: string;
   /** Chosen by the trainer; defaults to the library case's tier. */
   difficulty?: ScenarioDifficulty;
+
+  /*
+   * The language this scenario was generated in, and therefore the language its
+   * roleplay, feedback, speech-to-text and read-aloud all run in.
+   *
+   * Pinned here rather than read from the reader's UI preference: a case is an
+   * exercise, and translating it after the fact would change what was set and
+   * leave a saved run's transcript no longer matching its own scenario.
+   * Optional so scenarios saved before this existed still load as English.
+   */
+  language?: AppLanguage;
 };

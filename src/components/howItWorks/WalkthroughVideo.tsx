@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { MetricChip } from "@/components/common/VisualCards";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { useT } from "@/lib/i18n/strings";
 
 const VIDEO_SRC = "/how-to-use.mp4";
 const POSTER_SRC = "/how-to-use-poster.jpg";
@@ -30,6 +32,8 @@ function PlayIcon() {
  */
 export function WalkthroughVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const t = useT();
+  const language = useLanguage();
   const [hasStarted, setHasStarted] = useState(false);
 
   function startPlayback() {
@@ -53,15 +57,15 @@ export function WalkthroughVideo() {
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-3.5">
         <div>
-          <p className="eyebrow text-[var(--color-ink-soft)]">Walkthrough</p>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("video.eyebrow")}</p>
           <h2
             id="walkthrough-heading"
             className="display-sm mt-2 text-[var(--color-ink)]"
           >
-            Watch the full tour
+            {t("video.title")}
           </h2>
         </div>
-        <MetricChip label="Length" value={DURATION_LABEL} tone="slate" />
+        <MetricChip label={t("video.length")} value={DURATION_LABEL} tone="slate" />
       </div>
 
       <div className="px-4 py-5 sm:px-5 sm:py-6">
@@ -78,21 +82,21 @@ export function WalkthroughVideo() {
             playsInline
             onPlay={() => setHasStarted(true)}
           >
-            Your browser does not support embedded video.{" "}
-            <a href={VIDEO_SRC}>Download the walkthrough</a> instead.
+            {t("video.unsupported")} <a href={VIDEO_SRC}>{t("video.download")}</a>{" "}
+            {t("video.instead")}
           </video>
 
           {hasStarted ? null : (
             <button
               type="button"
               onClick={startPlayback}
-              aria-label={`Play walkthrough video, ${DURATION_LABEL}`}
+              aria-label={t("video.playAria", { duration: DURATION_LABEL })}
               className={`group absolute inset-0 grid place-items-center bg-black/5 transition-colors duration-300 hover:bg-black/10 ${focusRing}`}
             >
               <span className="inline-flex items-center gap-2.5 rounded-full border border-[var(--color-primary-strong)] bg-[var(--color-primary)] py-2.5 pl-4 pr-5 text-white shadow-[var(--shadow-accent)] transition-transform duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] group-hover:scale-105">
                 <PlayIcon />
                 <span className="text-[0.9375rem] font-semibold">
-                  Play walkthrough
+                  {t("video.play")}
                 </span>
               </span>
             </button>
@@ -100,8 +104,10 @@ export function WalkthroughVideo() {
         </div>
 
         <p className="mt-5 text-sm leading-7 text-[var(--color-ink-muted)]">
-          A recorded tour of the whole flow — building a scenario, running the
-          roleplay, and reading the feedback report.
+          {t("video.caption")}
+          {/* The recording itself cannot be translated, so a Hindi reader is
+              told up front that the screens in it will be in English. */}
+          {language !== "en" ? ` ${t("video.englishNote")}` : null}
         </p>
       </div>
     </section>

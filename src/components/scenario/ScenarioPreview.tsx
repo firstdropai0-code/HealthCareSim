@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { MetricChip } from "@/components/common/VisualCards";
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import type { Scenario } from "@/types/scenario";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
@@ -51,15 +52,15 @@ function BriefCard({
 }
 
 const compactBriefCards = [
-  { key: "patientProfile", label: "Patient", tone: "slate" as const },
-  { key: "patientEmotion", label: "Emotion", tone: "amber" as const },
-  { key: "familyEmotion", label: "Family/Bystander", tone: "blue" as const },
-  { key: "traineeObjective", label: "Trainee Goal", tone: "emerald" as const },
-  { key: "communicationChallenge", label: "Challenge", tone: "rose" as const },
-  { key: "startingSituation", label: "Starting Situation", tone: "indigo" as const },
+  { key: "patientProfile", label: "brief.patient", tone: "slate" as const },
+  { key: "patientEmotion", label: "brief.emotion", tone: "amber" as const },
+  { key: "familyEmotion", label: "brief.family", tone: "blue" as const },
+  { key: "traineeObjective", label: "brief.goal", tone: "emerald" as const },
+  { key: "communicationChallenge", label: "brief.challenge", tone: "rose" as const },
+  { key: "startingSituation", label: "brief.startingSituation", tone: "indigo" as const },
 ] satisfies Array<{
   key: keyof Scenario;
-  label: string;
+  label: StringKey;
   tone: Tone;
 }>;
 
@@ -81,11 +82,13 @@ function PencilIcon() {
 }
 
 function EditButton({ onClick, label }: { onClick: () => void; label: string }) {
+  const t = useT();
+
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={`Edit ${label}`}
+      aria-label={t("brief.edit", { label })}
       className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-soft)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
     >
       <PencilIcon />
@@ -94,6 +97,8 @@ function EditButton({ onClick, label }: { onClick: () => void; label: string }) 
 }
 
 function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
+  const t = useT();
+
   return (
     <div className="flex gap-2">
       <button
@@ -101,14 +106,14 @@ function EditActions({ onSave, onCancel }: { onSave: () => void; onCancel: () =>
         onClick={onSave}
         className="btn-editorial btn-editorial--accent min-h-8 px-3 py-1"
       >
-        Save
+        {t("common.save")}
       </button>
       <button
         type="button"
         onClick={onCancel}
         className="btn-editorial btn-editorial--quiet min-h-8 px-3 py-1"
       >
-        Cancel
+        {t("common.cancel")}
       </button>
     </div>
   );
@@ -132,6 +137,7 @@ function EditableTextCard({
   /** Renders as spoken words — used for the opening line. */
   quoted?: boolean;
 }) {
+  const t = useT();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -176,7 +182,7 @@ function EditableTextCard({
                   : "text-[0.9375rem] leading-7"
             } ${value ? "" : "italic text-[var(--color-ink-soft)]"}`}
           >
-            {value || "Not specified"}
+            {value || t("common.notSpecified")}
           </p>
         )}
       </div>
@@ -226,6 +232,7 @@ function EditableEvaluationCard({
   criteria: string[];
   onSave: (next: string[]) => void;
 }) {
+  const t = useT();
   const [isEditing, setIsEditing] = useState(false);
   const [draftItems, setDraftItems] = useState<string[]>(criteria);
 
@@ -258,9 +265,9 @@ function EditableEvaluationCard({
   }
 
   return (
-    <BriefCard label="Evaluation" title="Checklist" tone="blue">
+    <BriefCard label={t("brief.evaluation")} title={t("brief.checklist")} tone="blue">
       <div className="relative pr-7">
-        {!isEditing ? <EditButton onClick={startEditing} label="Evaluation checklist" /> : null}
+        {!isEditing ? <EditButton onClick={startEditing} label={t("brief.editChecklist")} /> : null}
 
         {isEditing ? (
           <div className="space-y-2">
@@ -272,13 +279,13 @@ function EditableEvaluationCard({
                     value={item}
                     onChange={(event) => updateItem(index, event.target.value)}
                     autoFocus={index === draftItems.length - 1}
-                    placeholder="Describe one evaluation point"
+                    placeholder={t("brief.pointPlaceholder")}
                     className="w-full border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
                   />
                   <button
                     type="button"
                     onClick={() => removeItem(index)}
-                    aria-label="Remove this evaluation point"
+                    aria-label={t("brief.removePoint")}
                     className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--color-border-strong)] text-[var(--color-ink-soft)] transition hover:border-[var(--color-danger)] hover:text-[var(--color-danger)]"
                   >
                     <TrashIcon />
@@ -292,7 +299,7 @@ function EditableEvaluationCard({
               className="eyebrow eyebrow-tight flex items-center gap-1.5 border border-dashed border-[var(--color-border-strong)] px-3 py-1.5 text-[var(--color-ink-soft)] transition hover:border-[var(--color-ink)] hover:text-[var(--color-ink)]"
             >
               <PlusIcon />
-              Add point
+              {t("brief.addPoint")}
             </button>
             <EditActions onSave={handleSave} onCancel={handleCancel} />
           </div>
@@ -325,6 +332,8 @@ export function ScenarioPreview({
   scenario: Scenario;
   onScenarioChange?: (updates: Partial<Scenario>) => void;
 }) {
+  const t = useT();
+
   function updateField<K extends keyof Scenario>(key: K, value: Scenario[K]) {
     onScenarioChange?.({ [key]: value } as Partial<Scenario>);
   }
@@ -333,15 +342,15 @@ export function ScenarioPreview({
     <section className="space-y-4">
       <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
         <div className="border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-6 md:px-7">
-          <p className="eyebrow text-[var(--color-primary)]">Scenario brief</p>
+          <p className="eyebrow text-[var(--color-primary)]">{t("brief.eyebrow")}</p>
           <h2 className="display-xl mt-2 max-w-3xl">{scenario.title}</h2>
           <div className="mt-4 flex flex-wrap gap-2">
-            <MetricChip label="Setting" value={scenario.setting} tone="emerald" />
+            <MetricChip label={t("brief.setting")} value={scenario.setting} tone="emerald" />
             {/* Pacing, not a limit. The roleplay ends on the scenario's ending
                 condition, and the hard cap shown in the simulation is higher. */}
             <MetricChip
-              label="Pacing"
-              value={`~${scenario.suggestedTurns} turns`}
+              label={t("brief.pacing")}
+              value={t("brief.pacingValue", { n: scenario.suggestedTurns })}
               tone="blue"
             />
           </div>
@@ -355,7 +364,7 @@ export function ScenarioPreview({
             return (
               <EditableTextCard
                 key={card.key}
-                label={card.label}
+                label={t(card.label)}
                 tone={card.tone}
                 value={String(value || "")}
                 onSave={(next) => updateField(card.key, next as Scenario[typeof card.key])}
@@ -369,8 +378,8 @@ export function ScenarioPreview({
           its own full-width row at reading size rather than competing for a
           third of a cramped one. */}
       <EditableTextCard
-        label="Starting line"
-        title="Open with this situation"
+        label={t("brief.startingLine")}
+        title={t("brief.openWith")}
         tone="emerald"
         value={scenario.firstPrompt}
         onSave={(next) => updateField("firstPrompt", next)}
@@ -385,8 +394,8 @@ export function ScenarioPreview({
         />
 
         <EditableTextCard
-          label="Ending condition"
-          title="Close when"
+          label={t("brief.ending")}
+          title={t("brief.closeWhen")}
           tone="slate"
           value={scenario.endingCondition}
           onSave={(next) => updateField("endingCondition", next)}

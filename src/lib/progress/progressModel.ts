@@ -95,22 +95,17 @@ export function scoreBand(score: number): ScoreBand {
   return score >= 6 ? "developing" : "needsFocus";
 }
 
-export const scoreBandMeta: Record<
-  ScoreBand,
-  { label: string; ink: string; fill: string }
-> = {
+/** Styling only; each band's name is `band.*` in the dictionaries. */
+export const scoreBandMeta: Record<ScoreBand, { ink: string; fill: string }> = {
   strong: {
-    label: "Strong",
     ink: "text-[var(--color-primary-ink)]",
     fill: "bg-[var(--color-primary)]",
   },
   developing: {
-    label: "Developing",
     ink: "text-[var(--color-warning)]",
     fill: "bg-[var(--color-warning)]",
   },
   needsFocus: {
-    label: "Needs focus",
     ink: "text-[var(--color-danger)]",
     fill: "bg-[var(--color-danger)]",
   },

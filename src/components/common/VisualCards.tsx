@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { useT } from "@/lib/i18n/strings";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
 
@@ -89,6 +90,7 @@ export function ReadMoreText({
   maxLength?: number;
 }) {
   const cleanText = text.trim();
+  const t = useT();
   const textRef = useRef<HTMLParagraphElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [hasClampedOverflow, setHasClampedOverflow] = useState(false);
@@ -142,7 +144,7 @@ export function ReadMoreText({
           onClick={() => setIsExpanded((current) => !current)}
           className="link-editorial eyebrow eyebrow-tight text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]"
         >
-          {isExpanded ? "Show less" : "Show more"}
+          {isExpanded ? t("common.showLess") : t("common.showMore")}
         </button>
       ) : null}
     </div>
@@ -218,7 +220,7 @@ export function CollapsibleSection({
 export function StepProgress({
   current,
   total,
-  label = "Turn progress",
+  label,
   hint,
   variant = "card",
 }: {
@@ -234,6 +236,8 @@ export function StepProgress({
    */
   variant?: "card" | "bare" | "inline";
 }) {
+  const t = useT();
+  const shownLabel = label ?? t("simulation.turnsUsed");
   const safeTotal = Math.max(1, total);
   const progressPercent = Math.min(100, Math.round((current / safeTotal) * 100));
 
@@ -252,7 +256,7 @@ export function StepProgress({
   if (variant === "inline") {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <p className="eyebrow text-[var(--color-ink-soft)]">{label}</p>
+        <p className="eyebrow text-[var(--color-ink-soft)]">{shownLabel}</p>
         <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
           {current} / {safeTotal}
         </p>
@@ -273,7 +277,7 @@ export function StepProgress({
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="eyebrow text-[var(--color-ink-soft)]">{label}</p>
+        <p className="eyebrow text-[var(--color-ink-soft)]">{shownLabel}</p>
         <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
           {current} / {safeTotal}
         </p>
@@ -299,11 +303,12 @@ export function ScoreCard({
   decimals?: number;
 }) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
   const safeScore = Math.max(1, Math.min(10, score));
 
   return (
     <section className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-soft)]">
-      <p className="eyebrow text-[var(--color-ink-soft)]">Score</p>
+      <p className="eyebrow text-[var(--color-ink-soft)]">{t("common.score")}</p>
       <div className="mt-2 flex items-baseline gap-1.5">
         <AnimatedNumber
           value={safeScore}

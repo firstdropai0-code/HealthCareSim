@@ -6,6 +6,8 @@
  * our own /api/openai/* handlers.
  */
 
+import { localizeServerError, translate } from "@/lib/i18n/strings";
+import type { AppLanguage } from "@/types/language";
 import type { TranscribedWord } from "@/types/voice";
 
 export type TranscriptionResult = {
@@ -16,9 +18,19 @@ export type TranscriptionResult = {
   duration?: number;
 };
 
-export async function transcribeAudio(audio: Blob): Promise<TranscriptionResult> {
+export async function transcribeAudio(
+  audio: Blob,
+  language?: AppLanguage,
+): Promise<TranscriptionResult> {
   const formData = new FormData();
   formData.append("file", audio, "recording.webm");
+
+  // Whisper auto-detect mistakes accented English for Hindi or Urdu, so the
+  // route pins a language. Which one is a per-recording question, not a
+  // deployment one: a Hindi case needs Hindi even on an English-default server.
+  if (language) {
+    formData.append("language", language);
+  }
 
   const response = await fetch("/api/openai/transcribe", {
     method: "POST",
@@ -30,7 +42,7 @@ export async function transcribeAudio(audio: Blob): Promise<TranscriptionResult>
     | null;
 
   if (!response.ok || !data) {
-    throw new Error(data?.error || "Transcription failed. Please try again.");
+    throw new Error(localizeServerError(data?.error, "error.transcriptionFailed"));
   }
 
   return {
@@ -133,7 +145,7 @@ function loadAudioMetadata(audio: HTMLAudioElement, signal?: AbortSignal): Promi
 
     function onError() {
       detach();
-      reject(new Error("Audio playback failed."));
+      reject(new Error(translate("error.playbackFailed")));
     }
 
     function onAbort() {
@@ -164,7 +176,7 @@ export async function speakText(
   const trimmed = text.trim();
 
   if (!trimmed) {
-    throw new Error("There is nothing to read aloud.");
+    throw new Error(translate("error.nothingToRead"));
   }
 
   const response = await fetch("/api/openai/tts", {
@@ -185,7 +197,7 @@ export async function speakText(
 
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error || "Could not generate audio. Please try again.");
+    throw new Error(localizeServerError(data?.error, "error.audioFailed"));
   }
 
   const blob = await response.blob();

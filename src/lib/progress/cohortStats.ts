@@ -8,17 +8,24 @@ import type { RunStat } from "@/types/run";
 export const MIN_COHORT_RUNS = 5;
 export const MIN_COHORT_TRAINEES = 3;
 
-export type CohortBucket = {
-  /** How the peer group was chosen, for honest labelling. */
+/**
+ * How the peer group was chosen, for honest labelling. Kept as data rather than
+ * a ready-made English phrase so the page can word it in the reader's language.
+ */
+export type CohortBucketDescriptor = {
   kind: "library-case" | "category-difficulty" | "difficulty";
-  label: string;
+  category: string | null;
+  difficulty: ScenarioDifficulty;
+};
+
+export type CohortBucket = CohortBucketDescriptor & {
   stats: RunStat[];
 };
 
 export type CohortComparison =
   | {
       ready: false;
-      bucketLabel: string;
+      bucket: CohortBucketDescriptor;
       runCount: number;
       traineeCount: number;
       requiredRuns: number;
@@ -26,7 +33,7 @@ export type CohortComparison =
     }
   | {
       ready: true;
-      bucketLabel: string;
+      bucket: CohortBucketDescriptor;
       runCount: number;
       traineeCount: number;
       mean: number;
@@ -49,7 +56,12 @@ export function selectBucket(
   if (target.libraryId) {
     const sameCase = stats.filter((stat) => stat.libraryId === target.libraryId);
     if (sameCase.length >= MIN_COHORT_RUNS) {
-      return { kind: "library-case", label: "this case", stats: sameCase };
+      return {
+        kind: "library-case",
+        category: target.category,
+        difficulty: target.difficulty,
+        stats: sameCase,
+      };
     }
   }
 
@@ -60,7 +72,8 @@ export function selectBucket(
     if (sameTrack.length >= MIN_COHORT_RUNS) {
       return {
         kind: "category-difficulty",
-        label: `${target.category} at ${target.difficulty} level`,
+        category: target.category,
+        difficulty: target.difficulty,
         stats: sameTrack,
       };
     }
@@ -68,7 +81,8 @@ export function selectBucket(
 
   return {
     kind: "difficulty",
-    label: `${target.difficulty} cases`,
+    category: target.category,
+    difficulty: target.difficulty,
     stats: stats.filter((stat) => stat.difficulty === target.difficulty),
   };
 }
@@ -107,7 +121,7 @@ export function computeCohort(
   if (scores.length < MIN_COHORT_RUNS || traineeCount < MIN_COHORT_TRAINEES) {
     return {
       ready: false,
-      bucketLabel: bucket.label,
+      bucket: { kind: bucket.kind, category: bucket.category, difficulty: bucket.difficulty },
       runCount: scores.length,
       traineeCount,
       requiredRuns: MIN_COHORT_RUNS,
@@ -119,7 +133,7 @@ export function computeCohort(
 
   return {
     ready: true,
-    bucketLabel: bucket.label,
+    bucket: { kind: bucket.kind, category: bucket.category, difficulty: bucket.difficulty },
     runCount: scores.length,
     traineeCount,
     mean: total / scores.length,

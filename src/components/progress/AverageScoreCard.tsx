@@ -1,6 +1,7 @@
 "use client";
 
 import { InfoCard, ScoreCard } from "@/components/common/VisualCards";
+import { useT } from "@/lib/i18n/strings";
 
 /**
  * `ScoreCard` clamps to a minimum of 1, so feeding it a null average would
@@ -14,9 +15,11 @@ export function AverageScoreCard({
   average: number | null;
   emptyHint: string;
 }) {
+  const t = useT();
+
   if (average === null) {
     return (
-      <InfoCard label="Score" title="No scored cases yet" tone="slate">
+      <InfoCard label={t("common.score")} title={t("average.noneTitle")} tone="slate">
         <p className="text-[0.9375rem] leading-6">{emptyHint}</p>
       </InfoCard>
     );
@@ -24,5 +27,5 @@ export function AverageScoreCard({
 
   // Not rounded: a mean of 4.5 shown as "5" contradicts the per-dimension
   // figures on the same page, and flatters the trainee by half a point.
-  return <ScoreCard score={average} label="Average across cases" decimals={1} />;
+  return <ScoreCard score={average} label={t("average.label")} decimals={1} />;
 }

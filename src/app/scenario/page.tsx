@@ -23,9 +23,10 @@ import { generateScenarioFromIdea } from "@/lib/ai/geminiClient";
 import { publishCase } from "@/lib/cases/caseRepository";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
 import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { useT } from "@/lib/i18n/strings";
 import {
   GENERAL_CATEGORY,
-  difficultyMeta,
   type LibraryScenario,
   type ScenarioDifficulty,
 } from "@/lib/scenarios/scenarioLibrary";
@@ -47,6 +48,8 @@ export default function ScenarioCreatorPage() {
   // Names the group this will publish to. A mentor may own several, and the
   // create rule pins the write to whichever one is active.
   const { activeGroup } = useMentorGroups();
+  const language = useLanguage();
+  const t = useT();
   const [idea, setIdea] = useState("");
   // The whole entry is kept, not just the id: `category` travels with the run
   // and is what groups the skill tree into tracks.
@@ -67,7 +70,22 @@ export default function ScenarioCreatorPage() {
     setScenario(null);
 
     try {
-      const nextScenario = await generateScenarioFromIdea(idea, difficulty);
+      // The mentor's current UI language decides what the case is authored in,
+      // and the scenario then carries that language for the rest of its life.
+      const nextScenario = await generateScenarioFromIdea(idea, difficulty, language);
+
+      /*
+       * When Gemini returns something unreadable the route falls back to a
+       * hardcoded English brief, honestly labelled English. That is a fine
+       * demo for an English reader, but in any other language it would let a
+       * mentor publish a case in a language they are not authoring in -- one
+       * their own trainees, reading the same language, would never be shown.
+       * So it is refused here and the mentor is asked to try again.
+       */
+      if ((nextScenario.language ?? "en") !== language) {
+        throw new Error(t("creator.wrongLanguage"));
+      }
+
       setScenario({
         ...nextScenario,
         defaultEvaluationCriteria: [...nextScenario.evaluationCriteria],
@@ -80,7 +98,7 @@ export default function ScenarioCreatorPage() {
       });
       setGeneratedDifficulty(difficulty);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to generate scenario.");
+      setError(err instanceof Error ? err.message : t("creator.generateError"));
     } finally {
       setLoading(false);
     }
@@ -120,13 +138,21 @@ export default function ScenarioCreatorPage() {
       return;
     }
 
+    // Belt and braces for the check in handleGenerate: a case is only ever
+    // published in the language the mentor is working in.
+    if ((scenario.language ?? "en") !== language) {
+      setError(t("creator.wrongLanguage"));
+      setPublishState("failed");
+      return;
+    }
+
     setPublishState("saving");
 
     try {
       await publishCase(profile, scenario);
       setPublishState("saved");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not publish this case.");
+      setError(err instanceof Error ? err.message : t("creator.publishError"));
       setPublishState("failed");
     }
   }
@@ -153,29 +179,28 @@ export default function ScenarioCreatorPage() {
             <RevealItem>
               <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[var(--color-primary)] shadow-[var(--shadow-card)]">
                 <DropGlyph />
-                Scenario creator
+                {t("creator.eyebrow")}
               </p>
             </RevealItem>
             <RevealItem>
               <h1 className="display-xl mt-4 max-w-3xl">
-                Turn a rough note into a structured roleplay.
+                {t("creator.title")}
               </h1>
             </RevealItem>
             <RevealItem>
               <p className="lede mt-4 max-w-2xl">
-                Keep it rough. The app will convert the idea into a short training brief
-                that is easy to scan before starting.
+                {t("creator.lede")}
               </p>
             </RevealItem>
           </RevealGroup>
 
           <Reveal delay={0.12} className="border-t border-[var(--color-border)] pt-6">
-            <p className="eyebrow text-[var(--color-ink-soft)]">Workflow</p>
+            <p className="eyebrow text-[var(--color-ink-soft)]">{t("creator.workflow")}</p>
             <ol className="mt-4">
               {[
-                ["01", "Draft idea"],
-                ["02", "Review brief"],
-                ["03", "Start roleplay"],
+                ["01", t("creator.step1")],
+                ["02", t("creator.step2")],
+                ["03", t("creator.step3")],
               ].map(([step, label]) => (
                 <li
                   key={step}
@@ -200,17 +225,17 @@ export default function ScenarioCreatorPage() {
           <div className="flex flex-col gap-3 border-b border-[var(--color-border)] pb-5 md:flex-row md:items-end md:justify-between">
             <div>
               <label htmlFor="scenario-idea" className="eyebrow text-[var(--color-ink)]">
-                Rough scenario idea
+                {t("creator.ideaLabel")}
               </label>
               <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-                One or two sentences is enough. Add context, emotion, and pressure point.
+                {t("creator.ideaHint")}
               </p>
             </div>
             <div className="flex flex-col items-start gap-2 md:items-end">
               <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
-                {idea.trim().length} chars
+                {t("common.chars", { n: idea.trim().length })}
               </p>
-              <MicButton onTranscript={handleTranscript} disabled={loading} />
+              <MicButton onTranscript={handleTranscript} disabled={loading} language={language} />
             </div>
           </div>
 
@@ -247,11 +272,10 @@ export default function ScenarioCreatorPage() {
 
             {scenario && generatedDifficulty && generatedDifficulty !== difficulty ? (
               <p className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs leading-5">
-                The brief below was written at{" "}
-                <strong>{difficultyMeta[generatedDifficulty].label.toLowerCase()}</strong> level.
-                Generate again to rewrite it at{" "}
-                <strong>{difficultyMeta[difficulty].label.toLowerCase()}</strong>, or publish as is
-                to keep this brief under the new label.
+                {t.rich("creator.mismatch", {
+                  was: <strong>{t(`difficulty.${generatedDifficulty}`).toLowerCase()}</strong>,
+                  now: <strong>{t(`difficulty.${difficulty}`).toLowerCase()}</strong>,
+                })}
               </p>
             ) : null}
           </div>
@@ -261,7 +285,7 @@ export default function ScenarioCreatorPage() {
             value={idea}
             onChange={(event) => handleIdeaChange(event.target.value)}
             rows={6}
-            placeholder="Example: A worried parent is frustrated after waiting in a clinic and wants clearer updates from the doctor."
+            placeholder={t("creator.placeholder")}
             className="mt-5 w-full resize-y border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-4 text-sm leading-7 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
           />
 
@@ -272,7 +296,7 @@ export default function ScenarioCreatorPage() {
               disabled={!idea.trim()}
               onClick={handleGenerate}
             >
-              Generate Structured Scenario
+              {t("creator.generate")}
             </LoadingButton>
             {idea ? (
               <button
@@ -285,7 +309,7 @@ export default function ScenarioCreatorPage() {
                 }}
                 className="btn-editorial btn-editorial--quiet"
               >
-                Clear
+                {t("creator.clear")}
               </button>
             ) : null}
           </div>
@@ -293,7 +317,7 @@ export default function ScenarioCreatorPage() {
           {loading ? (
             <div className="mt-5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-primary)] bg-[var(--color-primary-soft)] px-4 py-3 text-sm">
               <span className="shimmer-text font-medium">
-                Building the scenario brief. This can take a few seconds when the simulator is busy.
+                {t("creator.building")}
               </span>
             </div>
           ) : null}
@@ -322,10 +346,14 @@ export default function ScenarioCreatorPage() {
                       className="btn-editorial btn-editorial--accent sheen w-full md:w-auto"
                     >
                       {publishState === "saving"
-                        ? "Publishing..."
+                        ? t("creator.publishing")
                         : publishState === "saved"
-                          ? `Published to ${activeGroup ? activeGroup.name : "group"}`
-                          : `Publish to ${activeGroup ? activeGroup.name : "my group"}`}
+                          ? t("creator.publishedTo", {
+                              group: activeGroup ? activeGroup.name : t("creator.group"),
+                            })
+                          : t("creator.publishTo", {
+                              group: activeGroup ? activeGroup.name : t("creator.myGroup"),
+                            })}
                     </button>
                   ) : null}
 
@@ -336,7 +364,7 @@ export default function ScenarioCreatorPage() {
                       canPublish ? "btn-editorial--quiet" : "btn-editorial--accent sheen"
                     }`}
                   >
-                    {canPublish ? "Test run it yourself" : "Start Simulation"}
+                    {canPublish ? t("creator.testRun") : t("creator.start")}
                   </button>
 
                   {publishState === "saved" ? (
@@ -344,16 +372,16 @@ export default function ScenarioCreatorPage() {
                       href="/cases"
                       className="link-editorial text-xs font-medium text-[var(--color-primary)]"
                     >
-                      View published cases
+                      {t("creator.viewPublished")}
                     </Link>
                   ) : null}
 
                   {profile && !profile.groupId ? (
                     <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
                       <Link href="/mentor/group" className="link-editorial font-medium">
-                        Create a group
+                        {t("creator.createGroup")}
                       </Link>{" "}
-                      to publish this to trainees.
+                      {t("creator.toPublish")}
                     </p>
                   ) : null}
                 </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DropGlyph } from "@/components/common/DropGlyph";
 import { SafetyNotice } from "@/components/common/SafetyNotice";
 import {
@@ -22,114 +22,66 @@ import {
   usePrefersReducedMotion,
 } from "@/components/preview/PreviewChat";
 import { TypingIndicator } from "@/components/simulation/ChatMessageList";
+import { useT, type StringKey } from "@/lib/i18n/strings";
 
 // Everything below is hardcoded sample data for the static preview.
-// No storage, no AI calls, no navigation into the real app.
-const sampleScenario = {
-  title: "Anxious parent in the ER",
-  summary:
-    "A parent waiting on test results for their child is growing frightened and impatient.",
-  setting: "Emergency Department",
-  traineeObjective: "Acknowledge the fear before explaining what happens next.",
-  communicationChallenge:
-    "Give an honest timeline without dismissing the worry behind the question.",
-  patientEmotion: "Anxious",
-};
-
-const sampleMessages = [
-  {
-    id: "preview-1",
-    speaker: "Parent",
-    isTrainee: false,
-    content:
-      "Nobody has told me anything for an hour. Is my daughter going to be okay?",
-  },
-  {
-    id: "preview-2",
-    speaker: "Trainee",
-    isTrainee: true,
-    content:
-      "I can hear how frightening this wait has been. Her results are back with the doctor now, and I'll come find you the moment we know more.",
-  },
-  {
-    id: "preview-3",
-    speaker: "Parent",
-    isTrainee: false,
-    content: "Okay. Just please don't forget about us in here.",
-  },
+// No storage, no AI calls, no navigation into the real app. The words are
+// dictionary keys (`how.sample.*`) so the preview reads in the chosen language.
+const sampleMessages: { id: string; speaker: StringKey; isTrainee: boolean; content: StringKey }[] = [
+  { id: "preview-1", speaker: "how.sample.parent", isTrainee: false, content: "how.sample.msg1" },
+  { id: "preview-2", speaker: "how.sample.trainee", isTrainee: true, content: "how.sample.msg2" },
+  { id: "preview-3", speaker: "how.sample.parent", isTrainee: false, content: "how.sample.msg3" },
 ];
 
-const sampleFeedback = {
-  score: 8,
-  summary:
-    "You led with the emotion and gave a concrete next step, which settled the conversation.",
-  whatWentWell: [
-    "Named the parent's fear before giving facts.",
-    "Committed to a specific follow-up.",
-  ],
-  whatCouldImprove: [
-    "Check understanding before moving on.",
-    "Offer a rough timeframe for the update.",
-  ],
-};
+const sampleScore = 8;
+const sampleWentWell: StringKey[] = ["how.sample.well1", "how.sample.well2"];
+const sampleCouldImprove: StringKey[] = ["how.sample.improve1", "how.sample.improve2"];
 
-const previewSteps = [
-  {
-    id: "scenario",
-    label: "Scenario",
-    caption:
-      "You start from one rough idea and get a structured practice scenario.",
-  },
-  {
-    id: "simulation",
-    label: "Simulation",
-    caption:
-      "You roleplay the conversation turn by turn; the AI plays the patient, family, or nurse.",
-  },
-  {
-    id: "feedback",
-    label: "Feedback",
-    caption: "You get scored, communication-focused coaching in seconds.",
-  },
+const previewSteps: { id: string; label: StringKey; caption: StringKey }[] = [
+  { id: "scenario", label: "how.step.scenario", caption: "how.step.scenarioCaption" },
+  { id: "simulation", label: "how.step.simulation", caption: "how.step.simulationCaption" },
+  { id: "feedback", label: "how.step.feedback", caption: "how.step.feedbackCaption" },
 ];
 
 function ScenarioPreview() {
+  const t = useT();
+
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
-      <p className="eyebrow text-[var(--color-primary)]">Training brief</p>
+      <p className="eyebrow text-[var(--color-primary)]">{t("how.trainingBrief")}</p>
       <h4 className="display-sm mt-3 text-[var(--color-ink)]">
-        {sampleScenario.title}
+        {t("how.sample.title")}
       </h4>
       <p className="mt-3 text-sm leading-7 text-[var(--color-ink-muted)]">
-        {sampleScenario.summary}
+        {t("how.sample.summary")}
       </p>
 
       <div className="mt-6 grid gap-5 border-t border-[var(--color-border)] pt-5 sm:grid-cols-2">
         <div>
-          <p className="eyebrow text-[var(--color-ink-soft)]">Setting</p>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("how.setting")}</p>
           <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
-            {sampleScenario.setting}
+            {t("how.sample.setting")}
           </p>
         </div>
         <div>
-          <p className="eyebrow text-[var(--color-primary)]">Goal</p>
+          <p className="eyebrow text-[var(--color-primary)]">{t("how.goal")}</p>
           <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
-            {sampleScenario.traineeObjective}
+            {t("how.sample.objective")}
           </p>
         </div>
       </div>
 
       <div className="mt-5">
-        <p className="eyebrow text-[var(--color-warning)]">Challenge</p>
+        <p className="eyebrow text-[var(--color-warning)]">{t("how.challenge")}</p>
         <p className="mt-2 text-sm leading-7 text-[var(--color-ink-muted)]">
-          {sampleScenario.communicationChallenge}
+          {t("how.sample.challenge")}
         </p>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
         <MetricChip
-          label="Patient"
-          value={sampleScenario.patientEmotion}
+          label={t("how.patient")}
+          value={t("how.sample.emotion")}
           tone="amber"
         />
       </div>
@@ -145,18 +97,19 @@ const PHASE_TYPING = 2;
 const PHASE_TRAINEE = 3;
 const PHASE_PARENT_2 = 4;
 
-const traineeWordCount = sampleMessages[1].content.split(" ").length;
-
-// Index i holds the pause before advancing from phase i to phase i + 1.
-const phaseDelaysMs = [
-  250,
-  900,
-  1200,
-  traineeWordCount * TYPED_WORD_DELAY_MS + 500,
-];
-
 function SimulationPreview() {
+  const t = useT();
   const prefersReducedMotion = usePrefersReducedMotion();
+  // Counted from the translated reply, so the pause before the parent's second
+  // line fits the words actually being typed in this language.
+  const traineeWordCount = t(sampleMessages[1].content).split(" ").length;
+  // Index i holds the pause before advancing from phase i to phase i + 1.
+  // Memoised, or the effect below sees a new array every render and restarts
+  // its timer instead of letting a phase run out.
+  const phaseDelaysMs = useMemo(
+    () => [250, 900, 1200, traineeWordCount * TYPED_WORD_DELAY_MS + 500],
+    [traineeWordCount],
+  );
   const [rawPhase, setRawPhase] = useState(PHASE_START);
   // Reduced motion jumps straight to the settled end state.
   const phase = prefersReducedMotion ? PHASE_PARENT_2 : rawPhase;
@@ -171,26 +124,26 @@ function SimulationPreview() {
     }, phaseDelaysMs[rawPhase]);
 
     return () => window.clearTimeout(timer);
-  }, [prefersReducedMotion, rawPhase]);
+  }, [phaseDelaysMs, prefersReducedMotion, rawPhase]);
 
   return (
     <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-canvas-soft)]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3.5">
         <div>
-          <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("how.live")}</p>
           <h4 className="display-sm mt-1.5 text-[var(--color-ink)]">
-            Conversation
+            {t("how.conversation")}
           </h4>
         </div>
-        <MetricChip label="Speaker" value="Parent" tone="blue" />
+        <MetricChip label={t("how.speaker")} value={t("how.sample.parent")} tone="blue" />
       </div>
 
       {/* Reserved height keeps the frame from jumping as bubbles arrive. */}
       <div className="min-h-[320px] space-y-4 px-4 py-4">
         {phase >= PHASE_PARENT_1 ? (
           <PreviewBubble
-            speaker={sampleMessages[0].speaker}
-            content={sampleMessages[0].content}
+            speaker={t(sampleMessages[0].speaker)}
+            content={t(sampleMessages[0].content)}
             isTrainee={false}
             typeOut={false}
           />
@@ -200,8 +153,8 @@ function SimulationPreview() {
 
         {phase >= PHASE_TRAINEE ? (
           <PreviewBubble
-            speaker={sampleMessages[1].speaker}
-            content={sampleMessages[1].content}
+            speaker={t(sampleMessages[1].speaker)}
+            content={t(sampleMessages[1].content)}
             isTrainee
             typeOut={!prefersReducedMotion}
           />
@@ -209,8 +162,8 @@ function SimulationPreview() {
 
         {phase >= PHASE_PARENT_2 ? (
           <PreviewBubble
-            speaker={sampleMessages[2].speaker}
-            content={sampleMessages[2].content}
+            speaker={t(sampleMessages[2].speaker)}
+            content={t(sampleMessages[2].content)}
             isTrainee={false}
             typeOut={false}
           />
@@ -221,40 +174,42 @@ function SimulationPreview() {
 }
 
 function FeedbackPreview() {
+  const t = useT();
+
   return (
     <div className="grid gap-5 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)] lg:grid-cols-[200px_1fr]">
       <div>
-        <ScoreCard score={sampleFeedback.score} label="Strong" />
+        <ScoreCard score={sampleScore} label={t("how.strong")} />
       </div>
 
       <div className="space-y-3">
         <div>
-          <InfoCard label="Summary" title="Quick read" tone="slate">
-            <p className="text-sm leading-6">{sampleFeedback.summary}</p>
+          <InfoCard label={t("how.summary")} title={t("how.quickRead")} tone="slate">
+            <p className="text-sm leading-6">{t("how.sample.feedbackSummary")}</p>
           </InfoCard>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <InfoCard label="What went well" tone="emerald">
+          <InfoCard label={t("how.whatWentWell")} tone="emerald">
             <ul className="grid gap-2">
-              {sampleFeedback.whatWentWell.map((item) => (
+              {sampleWentWell.map((item) => (
                 <li
                   key={item}
                   className="border-l border-[var(--color-border-strong)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
                 >
-                  {item}
+                  {t(item)}
                 </li>
               ))}
             </ul>
           </InfoCard>
-          <InfoCard label="What could improve" tone="amber">
+          <InfoCard label={t("how.whatCouldImprove")} tone="amber">
             <ul className="grid gap-2">
-              {sampleFeedback.whatCouldImprove.map((item) => (
+              {sampleCouldImprove.map((item) => (
                 <li
                   key={item}
                   className="border-l border-[var(--color-border-strong)] px-3 py-2 text-sm leading-6 text-[var(--color-ink)]"
                 >
-                  {item}
+                  {t(item)}
                 </li>
               ))}
             </ul>
@@ -270,6 +225,7 @@ const focusRing =
 
 export default function HowItWorksPage() {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
   const [stepIndex, setStepIndex] = useState(0);
   const activeStep = previewSteps[stepIndex];
   const isFirst = stepIndex === 0;
@@ -282,18 +238,17 @@ export default function HowItWorksPage() {
           <RevealItem>
             <p className="eyebrow inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[var(--color-primary)] shadow-[var(--shadow-card)]">
               <DropGlyph />
-              How it works
+              {t("how.eyebrow")}
             </p>
           </RevealItem>
           <RevealItem>
             <h1 className="display-xl mt-4 max-w-2xl">
-              See it before you try it.
+              {t("how.title")}
             </h1>
           </RevealItem>
           <RevealItem>
             <p className="lede mt-4 max-w-2xl">
-              FirstDropAI is an AI roleplay room for practicing difficult
-              healthcare conversations, with scored feedback in seconds.
+              {t("how.lede")}
             </p>
           </RevealItem>
         </RevealGroup>
@@ -311,21 +266,24 @@ export default function HowItWorksPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-5 py-3.5">
               <div>
                 <p className="eyebrow text-[var(--color-ink-soft)]">
-                  Sample preview
+                  {t("how.samplePreview")}
                 </p>
                 <h2
                   id="preview-heading"
                   className="display-sm mt-2 text-[var(--color-ink)]"
                 >
-                  Step {stepIndex + 1} / {previewSteps.length} &middot;{" "}
-                  {activeStep.label}
+                  {t("how.stepHeading", {
+                    n: stepIndex + 1,
+                    total: previewSteps.length,
+                    label: t(activeStep.label),
+                  })}
                 </h2>
               </div>
-              <MetricChip label="Example data" tone="slate" />
+              <MetricChip label={t("how.exampleData")} tone="slate" />
             </div>
 
             <div className="px-4 py-5 sm:px-5 sm:py-6">
-              <h3 className="sr-only">{activeStep.label} preview</h3>
+              <h3 className="sr-only">{t("how.stepPreview", { label: t(activeStep.label) })}</h3>
               {/* Each branch is a distinct component, so switching steps remounts
  it and restarts that step's entrance animation from the top.
  `mode="wait"` lets the outgoing step clear before the next
@@ -338,7 +296,7 @@ export default function HowItWorksPage() {
                     {stepIndex === 2 ? <FeedbackPreview /> : null}
 
                     <p className="mt-5 text-sm leading-7 text-[var(--color-ink-muted)]">
-                      {activeStep.caption}
+                      {t(activeStep.caption)}
                     </p>
                   </>
                 );
@@ -369,7 +327,7 @@ export default function HowItWorksPage() {
               <div
                 className="flex items-center gap-2"
                 role="tablist"
-                aria-label="Preview steps"
+                aria-label={t("how.previewSteps")}
               >
                 {previewSteps.map((step, index) => {
                   const isActive = index === stepIndex;
@@ -380,7 +338,7 @@ export default function HowItWorksPage() {
                       type="button"
                       role="tab"
                       aria-selected={isActive}
-                      aria-label={`Step ${index + 1}: ${step.label}`}
+                      aria-label={t("how.stepAria", { n: index + 1, label: t(step.label) })}
                       onClick={() => setStepIndex(index)}
                       className={`relative h-1.5 rounded-full transition-all duration-[350ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] ${focusRing} ${
                         isActive
@@ -409,7 +367,7 @@ export default function HowItWorksPage() {
                   disabled={isFirst}
                   className={`btn-editorial btn-editorial--quiet disabled:pointer-events-none ${focusRing}`}
                 >
-                  Prev
+                  {t("common.prev")}
                 </button>
                 <button
                   type="button"
@@ -421,7 +379,7 @@ export default function HowItWorksPage() {
                   disabled={isLast}
                   className={`btn-editorial btn-editorial--accent disabled:pointer-events-none ${focusRing}`}
                 >
-                  Next
+                  {t("common.next")}
                 </button>
               </div>
             </div>
@@ -431,21 +389,20 @@ export default function HowItWorksPage() {
         <Section
           id="try"
           index={1}
-          title="Your turn"
-          description="Optional voice features: dictate your response with the mic, or have messages read aloud."
+          title={t("how.yourTurn")}
+          description={t("how.yourTurnDescription")}
         >
           <RevealGroup className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
             <RevealItem className="card-hover accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
-              <h3 className="display-sm">Ready to practice</h3>
+              <h3 className="display-sm">{t("how.ready")}</h3>
               <p className="mt-2 max-w-xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
-                Start from a rough scenario idea and the app builds the training
-                brief for you.
+                {t("how.readyBody")}
               </p>
               <Link
                 href="/scenario"
                 className="btn-editorial btn-editorial--accent sheen mt-5"
               >
-                Try it yourself
+                {t("how.tryIt")}
               </Link>
             </RevealItem>
 

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { useT } from "@/lib/i18n/strings";
 
 const WIDTH = 320;
 const HEIGHT = 96;
@@ -17,11 +18,12 @@ export function ScoreTrendLine({
   series: { completedAt: string; score: number }[];
 }) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
 
   if (series.length < 2) {
     return (
       <p className="text-sm leading-6 text-[var(--color-ink-soft)]">
-        Two scored cases will start your trend line.
+        {t("trend.needTwo")}
       </p>
     );
   }
@@ -46,9 +48,10 @@ export function ScoreTrendLine({
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-auto w-full"
         role="img"
-        aria-label={`Scores over ${series.length} cases, oldest first: ${series
-          .map((entry) => entry.score)
-          .join(", ")}`}
+        aria-label={t("trend.aria", {
+          n: series.length,
+          scores: series.map((entry) => entry.score).join(", "),
+        })}
       >
         {/* Midpoint reference at 5.5, so a line can be read as above or below. */}
         <line
@@ -96,8 +99,8 @@ export function ScoreTrendLine({
       </svg>
 
       <figcaption className="mt-2 flex justify-between text-[0.8125rem] text-[var(--color-ink-soft)]">
-        <span>Oldest</span>
-        <span>Latest · {series[series.length - 1].score}/10</span>
+        <span>{t("trend.oldest")}</span>
+        <span>{t("trend.latest", { score: series[series.length - 1].score })}</span>
       </figcaption>
     </figure>
   );

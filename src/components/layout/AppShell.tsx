@@ -6,28 +6,32 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { AccountChip } from "@/components/auth/AccountChip";
 import { GroupSwitcher } from "@/components/groups/GroupSwitcher";
+import { LanguageToggle } from "@/components/layout/LanguageToggle";
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import { useAuthState } from "@/lib/firebase/useAuth";
 import type { Role } from "@/types/user";
 
-const signedOutNavigation = [
-  { href: "/how-it-works", label: "How It Works" },
-  { href: "/scenario", label: "Scenario" },
-  { href: "/simulation", label: "Simulation" },
-  { href: "/feedback", label: "Feedback" },
+type NavItem = { href: string; key: StringKey };
+
+const signedOutNavigation: NavItem[] = [
+  { href: "/how-it-works", key: "nav.howItWorks" },
+  { href: "/scenario", key: "nav.scenario" },
+  { href: "/simulation", key: "nav.simulation" },
+  { href: "/feedback", key: "nav.feedback" },
 ];
 
 /**
  * The run flow (Scenario → Simulation → Feedback) stays visible for everyone;
  * only the role-specific destinations differ.
  */
-function navigationFor(role: Role | null, hasGroup: boolean) {
+function navigationFor(role: Role | null, hasGroup: boolean): NavItem[] {
   // Trainees never see the scenario creator: they run cases their mentor set.
   if (role === "trainee") {
     return [
-      { href: "/how-it-works", label: "How It Works" },
-      { href: "/cases", label: "My Cases" },
-      { href: "/simulation", label: "Simulation" },
-      { href: "/feedback", label: "Feedback" },
+      { href: "/how-it-works", key: "nav.howItWorks" },
+      { href: "/cases", key: "nav.myCases" },
+      { href: "/simulation", key: "nav.simulation" },
+      { href: "/feedback", key: "nav.feedback" },
       /*
        * A trainee's group screen, and the only signposted way into it.
        *
@@ -38,19 +42,19 @@ function navigationFor(role: Role | null, hasGroup: boolean) {
        * state ordinary rather than a first-run blip, so the label names the
        * thing they need to do.
        */
-      { href: "/join", label: hasGroup ? "My Group" : "Join a group" },
-      { href: "/progress", label: "My Progress" },
+      { href: "/join", key: hasGroup ? "nav.myGroup" : "nav.joinAGroup" },
+      { href: "/progress", key: "nav.myProgress" },
     ];
   }
 
   if (role === "mentor") {
     return [
-      { href: "/how-it-works", label: "How It Works" },
-      { href: "/scenario", label: "Create" },
-      { href: "/cases", label: "Cases" },
-      { href: "/simulation", label: "Simulation" },
-      { href: "/mentor/group", label: "Groups" },
-      { href: "/mentor", label: "Dashboard" },
+      { href: "/how-it-works", key: "nav.howItWorks" },
+      { href: "/scenario", key: "nav.create" },
+      { href: "/cases", key: "nav.cases" },
+      { href: "/simulation", key: "nav.simulation" },
+      { href: "/mentor/group", key: "nav.groups" },
+      { href: "/mentor", key: "nav.dashboard" },
     ];
   }
 
@@ -83,6 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const profile = authState.status === "ready" ? authState.profile : null;
   const role = profile?.role ?? null;
   const navigationItems = navigationFor(role, Boolean(profile?.groupId));
+  const t = useT();
 
   useEffect(() => {
     function handleScroll() {
@@ -100,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius-sm)] focus:border focus:border-[var(--color-primary)] focus:bg-[var(--color-surface)] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--color-primary)]"
       >
-        Skip to main content
+        {t("common.skipToContent")}
       </a>
 
       <header
@@ -111,7 +116,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         }`}
       >
         {/* Wraps to a second row on narrow screens so no nav item is ever clipped. */}
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6 lg:px-8">
+        {/* Wraps to a second row on narrow screens so no nav item is ever clipped,
+              but never on desktop: `lg:flex-nowrap` plus a shrinkable nav means
+              a long group name or an extra nav item costs the nav a few pixels
+              of scroll rather than dropping the account cluster onto its own
+              line. English used to overflow this 1088px track by six pixels
+              while Hindi, whose labels are shorter, did not. */}
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6 lg:flex-nowrap lg:px-8">
           <Link
             href="/"
             className="group inline-flex items-center gap-2 text-[var(--color-ink)] transition-colors hover:text-[var(--color-primary)]"
@@ -129,8 +140,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           <nav
-            aria-label="Primary navigation"
-            className="order-3 flex w-full items-center gap-5 overflow-x-auto sm:order-none sm:w-auto sm:overflow-visible"
+            aria-label={t("common.primaryNav")}
+            /*
+              `py-1` exists to contain `.link-editorial::after`, the hover
+              underline, which is absolutely positioned at `bottom: -3px` and so
+              sits outside the link box. That never mattered while this nav was
+              `overflow: visible`; making it scrollable so it could shrink turned
+              those 3px into real overflow, and a browser that has `auto` on one
+              axis computes `auto` on the other -- which drew a vertical
+              scrollbar, arrow buttons and all. The padding puts the underline
+              back inside; `overflow-y-hidden` keeps the bar away for good.
+            */
+            className="order-3 flex w-full items-center gap-5 overflow-x-auto overflow-y-hidden py-1 sm:order-none sm:w-auto sm:overflow-visible lg:min-w-0 lg:overflow-x-auto lg:overflow-y-hidden"
           >
             {navigationItems.map((item) => {
               const isActive = pathname === item.href;
@@ -145,7 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     isActive ? "text-[var(--color-primary)]" : "text-[var(--color-ink-muted)]"
                   }`}
                 >
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               );
             })}
@@ -158,10 +179,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               pushed this cluster onto its own line once the group switcher
               arrived. The home page carries its own CTA for signed-out
               visitors. */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             {/* Renders nothing until the mentor has a group, and nothing at all
                 for trainees, who belong to exactly one. */}
             <GroupSwitcher />
+            <LanguageToggle />
             <AccountChip />
           </div>
         </div>

@@ -1,3 +1,6 @@
+"use client";
+
+import { useT } from "@/lib/i18n/strings";
 import type { TensionLevel } from "@/types/simulation";
 
 const styles: Record<TensionLevel, string> = {
@@ -7,11 +10,13 @@ const styles: Record<TensionLevel, string> = {
 };
 
 export function TensionBadge({ level }: { level: TensionLevel }) {
+  const t = useT();
+
   return (
     <span
       className={`eyebrow eyebrow-tight inline-flex min-h-7 items-center border px-2.5 py-1 ${styles[level]}`}
     >
-      {level} tension
+      {t("simulation.tension", { level: t(`tension.${level}`) })}
     </span>
   );
 }

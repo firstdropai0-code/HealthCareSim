@@ -1,8 +1,9 @@
 "use client";
 
+import { categoryLabel, useT } from "@/lib/i18n/strings";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { InfoCard, MetricChip } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
@@ -16,21 +17,32 @@ import { computeProgress } from "@/lib/progress/progressModel";
 import { computeSkillTree } from "@/lib/progress/skillTree";
 import { listGroupCases } from "@/lib/cases/caseRepository";
 import { listTraineeRuns } from "@/lib/runs/runRepository";
-import { difficultyMeta } from "@/lib/scenarios/scenarioLibrary";
 import type { AssignedCase } from "@/types/assignedCase";
-import { subscoreLabels } from "@/types/feedback";
 import type { RunSummary } from "@/types/run";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { languageDateLocale, type AppLanguage } from "@/types/language";
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, language: AppLanguage): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? "—"
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    : date.toLocaleDateString(languageDateLocale[language], {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
 }
 
 export default function MentorTraineePage() {
   const params = useParams<{ uid: string }>();
   const uid = params?.uid ?? "";
+  const t = useT();
+  const language = useLanguage();
+  // For the load effect, which must not refetch when only the language changes.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const gate = useRequireBackend("mentor");
   const profile = gate.blocked ? null : gate.profile;
   const mentorId = profile?.uid ?? null;
@@ -67,7 +79,7 @@ export default function MentorTraineePage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load that trainee.");
+          setError(err instanceof Error ? err.message : tRef.current("trainee.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -89,31 +101,37 @@ export default function MentorTraineePage() {
     return <AuthGate gate={gate} />;
   }
 
-  const traineeName = loaded ? (runs[0]?.userDisplayName ?? "Trainee") : "Trainee";
+  const traineeName = loaded
+    ? (runs[0]?.userDisplayName ?? t("trainee.fallbackName"))
+    : t("trainee.fallbackName");
 
   return (
     <AppShell>
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
           <Link href="/mentor" className="link-editorial text-xs font-medium text-[var(--color-primary)]">
-            &larr; Back to dashboard
+            {t("trainee.back")}
           </Link>
           <h1 className="display-md mt-2">{traineeName}</h1>
           {/* Gated like the body below: these sit above the loading branch, and
               a group switch would otherwise leave the old group's tallies here. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <MetricChip
-              label="Scored cases"
+              label={t("trainee.scoredCases")}
               value={loaded ? String(scoredRuns.length) : "—"}
               tone="emerald"
             />
             {loaded && progress.lastActive ? (
-              <MetricChip label="Last active" value={formatDate(progress.lastActive)} tone="slate" />
+              <MetricChip
+                label={t("trainee.lastActive")}
+                value={formatDate(progress.lastActive, language)}
+                tone="slate"
+              />
             ) : null}
             {loaded && progress.weakest ? (
               <MetricChip
-                label="Focus"
-                value={subscoreLabels[progress.weakest.dimension]}
+                label={t("trainee.focus")}
+                value={t(`subscore.${progress.weakest.dimension}`)}
                 tone="amber"
               />
             ) : null}
@@ -130,35 +148,35 @@ export default function MentorTraineePage() {
         ) : null}
 
         {!loaded ? (
-          <p className="text-sm text-[var(--color-ink-soft)]">Loading...</p>
+          <p className="text-sm text-[var(--color-ink-soft)]">{t("common.loading")}</p>
         ) : runs.length === 0 ? (
           <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] p-8 text-center text-sm text-[var(--color-ink-soft)]">
-            This trainee has not completed a case yet.
+            {t("trainee.none")}
           </p>
         ) : (
           <>
             <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_300px] lg:items-start">
               <AverageScoreCard
                 average={progress.averageScore}
-                emptyHint="This trainee has completed cases, but none could be scored."
+                emptyHint={t("trainee.unscored")}
               />
-              <InfoCard label="Over time" title="Score trend" tone="slate">
+              <InfoCard label={t("trainee.overTime")} title={t("trainee.scoreTrend")} tone="slate">
                 <ScoreTrendLine series={progress.scoreSeries} />
               </InfoCard>
-              <InfoCard label="Profile" title="Skill balance" tone="emerald">
+              <InfoCard label={t("trainee.profile")} title={t("trainee.skillBalance")} tone="emerald">
                 <SubscoreRadar dimensions={progress.dimensions} />
               </InfoCard>
             </div>
 
             <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
-              <h2 className="display-sm">Skill tree</h2>
+              <h2 className="display-sm">{t("trainee.skillTree")}</h2>
               <div className="mt-5">
                 <SkillTree nodes={tree} />
               </div>
             </section>
 
             <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
-              <h2 className="display-sm">Sessions</h2>
+              <h2 className="display-sm">{t("trainee.sessions")}</h2>
               <ul className="mt-4 divide-y divide-[var(--color-border)]">
                 {runs.map((run) => (
                   <li key={run.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -170,13 +188,13 @@ export default function MentorTraineePage() {
                         {run.scenarioTitle}
                       </Link>
                       <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
-                        {run.category ? `${run.category} · ` : ""}
-                        {difficultyMeta[run.difficulty].label} · {formatDate(run.completedAt)} ·{" "}
-                        {run.turnCount} {run.turnCount === 1 ? "turn" : "turns"}
+                        {run.category ? `${categoryLabel(t, run.category)} · ` : ""}
+                        {t(`difficulty.${run.difficulty}`)} · {formatDate(run.completedAt, language)} ·{" "}
+                        {t.plural("common.turns", run.turnCount)}
                       </p>
                     </div>
                     {run.score === null ? (
-                      <MetricChip label="Not scored" tone="amber" />
+                      <MetricChip label={t("trainee.notScored")} tone="amber" />
                     ) : (
                       <p className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
                         {run.score}

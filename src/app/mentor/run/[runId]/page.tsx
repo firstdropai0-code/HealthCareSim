@@ -1,8 +1,9 @@
 "use client";
 
+import { categoryLabel, useT } from "@/lib/i18n/strings";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { MetricChip } from "@/components/common/VisualCards";
 import { FeedbackReportView } from "@/components/feedback/FeedbackReportView";
@@ -11,10 +12,15 @@ import { Reveal } from "@/components/motion/Reveal";
 import { ChatMessageList } from "@/components/simulation/ChatMessageList";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
 import { getRun, getRunTranscript } from "@/lib/runs/runRepository";
-import { difficultyMeta } from "@/lib/scenarios/scenarioLibrary";
 import type { RunRecord, RunTranscript } from "@/types/run";
 
 export default function MentorRunPage() {
+  const t = useT();
+  // For the load effect, which must not refetch when only the language changes.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
   const params = useParams<{ runId: string }>();
   const runId = params?.runId ?? "";
   const gate = useRequireBackend("mentor");
@@ -45,7 +51,7 @@ export default function MentorRunPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load that session.");
+          setError(err instanceof Error ? err.message : tRef.current("run.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -66,7 +72,7 @@ export default function MentorRunPage() {
   if (!loaded) {
     return (
       <AppShell>
-        <p className="text-sm text-[var(--color-ink-soft)]">Loading session...</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">{t("run.loading")}</p>
       </AppShell>
     );
   }
@@ -75,12 +81,12 @@ export default function MentorRunPage() {
     return (
       <AppShell>
         <div className="mx-auto max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-soft)]">
-          <h1 className="display-sm">Session not found</h1>
+          <h1 className="display-sm">{t("run.notFound")}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
-            {error ?? "It may have been removed, or it belongs to another group."}
+            {error ?? t("run.notFoundBody")}
           </p>
           <Link href="/mentor" className="btn-editorial btn-editorial--quiet mt-5 inline-flex">
-            Back to dashboard
+            {t("run.backDashboard")}
           </Link>
         </div>
       </AppShell>
@@ -98,25 +104,27 @@ export default function MentorRunPage() {
             href={`/mentor/trainee/${run.userId}`}
             className="link-editorial text-xs font-medium text-[var(--color-primary)]"
           >
-            &larr; Back to {run.userDisplayName}
+            {t("run.backTo", { name: run.userDisplayName })}
           </Link>
           <h1 className="display-md mt-2 max-w-3xl">{run.scenarioTitle}</h1>
           <p className="mt-2 max-w-3xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
             {run.scenarioSummary}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Trainee" value={run.userDisplayName} tone="slate" />
-            <MetricChip label="Level" value={difficultyMeta[run.difficulty].label} tone="blue" />
-            {run.category ? <MetricChip label="Track" value={run.category} tone="indigo" /> : null}
+            <MetricChip label={t("run.trainee")} value={run.userDisplayName} tone="slate" />
+            <MetricChip label={t("run.level")} value={t(`difficulty.${run.difficulty}`)} tone="blue" />
+            {run.category ? (
+              <MetricChip label={t("run.track")} value={categoryLabel(t, run.category)} tone="indigo" />
+            ) : null}
             <MetricChip
-              label="Ended in"
-              value={`${run.turnCount} ${run.turnCount === 1 ? "turn" : "turns"}`}
+              label={t("run.endedIn")}
+              value={t.plural("common.turns", run.turnCount)}
               tone="slate"
             />
             {run.score === null ? (
-              <MetricChip label="Not scored" tone="amber" />
+              <MetricChip label={t("run.notScored")} tone="amber" />
             ) : (
-              <MetricChip label="Score" value={`${run.score} / 10`} tone="emerald" />
+              <MetricChip label={t("run.score")} value={`${run.score} / 10`} tone="emerald" />
             )}
           </div>
         </Reveal>
@@ -125,7 +133,7 @@ export default function MentorRunPage() {
         <FeedbackReportView report={run.report} scenarioMessages={scenarioMessages} />
 
         <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
-          <h2 className="display-sm">Full transcript</h2>
+          <h2 className="display-sm">{t("run.transcript")}</h2>
           {transcript ? (
             <div className="mt-4">
               {/* Read-only: onSpeak is omitted, so no playback controls render. */}
@@ -133,7 +141,7 @@ export default function MentorRunPage() {
             </div>
           ) : (
             <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
-              The transcript for this session is not available.
+              {t("run.noTranscript")}
             </p>
           )}
         </section>

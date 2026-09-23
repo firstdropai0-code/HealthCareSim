@@ -1,26 +1,12 @@
 "use client";
 
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import { motion } from "framer-motion";
 import { useCallback, useSyncExternalStore } from "react";
 import { springSoft } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import { completedRevealStore, type RevealStore } from "@/components/simulation/revealStore";
 import type { SimulationMessage } from "@/types/simulation";
-
-const roleLabels: Record<SimulationMessage["role"], string> = {
-  system: "System",
-  scenario: "Scenario",
-  trainee: "Trainee",
-  feedback: "Feedback",
-};
-
-const speakerLabels: Record<NonNullable<SimulationMessage["speaker"]>, string> = {
-  patient: "Patient",
-  family_member: "Family member",
-  nurse: "Nurse",
-  bystander: "Bystander",
-  narrator: "Narrator",
-};
 
 /**
  * How many words of this message are currently revealed.
@@ -109,11 +95,12 @@ type ChatMessageProps = {
 
 function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessageProps) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
   const isTrainee = message.role === "trainee";
   const messageLabel =
     message.role === "scenario" && message.speaker
-      ? speakerLabels[message.speaker]
-      : roleLabels[message.role];
+      ? t(`speaker.${message.speaker}` as StringKey)
+      : t(`role.${message.role}` as StringKey);
   const words = message.content.split(" ");
   const wordCount = useRevealedWordCount(reveal, message.id);
   const isStillRevealing = wordCount < words.length;
@@ -143,8 +130,8 @@ function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessa
             <button
               type="button"
               onClick={() => onSpeak?.(message)}
-              title={isSpeaking ? "Stop reading" : "Read this message aloud"}
-              aria-label={isSpeaking ? "Stop reading message aloud" : "Read message aloud"}
+              title={isSpeaking ? t("chat.stopReading") : t("chat.readAloud")}
+              aria-label={isSpeaking ? t("chat.stopReadingAria") : t("chat.readAloudAria")}
               className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] transition-colors duration-200 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
             >
               {isSpeaking ? <SpeakerStopIcon /> : <SpeakerIcon />}

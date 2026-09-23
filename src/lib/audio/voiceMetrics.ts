@@ -1,3 +1,4 @@
+import type { AppLanguage } from "@/types/language";
 import type {
   AudioFeatureSample,
   ConfidenceSignal,
@@ -46,7 +47,15 @@ const FILLER_WORDS = [
 ];
 
 /** Multi-word fillers need phrase matching rather than token matching. */
-const FILLER_PHRASES = ["you know", "i mean", "sort of", "kind of"];
+/*
+ * Hedges and stalls, per language. These are not translations of each other --
+ * a filler is whatever a language's speakers reach for while thinking, so the
+ * Hindi list is its own set rather than "you know" rendered in Devanagari.
+ */
+const FILLER_PHRASES: Record<AppLanguage, string[]> = {
+  en: ["you know", "i mean", "sort of", "kind of"],
+  hi: ["मतलब", "यानी", "ऐसा है कि", "थोड़ा सा"],
+};
 
 function round(value: number, decimals = 1): number {
   const factor = 10 ** decimals;
@@ -137,7 +146,11 @@ export function computePauses(words: TranscribedWord[]): PauseMetrics | null {
   };
 }
 
-export function computeFillers(transcript: string, durationSec: number): FillerMetrics | null {
+export function computeFillers(
+  transcript: string,
+  durationSec: number,
+  language: AppLanguage = "en",
+): FillerMetrics | null {
   const normalised = transcript.toLowerCase();
 
   if (!normalised.trim()) {
@@ -146,8 +159,14 @@ export function computeFillers(transcript: string, durationSec: number): FillerM
 
   const counts = new Map<string, number>();
 
-  FILLER_PHRASES.forEach((phrase) => {
-    const matches = normalised.match(new RegExp(`\\b${phrase}\\b`, "g"));
+  FILLER_PHRASES[language].forEach((phrase) => {
+    // No ASCII word boundary exists in Devanagari, so Hindi is bounded by
+    // separators instead; an ASCII boundary would match inside longer words.
+    const bounded =
+      language === "hi"
+        ? String.raw`(?<![^\s.,!?।])` + phrase + String.raw`(?![^\s.,!?।])`
+        : String.raw`\b` + phrase + String.raw`\b`;
+    const matches = normalised.match(new RegExp(bounded, "g"));
     if (matches?.length) {
       counts.set(phrase, matches.length);
     }
@@ -307,6 +326,8 @@ export type BuildVoiceMetricsInput = {
   words: TranscribedWord[];
   samples: AudioFeatureSample[];
   durationSec: number;
+  /** The scenario's language; decides which filler list applies. */
+  language?: AppLanguage;
 };
 
 /** Assemble the full metrics object, degrading section by section. */
@@ -315,6 +336,7 @@ export function buildVoiceMetrics({
   words,
   samples,
   durationSec,
+  language = "en",
 }: BuildVoiceMetricsInput): VoiceMetrics {
   const base = {
     durationSec: round(durationSec),
@@ -322,7 +344,7 @@ export function buildVoiceMetrics({
     pauses: computePauses(words),
     pitch: computePitch(samples),
     loudness: computeLoudness(samples),
-    fillers: computeFillers(transcript, durationSec),
+    fillers: computeFillers(transcript, durationSec, language),
   };
 
   return { ...base, confidenceSignal: inferConfidenceSignal(base) };
