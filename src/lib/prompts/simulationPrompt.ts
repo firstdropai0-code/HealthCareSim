@@ -1,3 +1,4 @@
+import { languageDirective } from "@/types/language";
 import type { SimulationState } from "@/types/simulation";
 
 export type SimulationPromptMessage = { role: "user" | "model"; text: string };
@@ -42,6 +43,14 @@ export function buildSimulationPrompt(
 
   return {
     systemInstruction: `Continue this healthcare communication roleplay scenario.
+
+Language: ${languageDirective[state.scenario.language ?? "en"]} Stay in that
+language for every turn, whatever language the trainee answers in -- a patient
+does not switch language because the doctor did.
+EXCEPTION: the "delivery" field must ALWAYS be written in English, in every
+language, and so must the bracketed audio tags. Neither is ever shown to the
+trainee or spoken aloud; they are read by keyword matchers that only recognise
+English, so a translated stage direction silently disables the performance.
 
 Role boundary:
 - The trainee is the doctor or healthcare professional.

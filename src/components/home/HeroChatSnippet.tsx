@@ -12,6 +12,7 @@ import {
   usePrefersReducedMotion,
 } from "@/components/preview/PreviewChat";
 import { TypingIndicator } from "@/components/simulation/ChatMessageList";
+import { useT } from "@/lib/i18n/strings";
 
 // The dots stand for "the AI is composing", so they may only precede the
 // counterpart's line. The trainee reply just fades in and types.
@@ -38,7 +39,14 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
 
   // Reduced motion renders one settled exchange and never loops.
   const phase = prefersReducedMotion ? PHASE_HOLD : rawPhase;
-  const exchange = heroExchanges[index];
+  const t = useT();
+  const entry = heroExchanges[index];
+  const exchange = {
+    id: entry.id,
+    speaker: t(entry.speaker),
+    prompt: t(entry.prompt),
+    reply: t(entry.reply),
+  };
 
   // Memoised, or the effect below sees a new array every render and restarts
   // its timer each time instead of letting a phase run out.
@@ -98,7 +106,7 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
     <div ref={containerRef} className="relative mx-auto w-full max-w-[340px]">
       <Link
         href="/how-it-works"
-        aria-label="See how FirstDropAI works"
+        aria-label={t("hero.ariaLink")}
         className="card-hover group block overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-[var(--shadow-lift)]"
       >
         {/* A hairline accent along the top edge, plus a live dot. Enough to lift
@@ -109,7 +117,7 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
           {/* The pulse is kept here and nowhere else: this panel really is
               updating as you watch, so the movement means something. */}
           <DropGlyph className={prefersReducedMotion ? "" : "halo"} />
-          <p className="eyebrow text-[var(--color-ink-soft)]">Live roleplay</p>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("hero.live")}</p>
         </div>
 
         {/* Reserved height stops the hero from reflowing as the loop plays. */}
@@ -138,7 +146,7 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
             {phase >= PHASE_REPLY ? (
               <motion.div key={`${exchange.id}-reply`} {...bubbleMotion}>
                 <PreviewBubble
-                  speaker="Trainee"
+                  speaker={t("hero.trainee")}
                   content={exchange.reply}
                   isTrainee
                   typeOut={!prefersReducedMotion}
@@ -151,7 +159,7 @@ export function HeroChatSnippet({ floatingTag }: { floatingTag?: ReactNode }) {
         {/* The looping bubbles are aria-hidden; this is the stable text an
             assistive technology user gets instead. */}
         <p className="sr-only">
-          A sample roleplay. {exchange.speaker}: {exchange.prompt} Trainee: {exchange.reply}
+          {t("hero.srSample", exchange)}
         </p>
       </Link>
       {floatingTag}

@@ -3,6 +3,7 @@
 import { useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useState } from "react";
+import { useT } from "@/lib/i18n/strings";
 
 function PlayIcon() {
   return (
@@ -27,6 +28,7 @@ export function HowItWorksCta() {
   // is decoration layered over an already-visible button, and its CSS resumes
   // by itself if the page was opened in a background tab.
   const reducedMotion = useReducedMotion();
+  const t = useT();
   const [noticed, setNoticed] = useState(false);
 
   const cueing = !reducedMotion && !noticed;
@@ -49,7 +51,7 @@ export function HowItWorksCta() {
           <PlayIcon />
         </span>
       </span>
-      See how it works
+      {t("home.seeHow")}
     </Link>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
+import { useT } from "@/lib/i18n/strings";
 
 /** Marks the selected group. Stroke-only, currentColor, like the other icons. */
 function CheckIcon() {
@@ -28,6 +29,7 @@ function CheckIcon() {
  */
 export function GroupSwitcher() {
   const { groups, activeGroup, switchTo } = useMentorGroups();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function GroupSwitcher() {
       await switchTo(groupId);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not switch group.");
+      setError(err instanceof Error ? err.message : t("error.switchGroup"));
     } finally {
       setBusyId(null);
     }
@@ -70,7 +72,7 @@ export function GroupSwitcher() {
             six nav links and the account chip inside a 1152px column, and a
             long group name is what pushes that onto a second line. */}
         <span className="max-w-[8rem] truncate text-xs font-medium text-[var(--color-ink)]">
-          {activeGroup?.name ?? "Choose a group"}
+          {activeGroup?.name ?? t("switcher.choose")}
         </span>
         <span aria-hidden className="text-[0.625rem] text-[var(--color-ink-soft)]">
           ▾
@@ -96,7 +98,7 @@ export function GroupSwitcher() {
             className="absolute left-0 z-50 mt-2 w-60 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-[var(--shadow-lift)]"
           >
             <p className="px-2 pb-2 pt-1 text-xs text-[var(--color-ink-soft)]">
-              Switch group
+              {t("switcher.title")}
             </p>
 
             {groups.map((group) => {
@@ -134,7 +136,7 @@ export function GroupSwitcher() {
                 onClick={() => setOpen(false)}
                 className="block rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-[var(--color-ink-muted)] transition-colors hover:bg-[var(--color-canvas-soft)]"
               >
-                New group…
+                {t("switcher.new")}
               </Link>
             </div>
 

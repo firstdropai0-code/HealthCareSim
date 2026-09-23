@@ -6,6 +6,7 @@ import {
   type User,
 } from "firebase/auth";
 import { getDb, getFirebaseAuth } from "./firebaseApp";
+import { translate, type StringKey } from "@/lib/i18n/strings";
 import type { Role, UserProfile } from "@/types/user";
 
 export type SignUpInput = {
@@ -75,18 +76,17 @@ export async function signOutUser(): Promise<void> {
   await signOut(getFirebaseAuth());
 }
 
-const authErrorCopy: Record<string, string> = {
-  "auth/invalid-email": "That email address does not look right.",
-  "auth/missing-password": "Enter your password.",
-  "auth/weak-password": "Pick a password with at least 6 characters.",
-  "auth/email-already-in-use": "An account already uses that email. Try signing in instead.",
-  "auth/invalid-credential": "Email or password is incorrect.",
-  "auth/wrong-password": "Email or password is incorrect.",
-  "auth/user-not-found": "Email or password is incorrect.",
-  "auth/too-many-requests": "Too many attempts. Wait a minute and try again.",
-  "auth/network-request-failed": "Could not reach the server. Check your connection.",
-  "auth/operation-not-allowed":
-    "Email and password sign-in is disabled for this Firebase project. Enable it in Authentication → Sign-in method.",
+const authErrorCopy: Record<string, StringKey> = {
+  "auth/invalid-email": "authError.invalidEmail",
+  "auth/missing-password": "authError.missingPassword",
+  "auth/weak-password": "authError.weakPassword",
+  "auth/email-already-in-use": "authError.emailInUse",
+  "auth/invalid-credential": "authError.badCredentials",
+  "auth/wrong-password": "authError.badCredentials",
+  "auth/user-not-found": "authError.badCredentials",
+  "auth/too-many-requests": "authError.tooMany",
+  "auth/network-request-failed": "authError.network",
+  "auth/operation-not-allowed": "authError.disabled",
 };
 
 /** Turns a Firebase error code into copy a trainee can act on. */
@@ -96,5 +96,10 @@ export function friendlyAuthError(error: unknown): string {
       ? String((error as { code: unknown }).code)
       : "";
 
-  return authErrorCopy[code] ?? (error instanceof Error ? error.message : "Something went wrong.");
+  const key = authErrorCopy[code];
+  if (key) {
+    return translate(key);
+  }
+
+  return error instanceof Error ? error.message : translate("error.generic");
 }

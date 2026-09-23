@@ -1,7 +1,9 @@
 "use client";
 
+import type { AppLanguage } from "@/types/language";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { transcribeAudio } from "@/lib/ai/openaiClient";
+import { translate } from "@/lib/i18n/strings";
 import {
   startVoiceFeatureCollection,
   type VoiceFeatureCollector,
@@ -43,7 +45,7 @@ function isMediaRecordingSupported(): boolean {
  * OpenAI transcription route and returns the transcript. Handles mic-permission
  * denial and unsupported browsers without throwing to the caller.
  */
-export function useVoiceRecorder(): UseVoiceRecorder {
+export function useVoiceRecorder(language?: AppLanguage): UseVoiceRecorder {
   const [status, setStatus] = useState<VoiceRecorderStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
@@ -76,7 +78,7 @@ export function useVoiceRecorder(): UseVoiceRecorder {
     if (!isMediaRecordingSupported()) {
       setIsSupported(false);
       setStatus("error");
-      setError("Voice input is not supported in this browser.");
+      setError(translate("error.voiceUnsupported"));
       return;
     }
 
@@ -105,8 +107,8 @@ export function useVoiceRecorder(): UseVoiceRecorder {
       setStatus("error");
       setError(
         err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Microphone permission was denied. Enable it to use voice input."
-          : "Could not start recording. Check your microphone and try again.",
+          ? translate("error.micDenied")
+          : translate("error.micFailed"),
       );
     }
   }, [releaseStream]);
@@ -137,7 +139,7 @@ export function useVoiceRecorder(): UseVoiceRecorder {
         setStatus("transcribing");
 
         try {
-          const { text, words, duration } = await transcribeAudio(blob);
+          const { text, words, duration } = await transcribeAudio(blob, language);
           setStatus("idle");
 
           // Metrics are strictly best-effort: a failure here must never cost the
@@ -150,6 +152,7 @@ export function useVoiceRecorder(): UseVoiceRecorder {
               words,
               samples: captured?.samples ?? [],
               durationSec: duration ?? captured?.durationSec ?? 0,
+              language,
             });
           } catch (metricsError) {
             console.error("Voice metric analysis failed; continuing without it:", metricsError);
@@ -158,14 +161,14 @@ export function useVoiceRecorder(): UseVoiceRecorder {
           resolve({ text, voiceMetrics });
         } catch (err) {
           setStatus("error");
-          setError(err instanceof Error ? err.message : "Transcription failed. Please try again.");
+          setError(err instanceof Error ? err.message : translate("error.transcriptionFailed"));
           resolve(EMPTY_RESULT);
         }
       };
 
       recorder.stop();
     });
-  }, [releaseStream]);
+  }, [language, releaseStream]);
 
   return { status, error, isSupported, start, stop };
 }

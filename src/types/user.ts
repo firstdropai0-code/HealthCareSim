@@ -23,11 +23,6 @@ export function isRole(value: unknown): value is Role {
   return value === "mentor" || value === "trainee";
 }
 
-export const roleLabel: Record<Role, string> = {
-  mentor: "Mentor",
-  trainee: "Trainee",
-};
-
 /** Initials for the header account chip. Falls back to the email local part. */
 export function initialsFor(profile: Pick<UserProfile, "displayName" | "email">): string {
   const source = profile.displayName.trim() || profile.email.split("@")[0] || "?";

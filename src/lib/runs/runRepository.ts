@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/firebase/firebaseApp";
 import { getGroup } from "@/lib/groups/groupRepository";
+import { translate } from "@/lib/i18n/strings";
 import type { FeedbackReport } from "@/types/feedback";
 import type { RunRecord, RunStat, RunSummary, RunTranscript } from "@/types/run";
 import type { SimulationState } from "@/types/simulation";
@@ -73,7 +74,7 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
   const { state, report, profile } = input;
 
   if (!profile.groupId) {
-    throw new Error("Join a group before saving results.");
+    throw new Error(translate("error.joinBeforeSaving"));
   }
 
   const [db, { doc, serverTimestamp, setDoc }, group] = await Promise.all([
@@ -85,7 +86,7 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
   ]);
 
   if (!group) {
-    throw new Error("Your group no longer exists.");
+    throw new Error(translate("error.groupGone"));
   }
 
   const runId = runIdFor(state);

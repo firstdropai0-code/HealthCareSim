@@ -52,14 +52,6 @@ export const subscoreDimensions = [
 
 export type SubscoreDimension = (typeof subscoreDimensions)[number];
 
-export const subscoreLabels: Record<SubscoreDimension, string> = {
-  empathy: "Empathy",
-  clarity: "Clarity",
-  structure: "Structure & next steps",
-  professionalism: "Professionalism",
-  deEscalation: "Pressure & de-escalation",
-};
-
 export type FeedbackReport = {
   overallScore: number;
   /** Absent on older reports and on the fallback report. */

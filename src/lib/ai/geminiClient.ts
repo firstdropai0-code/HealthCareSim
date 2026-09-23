@@ -1,3 +1,5 @@
+import { localizeServerError } from "@/lib/i18n/strings";
+import type { AppLanguage } from "@/types/language";
 import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { FeedbackReport } from "@/types/feedback";
@@ -18,7 +20,7 @@ async function callGemini<T>(action: GeminiAction, payload: unknown): Promise<T>
   const data = (await response.json()) as { result?: T; error?: string };
 
   if (!response.ok || !data.result) {
-    throw new Error(data.error || "The AI request failed. Please try again.");
+    throw new Error(localizeServerError(data.error, "error.aiFailed"));
   }
 
   return data.result;
@@ -27,8 +29,9 @@ async function callGemini<T>(action: GeminiAction, payload: unknown): Promise<T>
 export function generateScenarioFromIdea(
   input: string,
   difficulty: ScenarioDifficulty,
+  language: AppLanguage = "en",
 ): Promise<Scenario> {
-  return callGemini<Scenario>("generateScenario", { input, difficulty });
+  return callGemini<Scenario>("generateScenario", { input, difficulty, language });
 }
 
 export function generateNextSimulationTurn(

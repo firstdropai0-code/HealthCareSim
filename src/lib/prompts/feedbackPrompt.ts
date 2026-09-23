@@ -1,3 +1,4 @@
+import { languageDirective } from "@/types/language";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import type { SimulationState } from "@/types/simulation";
 
@@ -175,6 +176,10 @@ export function buildFeedbackPrompt(state: SimulationState, extraCriteria: strin
     : "";
 
   return `Evaluate this healthcare communication training simulation.
+
+Language: ${languageDirective[state.scenario.language ?? "en"]} Every field you
+write, including quoted example lines, must be in that language. When you quote
+the trainee back to themselves, quote what they actually said, unchanged.
 
 Scenario title: ${state.scenario.title}
 Scenario summary: ${state.scenario.summary}

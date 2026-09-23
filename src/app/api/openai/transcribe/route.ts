@@ -34,10 +34,14 @@ export async function POST(request: Request) {
   }
 
   let file: FormDataEntryValue | null;
+  let requestedLanguage: string | null = null;
 
   try {
     const formData = await request.formData();
     file = formData.get("file");
+
+    const raw = formData.get("language");
+    requestedLanguage = typeof raw === "string" && raw.trim() ? raw.trim() : null;
   } catch {
     return errorResponse("Request body must be multipart form data.");
   }
@@ -53,7 +57,10 @@ export async function POST(request: Request) {
   upstreamForm.append("file", file, fileName);
   upstreamForm.append("model", model);
 
-  const language = process.env.OPENAI_TRANSCRIBE_LANGUAGE || DEFAULT_TRANSCRIBE_LANGUAGE;
+  // Per-request first: a Hindi case must transcribe as Hindi even where the
+  // deployment default is English. The env var remains the fallback.
+  const language =
+    requestedLanguage || process.env.OPENAI_TRANSCRIBE_LANGUAGE || DEFAULT_TRANSCRIBE_LANGUAGE;
 
   if (language !== "auto") {
     upstreamForm.append("language", language);

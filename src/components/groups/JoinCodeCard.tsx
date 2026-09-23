@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { InfoCard } from "@/components/common/VisualCards";
+import { useT } from "@/lib/i18n/strings";
 
 export function JoinCodeCard({
   code,
@@ -12,6 +13,7 @@ export function JoinCodeCard({
   onRotate: () => void;
   rotating: boolean;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -26,11 +28,8 @@ export function JoinCodeCard({
   }
 
   return (
-    <InfoCard label="Invite" title="Join code" tone="emerald">
-      <p className="text-sm leading-6 text-[var(--color-ink-soft)]">
-        Share this with your trainees. They enter it once, on the join screen, after creating
-        their account.
-      </p>
+    <InfoCard label={t("joinCode.label")} title={t("joinCode.title")} tone="emerald">
+      <p className="text-sm leading-6 text-[var(--color-ink-soft)]">{t("joinCode.body")}</p>
 
       <p className="mt-4 font-mono text-3xl font-semibold tracking-[0.3em] tabular-nums text-[var(--color-ink)]">
         {code}
@@ -38,7 +37,7 @@ export function JoinCodeCard({
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" onClick={() => void handleCopy()} className="btn-editorial btn-editorial--solid">
-          {copied ? "Copied" : "Copy code"}
+          {copied ? t("joinCode.copied") : t("joinCode.copy")}
         </button>
         <button
           type="button"
@@ -46,13 +45,12 @@ export function JoinCodeCard({
           disabled={rotating}
           className="btn-editorial btn-editorial--quiet"
         >
-          {rotating ? "Working..." : "Rotate code"}
+          {rotating ? t("common.working") : t("joinCode.rotate")}
         </button>
       </div>
 
       <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
-        Rotating issues a new code and stops the old one working. Trainees who already joined
-        stay in the group.
+        {t("joinCode.rotateHint")}
       </p>
     </InfoCard>
   );

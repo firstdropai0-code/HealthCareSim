@@ -28,6 +28,7 @@ import {
 } from "@/lib/ai/voiceDirection";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
@@ -40,18 +41,9 @@ import {
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
 import type {
-  ScenarioSpeaker,
   SimulationMessage,
   SimulationState,
 } from "@/types/simulation";
-
-const speakerLabels: Record<ScenarioSpeaker, string> = {
-  patient: "Patient",
-  family_member: "Family member",
-  nurse: "Nurse",
-  bystander: "Bystander",
-  narrator: "Narrator",
-};
 
 /**
  * mp3 encoders prepend a short run of silence. Subtracting it stops the first
@@ -113,6 +105,16 @@ function BriefItem({
 export default function SimulationPage() {
   const router = useRouter();
   const gate = useRequireAuth();
+  const t = useT();
+  // Callbacks and effects read the current translator through a ref: adding `t`
+  // to their dependency arrays would retrigger playback and turn requests every
+  // time the language changes.
+  const tRef = useRef(t);
+  // Assigned in an effect rather than during render: refs may not be written
+  // while rendering. Listing `t` would restart playback and turn requests on a language change.
+  useEffect(() => {
+    tRef.current = t;
+  });
   const shouldAnimate = useShouldAnimate();
   const [state, setState] = useState<SimulationState | null>(null);
   const [response, setResponse] = useState("");
@@ -316,7 +318,7 @@ export default function SimulationPage() {
           return;
         }
 
-        setTtsError(err instanceof Error ? err.message : "Could not play audio.");
+        setTtsError(err instanceof Error ? err.message : tRef.current("simulation.audioError"));
       } finally {
         window.clearTimeout(holdTimer);
         playbackRef.current = null;
@@ -500,7 +502,7 @@ export default function SimulationPage() {
       setResponse("");
       pendingVoiceMetrics.current = [];
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to continue simulation.");
+      setError(err instanceof Error ? err.message : tRef.current("simulation.turnError"));
     } finally {
       setLoading(false);
     }
@@ -549,13 +551,13 @@ export default function SimulationPage() {
     return (
       <AppShell>
         <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-card)]">
-          <p className="eyebrow text-[var(--color-ink-soft)]">Simulation room</p>
-          <h1 className="display-md mt-4 text-[var(--color-ink)]">No active simulation</h1>
+          <p className="eyebrow text-[var(--color-ink-soft)]">{t("simulation.room")}</p>
+          <h1 className="display-md mt-4 text-[var(--color-ink)]">{t("simulation.none")}</h1>
           <p className="lede mt-5 max-w-lg text-sm">
-            Create a structured scenario before entering the simulation room.
+            {t("simulation.noneBody")}
           </p>
           <Link href="/scenario" className="btn-editorial btn-editorial--solid mt-8">
-            Create scenario
+            {t("simulation.createScenario")}
           </Link>
         </section>
       </AppShell>
@@ -567,8 +569,8 @@ export default function SimulationPage() {
     (message) => message.role === "scenario" && message.speaker,
   );
   const currentSpeaker = latestScenarioMessage?.speaker
-    ? speakerLabels[latestScenarioMessage.speaker]
-    : "Narrator";
+    ? t(`speaker.${latestScenarioMessage.speaker}` as StringKey)
+    : t("simulation.narrator");
 
   return (
     <AppShell>
@@ -589,7 +591,7 @@ export default function SimulationPage() {
         <header className="accent-edge shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)]">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             <div className="min-w-0">
-              <p className="eyebrow text-[var(--color-primary)]">Simulation room</p>
+              <p className="eyebrow text-[var(--color-primary)]">{t("simulation.room")}</p>
               <h1 className="display-md mt-1.5">{state.scenario.title}</h1>
             </div>
             {/* Chips get the full width of the right side rather than a narrow
@@ -599,12 +601,12 @@ export default function SimulationPage() {
                 get a column below. Setting is two words — giving it a third of
                 the brief row wasted the measure the long fields needed. */}
             <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
-              <MetricChip label="Setting" value={state.scenario.setting} tone="emerald" />
-              <MetricChip label="Speaker" value={currentSpeaker} tone="blue" />
+              <MetricChip label={t("simulation.setting")} value={state.scenario.setting} tone="emerald" />
+              <MetricChip label={t("simulation.speaker")} value={currentSpeaker} tone="blue" />
               <TensionBadge level={state.tensionLevel} />
               {/* Status is deliberately absent: the session rail already states
                   it in words, and a fifth chip wrapped the row onto two lines. */}
-              <MetricChip label="Patient" value={state.scenario.patientEmotion} tone="amber" />
+              <MetricChip label={t("simulation.patient")} value={state.scenario.patientEmotion} tone="amber" />
             </div>
           </div>
 
@@ -612,10 +614,10 @@ export default function SimulationPage() {
               Three full-width columns give these enough measure to read
               properly instead of wrapping every few words. */}
           <div className="mt-3 grid gap-x-8 gap-y-3 border-t border-[var(--color-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3">
-            <BriefItem label="Situation" tone="ink" value={state.scenario.summary} />
-            <BriefItem label="Goal" tone="primary" value={state.scenario.traineeObjective} />
+            <BriefItem label={t("simulation.situation")} tone="ink" value={state.scenario.summary} />
+            <BriefItem label={t("simulation.goal")} tone="primary" value={state.scenario.traineeObjective} />
             <BriefItem
-              label="Challenge"
+              label={t("simulation.challenge")}
               tone="warning"
               value={state.scenario.communicationChallenge}
             />
@@ -628,8 +630,8 @@ export default function SimulationPage() {
               variant="inline"
               current={state.currentTurn}
               total={state.maxTurns}
-              label="Turns used"
-              hint={`Paced for about ${state.scenario.suggestedTurns}; ends when the conversation resolves.`}
+              label={t("simulation.turnsUsed")}
+              hint={t("simulation.pacedFor", { n: state.scenario.suggestedTurns })}
             />
           </div>
         </header>
@@ -641,7 +643,7 @@ export default function SimulationPage() {
           {/* Conversation panel */}
           <section className="order-1 flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)] lg:order-2">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-2.5">
-              <h2 className="eyebrow text-[var(--color-ink)]">Live roleplay</h2>
+              <h2 className="eyebrow text-[var(--color-ink)]">{t("simulation.live")}</h2>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
                   <input
@@ -658,9 +660,9 @@ export default function SimulationPage() {
                     }}
                     className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
                   />
-                  Auto-read new messages
+                  {t("simulation.autoRead")}
                 </label>
-                <MetricChip label="Messages" value={`${state.messages.length}`} tone="slate" />
+                <MetricChip label={t("simulation.messages")} value={`${state.messages.length}`} tone="slate" />
               </div>
             </div>
 
@@ -668,7 +670,7 @@ export default function SimulationPage() {
               ref={scrollRef}
               onScroll={handleHistoryScroll}
               tabIndex={0}
-              aria-label="Conversation history"
+              aria-label={t("simulation.history")}
               aria-busy={loading}
               className="min-h-[16rem] max-h-[55dvh] flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 lg:[@media(min-height:800px)]:max-h-none lg:[@media(min-height:800px)]:min-h-0"
             >
@@ -694,7 +696,7 @@ export default function SimulationPage() {
                       className="eyebrow eyebrow-tight inline-flex min-h-9 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-1.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
                     >
                       <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
-                      Stop reading aloud
+                      {t("simulation.stopReading")}
                     </button>
                   ) : null}
                   {/* Deliberately quiet rather than in the danger colour: a
@@ -712,10 +714,10 @@ export default function SimulationPage() {
                         }}
                         className="btn-editorial btn-editorial--quiet min-h-9"
                       >
-                        Turn on read-aloud
+                        {t("simulation.turnOnReadAloud")}
                       </button>
                       <p className="text-xs text-[var(--color-ink-soft)]">
-                        Your browser waits for a click before playing audio.
+                        {t("simulation.gestureHint")}
                       </p>
                     </>
                   ) : null}
@@ -729,13 +731,19 @@ export default function SimulationPage() {
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
-                      Your next response
+                      {t("simulation.yourResponse")}
                     </label>
                     <div className="flex items-center gap-3">
                       <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
-                        {response.trim().length} chars
+                        {t("common.chars", { n: response.trim().length })}
                       </p>
-                      <MicButton onTranscript={handleTranscript} disabled={loading} />
+                      {/* The scenario's language, not the reader's UI setting:
+                          a Hindi case is answered in Hindi. */}
+                      <MicButton
+                        onTranscript={handleTranscript}
+                        disabled={loading}
+                        language={state?.scenario.language ?? "en"}
+                      />
                     </div>
                   </div>
                   <textarea
@@ -743,7 +751,7 @@ export default function SimulationPage() {
                     rows={2}
                     value={response}
                     onChange={(event) => setResponse(event.target.value)}
-                    placeholder="Type what the trainee says or does next."
+                    placeholder={t("simulation.placeholder")}
                     className="mt-2.5 w-full resize-y border border-[var(--color-border-strong)] bg-white p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
                   />
 
@@ -756,7 +764,7 @@ export default function SimulationPage() {
                         disabled={!response.trim() || loading}
                         className="ml-3 font-semibold underline disabled:opacity-50"
                       >
-                        Retry
+                        {t("common.retry")}
                       </button>
                     </div>
                   ) : null}
@@ -769,15 +777,15 @@ export default function SimulationPage() {
                       onClick={handleSend}
                       className="sheen min-h-11 w-full"
                     >
-                      Send Response
+                      {t("simulation.send")}
                     </LoadingButton>
                   </div>
                 </>
               ) : (
                 <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-3">
-                  <p className="eyebrow text-[var(--color-info)]">Simulation completed</p>
+                  <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
                   <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
-                    Generate a feedback report focused on communication, empathy, clarity, and pressure handling.
+                    {t("simulation.completedBody")}
                   </p>
                 </div>
               )}
@@ -788,12 +796,12 @@ export default function SimulationPage() {
               ending the session never means scrolling away from the composer. */}
           <aside className="order-2 flex flex-col gap-3 lg:order-1 lg:self-start">
             <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
-              <p className="eyebrow text-[var(--color-ink-soft)]">Session</p>
+              <p className="eyebrow text-[var(--color-ink-soft)]">{t("simulation.session")}</p>
               <p className="display-sm mt-2 text-[var(--color-ink)]">
-                {completed ? "Simulation completed" : "Wrap up when ready"}
+                {completed ? t("simulation.completed") : t("simulation.wrapUp")}
               </p>
               <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
-                {completed ? "Open the feedback report for this roleplay." : "Finish now or end without feedback."}
+                {completed ? t("simulation.openReport") : t("simulation.finishOrEnd")}
               </p>
               <div className="mt-4 grid gap-2">
                 {!completed ? (
@@ -803,14 +811,14 @@ export default function SimulationPage() {
                       onClick={handleEndSimulation}
                       className="btn-editorial btn-editorial--quiet w-full hover:border-[var(--color-danger)] hover:bg-transparent hover:text-[var(--color-danger)]"
                     >
-                      End Simulation
+                      {t("simulation.end")}
                     </button>
                     <button
                       type="button"
                       onClick={handleFinishAndGenerateFeedback}
                       className="btn-editorial btn-editorial--solid w-full"
                     >
-                      Finish & Generate Feedback
+                      {t("simulation.finish")}
                     </button>
                   </>
                 ) : hasFeedbackReport ? (
@@ -819,7 +827,7 @@ export default function SimulationPage() {
                     onClick={() => router.push("/feedback")}
                     className="btn-editorial btn-editorial--solid w-full"
                   >
-                    View Feedback
+                    {t("simulation.viewFeedback")}
                   </button>
                 ) : (
                   <button
@@ -827,7 +835,7 @@ export default function SimulationPage() {
                     onClick={handleGenerateFeedback}
                     className="btn-editorial btn-editorial--solid w-full"
                   >
-                    Generate Feedback
+                    {t("simulation.generateFeedback")}
                   </button>
                 )}
               </div>
@@ -836,9 +844,7 @@ export default function SimulationPage() {
             <SafetyNotice />
 
             <p className="text-[11px] leading-4 text-[var(--color-ink-soft)]">
-              Read-aloud audio is AI-generated and speaks only the words shown in the
-              conversation. Delivery — pace, breath, emotion — is directed separately
-              and is not part of what is said.
+              {t("simulation.audioDisclaimer")}
             </p>
           </aside>
         </div>

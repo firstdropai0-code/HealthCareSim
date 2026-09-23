@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MetricChip } from "@/components/common/VisualCards";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/groups/groupRepository";
 import { useMentorGroups } from "@/lib/groups/MentorGroupsProvider";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 import type { Group, GroupMember } from "@/types/group";
 
 /** Marks the selected group. Stroke-only, currentColor, like the other icons. */
@@ -49,6 +50,12 @@ export default function MentorGroupPage() {
     switchTo,
     reload,
   } = useMentorGroups();
+  const t = useT();
+  // For the load effect, which must not refetch when only the language changes.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -97,7 +104,7 @@ export default function MentorGroupPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load your group.");
+          setError(err instanceof Error ? err.message : tRef.current("group.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -146,7 +153,7 @@ export default function MentorGroupPage() {
       setName("");
       setFormOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the group.");
+      setError(err instanceof Error ? err.message : t("group.createError"));
     } finally {
       setCreating(false);
     }
@@ -166,7 +173,7 @@ export default function MentorGroupPage() {
     try {
       await switchTo(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not switch group.");
+      setError(err instanceof Error ? err.message : t("error.switchGroup"));
     } finally {
       setSwitchingId(null);
     }
@@ -184,7 +191,7 @@ export default function MentorGroupPage() {
       const nextCode = await rotateJoinCode(group);
       setGroup({ ...group, joinCode: nextCode });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not rotate the code.");
+      setError(err instanceof Error ? err.message : t("group.rotateError"));
     } finally {
       setRotating(false);
     }
@@ -202,7 +209,7 @@ export default function MentorGroupPage() {
       await removeMember(group.id, member.uid);
       await refresh(group.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove that trainee.");
+      setError(err instanceof Error ? err.message : t("group.removeError"));
     } finally {
       setRemovingUid(null);
     }
@@ -212,23 +219,23 @@ export default function MentorGroupPage() {
     <form onSubmit={handleCreate} className="space-y-4">
       <div>
         <label htmlFor="group-name" className="eyebrow text-[var(--color-ink)]">
-          Group name
+          {t("group.nameLabel")}
         </label>
         <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-          Something your trainees will recognise, like a rotation or specialty.
+          {t("group.nameHint")}
         </p>
         <input
           id="group-name"
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
-          placeholder="Example: FY1 Communication Block, Autumn"
+          placeholder={t("group.namePlaceholder")}
           className="mt-3 w-full border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 py-2.5 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
         />
       </div>
 
       <LoadingButton type="submit" loading={creating} disabled={!name.trim()}>
-        Create group
+        {t("group.create")}
       </LoadingButton>
     </form>
   );
@@ -238,22 +245,20 @@ export default function MentorGroupPage() {
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
           <p className="eyebrow text-[var(--color-primary)]">
-            {groups.length > 1 ? "My groups" : "My group"}
+            {t(groups.length > 1 ? "group.eyebrow.other" : "group.eyebrow.one")}
           </p>
           <h1 className="display-md mt-2">
-            {shownGroup ? shownGroup.name : "Set up your first training group."}
+            {shownGroup ? shownGroup.name : t("group.firstTitle")}
           </h1>
           <p className="mt-2 max-w-2xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
-            {hasGroups
-              ? "Trainees who redeem this group's join code appear here, and their completed runs feed your dashboard. Each group keeps its own code, roster and cases."
-              : "A group holds your trainees and their results. You need one before anyone can join, and you can create more later — one per rotation or specialty."}
+            {hasGroups ? t("group.intro") : t("group.introEmpty")}
           </p>
           {shownGroup ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <MetricChip label="Trainees" value={String(members.length)} tone="emerald" />
-              <MetricChip label="Mentor" value={shownGroup.mentorName} tone="slate" />
+              <MetricChip label={t("group.trainees")} value={String(members.length)} tone="emerald" />
+              <MetricChip label={t("group.mentor")} value={shownGroup.mentorName} tone="slate" />
               {groups.length > 1 ? (
-                <MetricChip label="My groups" value={String(groups.length)} tone="blue" />
+                <MetricChip label={t("group.myGroups")} value={String(groups.length)} tone="blue" />
               ) : null}
             </div>
           ) : null}
@@ -271,10 +276,9 @@ export default function MentorGroupPage() {
         {/* Only worth showing once there is actually a choice to make. */}
         {groups.length > 1 ? (
           <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)]">
-            <h2 className="eyebrow text-[var(--color-ink)]">Switch group</h2>
+            <h2 className="eyebrow text-[var(--color-ink)]">{t("group.switch")}</h2>
             <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-              The selected group is the one this page manages, the one your dashboard reports on,
-              and the one new cases publish to.
+              {t("group.switchHint")}
             </p>
             <ul className="mt-4 flex flex-wrap gap-2">
               {groups.map((entry) => {
@@ -298,7 +302,7 @@ export default function MentorGroupPage() {
                       <span className="truncate">{entry.name}</span>
                       {isActive ? (
                         <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-[0.08em]">
-                          Selected
+                          {t("group.selected")}
                         </span>
                       ) : null}
                       {isBusy ? <span aria-hidden>&hellip;</span> : null}
@@ -311,7 +315,7 @@ export default function MentorGroupPage() {
         ) : null}
 
         {!loaded ? (
-          <p className="text-sm text-[var(--color-ink-soft)]">Loading your group...</p>
+          <p className="text-sm text-[var(--color-ink-soft)]">{t("group.loading")}</p>
         ) : shownGroup ? (
           <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
             <JoinCodeCard
@@ -322,9 +326,9 @@ export default function MentorGroupPage() {
 
             <section>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="display-sm">Trainees</h2>
+                <h2 className="display-sm">{t("group.trainees")}</h2>
                 <Link href="/mentor" className="link-editorial text-sm font-medium text-[var(--color-primary)]">
-                  Open dashboard
+                  {t("group.openDashboard")}
                 </Link>
               </div>
               <div className="mt-3">
@@ -335,9 +339,7 @@ export default function MentorGroupPage() {
                 />
               </div>
               <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
-                Select a name to see that trainee&rsquo;s progress and sessions. Removing a trainee
-                stops them adding new results to this group; runs they already completed stay on
-                your dashboard.
+                {t("group.rosterHint")}
               </p>
             </section>
           </div>
@@ -351,30 +353,29 @@ export default function MentorGroupPage() {
             {formOpen ? (
               <>
                 <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="display-sm">New group</h2>
+                  <h2 className="display-sm">{t("group.new")}</h2>
                   <button
                     type="button"
                     onClick={() => setFormOpen(false)}
                     className="link-editorial text-sm font-medium text-[var(--color-ink-muted)]"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
                 <div className="mt-4">{createForm}</div>
               </>
             ) : (
               <>
-                <h2 className="display-sm">Running a second cohort?</h2>
+                <h2 className="display-sm">{t("group.secondTitle")}</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--color-ink-soft)]">
-                  Create another group to keep a different domain&rsquo;s trainees, cases and
-                  results separate.
+                  {t("group.secondBody")}
                 </p>
                 <button
                   type="button"
                   onClick={() => setFormOpen(true)}
                   className="btn-editorial btn-editorial--quiet mt-4"
                 >
-                  Create another group
+                  {t("group.createAnother")}
                 </button>
               </>
             )}

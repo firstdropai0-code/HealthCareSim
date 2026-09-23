@@ -1,18 +1,11 @@
 "use client";
 
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import type { Role } from "@/types/user";
 
-const options: { role: Role; label: string; blurb: string }[] = [
-  {
-    role: "trainee",
-    label: "Trainee",
-    blurb: "Run scenarios, get feedback, and track your progress.",
-  },
-  {
-    role: "mentor",
-    label: "Mentor",
-    blurb: "Write scenarios, invite trainees, and review their performance.",
-  },
+const options: { role: Role; label: StringKey; blurb: StringKey }[] = [
+  { role: "trainee", label: "roleChoice.trainee", blurb: "roleChoice.traineeBlurb" },
+  { role: "mentor", label: "roleChoice.mentor", blurb: "roleChoice.mentorBlurb" },
 ];
 
 /**
@@ -28,9 +21,11 @@ export function RoleChoice({
   onChange: (role: Role) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
+
   return (
     <fieldset disabled={disabled}>
-      <legend className="eyebrow text-[var(--color-ink)]">I am a</legend>
+      <legend className="eyebrow text-[var(--color-ink)]">{t("roleChoice.legend")}</legend>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {options.map((option) => {
           const isActive = value === option.role;
@@ -52,17 +47,17 @@ export function RoleChoice({
                   isActive ? "text-[var(--color-primary)]" : "text-[var(--color-ink)]"
                 }`}
               >
-                {option.label}
+                {t(option.label)}
               </span>
               <span className="mt-1 block text-xs leading-5 text-[var(--color-ink-soft)]">
-                {option.blurb}
+                {t(option.blurb)}
               </span>
             </button>
           );
         })}
       </div>
       <p className="mt-2 text-xs text-[var(--color-ink-soft)]">
-        This cannot be changed later.
+        {t("roleChoice.permanent")}
       </p>
     </fieldset>
   );

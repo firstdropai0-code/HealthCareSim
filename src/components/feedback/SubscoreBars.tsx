@@ -1,19 +1,19 @@
 "use client";
 
+import { useT, type StringKey } from "@/lib/i18n/strings";
 import { motion } from "framer-motion";
 import { EASE_OUT_CUBIC } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import {
   subscoreDimensions,
-  subscoreLabels,
   type SkillSubscores,
 } from "@/types/feedback";
 
 /** Matches `scoreLabel` in FeedbackReportView so the bands read consistently. */
-function bandFor(score: number): { label: string; fill: string; ink: string } {
+function bandFor(score: number): { label: StringKey; fill: string; ink: string } {
   if (score >= 8) {
     return {
-      label: "Strong",
+      label: "band.strong",
       fill: "bg-[var(--color-primary)]",
       ink: "text-[var(--color-primary-ink)]",
     };
@@ -21,20 +21,21 @@ function bandFor(score: number): { label: string; fill: string; ink: string } {
 
   if (score >= 6) {
     return {
-      label: "Developing",
+      label: "band.developing",
       fill: "bg-[var(--color-warning)]",
       ink: "text-[var(--color-warning)]",
     };
   }
 
   return {
-    label: "Needs focus",
+    label: "band.needsFocus",
     fill: "bg-[var(--color-danger)]",
     ink: "text-[var(--color-danger)]",
   };
 }
 
 export function SubscoreBars({ subscores }: { subscores: SkillSubscores }) {
+  const t = useT();
   const shouldAnimate = useShouldAnimate();
 
   return (
@@ -47,7 +48,7 @@ export function SubscoreBars({ subscores }: { subscores: SkillSubscores }) {
           <div key={dimension}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="text-[0.9375rem] font-medium text-[var(--color-ink)]">
-                {subscoreLabels[dimension]}
+                {t(`subscore.${dimension}`)}
               </p>
               <p className="text-xs font-semibold tabular-nums text-[var(--color-ink)]">
                 {score}
@@ -73,7 +74,7 @@ export function SubscoreBars({ subscores }: { subscores: SkillSubscores }) {
               )}
             </div>
 
-            <p className={`eyebrow eyebrow-tight mt-1 ${band.ink}`}>{band.label}</p>
+            <p className={`eyebrow eyebrow-tight mt-1 ${band.ink}`}>{t(band.label)}</p>
           </div>
         );
       })}

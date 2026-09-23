@@ -1,5 +1,6 @@
 "use client";
 
+import { categoryLabel, useT } from "@/lib/i18n/strings";
 import {
   categoryOptions,
   difficultyMeta,
@@ -25,15 +26,15 @@ export function CategorySelector({
   locked?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
+
   return (
     <div>
       <label htmlFor="scenario-category" className="eyebrow text-[var(--color-ink)]">
-        Track
+        {t("track.label")}
       </label>
       <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-        {locked
-          ? "Taken from the case you picked. Change it if you are adapting the case."
-          : "The row this case sits in on your trainees' skill tree."}
+        {locked ? t("track.lockedHint") : t("track.hint")}
       </p>
       <select
         id="scenario-category"
@@ -43,8 +44,9 @@ export function CategorySelector({
         className="mt-3 w-full max-w-sm border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 py-2.5 text-[0.9375rem] text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
       >
         {categoryOptions.map((option) => (
+          // The value stays the stored English track; only the label moves.
           <option key={option} value={option}>
-            {option}
+            {categoryLabel(t, option)}
           </option>
         ))}
       </select>
@@ -69,13 +71,13 @@ export function DifficultySelector({
   locked?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
+
   return (
     <fieldset disabled={disabled}>
-      <legend className="eyebrow text-[var(--color-ink)]">Difficulty</legend>
+      <legend className="eyebrow text-[var(--color-ink)]">{t("difficultyPicker.label")}</legend>
       <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-        {locked
-          ? "Taken from the case you picked. Change it if you are adapting the case."
-          : "Shapes how demanding the generated roleplay is, and sets the level this counts towards on the trainee's progress."}
+        {locked ? t("track.lockedHint") : t("difficultyPicker.hint")}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
@@ -89,7 +91,7 @@ export function DifficultySelector({
               type="button"
               onClick={() => onChange(difficulty)}
               aria-pressed={isActive}
-              title={meta.blurb}
+              title={t(`difficultyBlurb.${difficulty}`)}
               className={`eyebrow eyebrow-tight inline-flex min-h-7 items-center gap-1.5 rounded-full border px-3 py-1 transition-all duration-200 ${
                 isActive
                   ? meta.chip
@@ -97,7 +99,7 @@ export function DifficultySelector({
               }`}
             >
               <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${isActive ? meta.dot : "bg-[var(--color-border-strong)]"}`} />
-              {meta.label}
+              {t(`difficulty.${difficulty}`)}
             </button>
           );
         })}

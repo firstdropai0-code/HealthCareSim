@@ -1,3 +1,4 @@
+import { languageDirective, type AppLanguage } from "@/types/language";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 
 /**
@@ -7,8 +8,8 @@ import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
  * value stays the mentor's, so the model cannot invent a tier and quietly
  * reclassify where a run counts on the skill tree.
  *
- * The wording tracks `difficultyMeta` in scenarioLibrary.ts, so the tier a
- * mentor reads on the chip is the tier the generator is working to. Difficulty
+ * The wording tracks the `difficultyBlurb.*` copy in `src/lib/i18n/strings.ts`,
+ * so the tier a mentor reads on the chip is the tier the generator is working to. Difficulty
  * here means EMOTIONAL and COMMUNICATIVE demand, never clinical complexity —
  * the safety rules below still hold at every tier.
  */
@@ -36,6 +37,7 @@ const difficultyGuidance: Record<ScenarioDifficulty, string> = {
 export function buildScenarioPrompt(
   input: string,
   difficulty: ScenarioDifficulty = "intermediate",
+  language: AppLanguage = "en",
 ): string {
   return `Convert this rough trainer idea into a structured healthcare communication training scenario.
 
@@ -43,6 +45,10 @@ Trainer idea:
 ${input}
 
 ${difficultyGuidance[difficulty]}
+
+Language: ${languageDirective[language]} The trainer's idea may be written in a
+different language from the one you must answer in; translate the situation
+rather than echoing their wording.
 
 Rules:
 - Write the scenario at the difficulty stated above. If the trainer's idea sounds gentler or harsher than that tier, keep their situation and people but pitch the counterpart's behaviour and the pressure to the stated tier.

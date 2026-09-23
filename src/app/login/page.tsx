@@ -12,10 +12,12 @@ import {
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { friendlyAuthError, signIn } from "@/lib/firebase/authRepository";
 import { useAuthState } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 
 export default function LoginPage() {
   const state = useAuthState();
   const router = useRouter();
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,14 +51,14 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      eyebrow="Sign in"
-      title="Welcome back."
-      intro="Trainees pick up where they left off. Mentors go straight to their group."
+      eyebrow={t("login.eyebrow")}
+      title={t("login.title")}
+      intro={t("login.intro")}
       footer={
         <>
-          No account yet?{" "}
+          {t("login.noAccount")}{" "}
           <Link href="/signup" className="link-editorial font-medium text-[var(--color-primary)]">
-            Create one
+            {t("login.createOne")}
           </Link>
         </>
       }
@@ -64,7 +66,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthField
           id="login-email"
-          label="Email"
+          label={t("auth.email")}
           type="email"
           autoComplete="email"
           required
@@ -73,7 +75,7 @@ export default function LoginPage() {
         />
         <AuthField
           id="login-password"
-          label="Password"
+          label={t("auth.password")}
           type="password"
           autoComplete="current-password"
           required
@@ -89,7 +91,7 @@ export default function LoginPage() {
           disabled={!email.trim() || !password}
           className="w-full justify-center"
         >
-          Sign in
+          {t("login.submit")}
         </LoadingButton>
       </form>
     </AuthCard>

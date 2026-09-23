@@ -1,7 +1,8 @@
 "use client";
 
+import { useT } from "@/lib/i18n/strings";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { InfoCard, MetricChip } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
@@ -18,20 +19,21 @@ import {
 } from "@/lib/progress/progressModel";
 import { CLEAR_SCORE } from "@/lib/progress/skillTree";
 import { listGroupRuns } from "@/lib/runs/runRepository";
-import { difficultyOrder, difficultyMeta } from "@/lib/scenarios/scenarioLibrary";
+import { difficultyOrder } from "@/lib/scenarios/scenarioLibrary";
 import {
   subscoreDimensions,
-  subscoreLabels,
   type SubscoreDimension,
 } from "@/types/feedback";
 import type { GroupMember } from "@/types/group";
 import type { RunSummary } from "@/types/run";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { languageDateLocale, type AppLanguage } from "@/types/language";
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, language: AppLanguage): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? "—"
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    : date.toLocaleDateString(languageDateLocale[language], { day: "numeric", month: "short" });
 }
 
 function mean(values: number[]): number | null {
@@ -46,6 +48,13 @@ export default function MentorDashboardPage() {
   const groupId = profile?.groupId ?? null;
   const mentorId = profile?.uid ?? null;
   const { groups, activeGroup, loading: groupsLoading } = useMentorGroups();
+  const t = useT();
+  const language = useLanguage();
+  // For the load effect, which must not refetch when only the language changes.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
 
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -85,7 +94,7 @@ export default function MentorDashboardPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load your group.");
+          setError(err instanceof Error ? err.message : tRef.current("group.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -179,7 +188,7 @@ export default function MentorDashboardPage() {
     if (groupsLoading) {
       return (
         <AppShell>
-          <p className="text-sm text-[var(--color-ink-soft)]">Loading your groups...</p>
+          <p className="text-sm text-[var(--color-ink-soft)]">{t("dash.loadingGroups")}</p>
         </AppShell>
       );
     }
@@ -187,13 +196,13 @@ export default function MentorDashboardPage() {
     return (
       <AppShell>
         <div className="mx-auto max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center shadow-[var(--shadow-soft)]">
-          <p className="eyebrow text-[var(--color-primary)]">Dashboard</p>
-          <h1 className="display-md mt-2">Create your first group.</h1>
+          <p className="eyebrow text-[var(--color-primary)]">{t("dash.eyebrow")}</p>
+          <h1 className="display-md mt-2">{t("dash.firstTitle")}</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--color-ink-soft)]">
-            The dashboard fills in once trainees join and start completing cases.
+            {t("dash.firstBody")}
           </p>
           <Link href="/mentor/group" className="btn-editorial btn-editorial--accent mt-5 inline-flex">
-            Set up my group
+            {t("dash.setUp")}
           </Link>
         </div>
       </AppShell>
@@ -204,25 +213,23 @@ export default function MentorDashboardPage() {
     <AppShell>
       <div className="space-y-6">
         <Reveal className="accent-edge rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)] sm:p-5">
-          <p className="eyebrow text-[var(--color-primary)]">Dashboard</p>
+          <p className="eyebrow text-[var(--color-primary)]">{t("dash.eyebrow")}</p>
           <h1 className="display-md mt-2">
-            How {activeGroup ? activeGroup.name : "your group"} is doing.
+            {t("dash.title", { group: activeGroup ? activeGroup.name : t("dash.yourGroup") })}
           </h1>
           <p className="mt-2 max-w-2xl text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
-            Scored cases only. Runs that could not be scored are excluded from every figure here.
-            {groups.length > 1
-              ? " These figures cover this group alone — switch groups in the header."
-              : ""}
+            {t("dash.intro")}
+            {groups.length > 1 ? t("dash.introMulti") : ""}
           </p>
           {/* Gated on `loaded` like everything else: these sit above the loading
               branch, so without it they would show the previous group's counts
               under the new group's name. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <MetricChip label="Trainees" value={loaded ? String(members.length) : "—"} tone="emerald" />
-            <MetricChip label="Scored cases" value={loaded ? String(runs.length) : "—"} tone="blue" />
+            <MetricChip label={t("dash.trainees")} value={loaded ? String(members.length) : "—"} tone="emerald" />
+            <MetricChip label={t("dash.scoredCases")} value={loaded ? String(runs.length) : "—"} tone="blue" />
             {loaded && groupScores.length > 0 ? (
               <MetricChip
-                label="Group average"
+                label={t("dash.groupAverage")}
                 value={`${(mean(groupScores) ?? 0).toFixed(1)} / 10`}
                 tone="slate"
               />
@@ -240,7 +247,7 @@ export default function MentorDashboardPage() {
         ) : null}
 
         {!loaded ? (
-          <p className="text-sm text-[var(--color-ink-soft)]">Loading your group...</p>
+          <p className="text-sm text-[var(--color-ink-soft)]">{t("group.loading")}</p>
         ) : (
           <>
             <GroupHeadline
@@ -252,11 +259,11 @@ export default function MentorDashboardPage() {
             />
 
             <div className="grid gap-4 lg:grid-cols-3">
-              <InfoCard label="Distribution" title="How cases are landing" tone="slate">
+              <InfoCard label={t("dash.distribution")} title={t("dash.landing")} tone="slate">
                 <ScoreBands scores={groupScores} />
               </InfoCard>
 
-              <InfoCard label="By dimension" title="Group averages" tone="emerald">
+              <InfoCard label={t("dash.byDimension")} title={t("dash.groupAverages")} tone="emerald">
                 <dl className="grid gap-3">
                   {dimensionMeans.map((entry) => {
                     const isWeakest = entry.dimension === weakestDimension;
@@ -271,10 +278,10 @@ export default function MentorDashboardPage() {
                                 : "text-[var(--color-ink-muted)]"
                             }`}
                           >
-                            {subscoreLabels[entry.dimension]}
+                            {t(`subscore.${entry.dimension}`)}
                             {isWeakest ? (
                               <span className="eyebrow eyebrow-tight ml-2 text-[var(--color-danger)]">
-                                Focus here
+                                {t("dash.focusHere")}
                               </span>
                             ) : null}
                           </dt>
@@ -300,12 +307,12 @@ export default function MentorDashboardPage() {
                 </dl>
               </InfoCard>
 
-              <InfoCard label="Coverage" title="Cases by level" tone="blue">
+              <InfoCard label={t("dash.coverage")} title={t("dash.byLevel")} tone="blue">
                 <dl className="grid gap-2">
                   {tierCounts.map((entry) => (
                     <div key={entry.difficulty} className="flex items-baseline justify-between gap-3">
                       <dt className="text-[0.9375rem] text-[var(--color-ink-muted)]">
-                        {difficultyMeta[entry.difficulty].label}
+                        {t(`difficulty.${entry.difficulty}`)}
                       </dt>
                       <dd className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
                         {entry.count}
@@ -318,25 +325,31 @@ export default function MentorDashboardPage() {
 
             <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="display-sm">Trainees</h2>
+                <h2 className="display-sm">{t("dash.trainees")}</h2>
                 <Link
                   href="/mentor/group"
                   className="link-editorial text-sm font-medium text-[var(--color-primary)]"
                 >
-                  Manage group
+                  {t("dash.manage")}
                 </Link>
               </div>
 
               {rows.length === 0 ? (
                 <p className="mt-4 text-sm text-[var(--color-ink-soft)]">
-                  No trainees yet. Share your join code to get started.
+                  {t("dash.noTrainees")}
                 </p>
               ) : (
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full min-w-[560px] border-collapse text-left">
                     <thead>
                       <tr className="border-b border-[var(--color-border)]">
-                        {["Trainee", "Cases", "Average", "Weakest", "Last active"].map((heading) => (
+                        {[
+                          t("dash.col.trainee"),
+                          t("dash.col.cases"),
+                          t("dash.col.average"),
+                          t("dash.col.weakest"),
+                          t("dash.col.lastActive"),
+                        ].map((heading) => (
                           <th
                             key={heading}
                             scope="col"
@@ -374,16 +387,16 @@ export default function MentorDashboardPage() {
                                     scoreBandMeta[scoreBand(progress.averageScore)].ink
                                   }`}
                                 >
-                                  {scoreBandMeta[scoreBand(progress.averageScore)].label}
+                                  {t(`band.${scoreBand(progress.averageScore)}`)}
                                 </span>
                               </span>
                             )}
                           </td>
                           <td className="py-3 pr-3 text-[0.9375rem] text-[var(--color-ink-muted)]">
-                            {weakest ? subscoreLabels[weakest.dimension] : "—"}
+                            {weakest ? t(`subscore.${weakest.dimension}`) : "—"}
                           </td>
                           <td className="py-3 pr-3 text-sm text-[var(--color-ink-muted)]">
-                            {progress.lastActive ? formatDate(progress.lastActive) : "—"}
+                            {progress.lastActive ? formatDate(progress.lastActive, language) : "—"}
                           </td>
                         </tr>
                       ))}

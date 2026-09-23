@@ -4,16 +4,19 @@ import Image from "next/image";
 import Link from "next/link";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { Reveal } from "@/components/motion/Reveal";
+import { useT } from "@/lib/i18n/strings";
 
 /**
  * The auth pages have room for the full lockup, strapline and all, so they use
  * it rather than the header's cropped mark.
  */
 function LogoLockup() {
+  const t = useT();
+
   return (
     <Image
       src="/logo-full.png"
-      alt="First Drop AI — Healthcare Simulation"
+      alt={t("auth.logoAlt")}
       width={1376}
       height={1010}
       priority
@@ -39,12 +42,14 @@ export function AuthCard({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const t = useT();
+
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12 text-[var(--color-ink)]">
       <Reveal className="w-full max-w-md">
         <Link
           href="/"
-          aria-label="First Drop AI home"
+          aria-label={t("auth.homeAria")}
           className="mx-auto block w-fit transition-opacity hover:opacity-80"
         >
           <LogoLockup />
@@ -102,14 +107,16 @@ export function AuthError({ message }: { message: string }) {
 
 /** Blocks the auth pages when the project has no Firebase credentials. */
 export function AuthUnconfigured() {
+  const t = useT();
+
   return (
     <AuthCard
-      eyebrow="Backend not connected"
-      title="Accounts are not set up yet."
-      intro="Add the NEXT_PUBLIC_FIREBASE_* values to .env.local and restart the dev server. Scenarios, simulations, and feedback keep working without them."
+      eyebrow={t("authUnconfigured.eyebrow")}
+      title={t("authUnconfigured.title")}
+      intro={t("authUnconfigured.intro")}
     >
       <Link href="/scenario" className="btn-editorial btn-editorial--quiet w-full justify-center">
-        Go to the scenario creator
+        {t("authUnconfigured.cta")}
       </Link>
     </AuthCard>
   );

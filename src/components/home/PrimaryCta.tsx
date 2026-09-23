@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuthState } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 
 /**
  * The home page's primary call to action, pointed at whatever the visitor can
@@ -24,15 +25,16 @@ export function PrimaryCta({
   className?: string;
 }) {
   const state = useAuthState();
+  const t = useT();
   const profile = state.status === "ready" ? state.profile : null;
 
   const { href, label } =
     profile?.role === "trainee"
       ? profile.groupId
-        ? { href: "/cases", label: "Start a case" }
+        ? { href: "/cases", label: t("home.startCase") }
         : // Nothing else works until they redeem a code, so say that rather
           // than offering a case list that will be empty.
-          { href: "/join", label: "Join a group" }
+          { href: "/join", label: t("home.joinGroup") }
       : { href: "/scenario", label: defaultLabel };
 
   return (

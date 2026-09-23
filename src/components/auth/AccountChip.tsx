@@ -1,14 +1,16 @@
 "use client";
 
+import { useT } from "@/lib/i18n/strings";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signOutUser } from "@/lib/firebase/authRepository";
 import { useAuthState } from "@/lib/firebase/useAuth";
-import { initialsFor, roleLabel } from "@/types/user";
+import { initialsFor } from "@/types/user";
 
 export function AccountChip() {
   const state = useAuthState();
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -24,7 +26,7 @@ export function AccountChip() {
         href={state.status === "anonymous" ? "/login" : "/onboarding"}
         className="link-editorial shrink-0 text-[0.9375rem] font-medium text-[var(--color-ink-muted)]"
       >
-        {state.status === "anonymous" ? "Sign in" : "Finish setup"}
+        {state.status === "anonymous" ? t("account.signIn") : t("account.finishSetup")}
       </Link>
     );
   }
@@ -49,7 +51,7 @@ export function AccountChip() {
         <span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[0.6875rem] font-semibold text-[var(--color-primary)]">
           {initialsFor(profile)}
         </span>
-        <span className="max-w-[9rem] truncate text-xs font-medium text-[var(--color-ink)]">
+        <span className="max-w-[7rem] truncate text-xs font-medium text-[var(--color-ink)]">
           {profile.displayName || profile.email}
         </span>
       </button>
@@ -72,8 +74,8 @@ export function AccountChip() {
                 already says which group they are in, and a mentor whose profile
                 pointer is being repaired would briefly read as having none. */}
             <p className="px-2 pb-2 pt-1 text-xs text-[var(--color-ink-soft)]">
-              {roleLabel[profile.role]}
-              {profile.role === "mentor" || profile.groupId ? "" : " · no group yet"}
+              {profile.role === "mentor" ? t("role.mentor") : t("role.traineeRole")}
+              {profile.role === "mentor" || profile.groupId ? "" : t("account.noGroup")}
             </p>
             <button
               type="button"
@@ -81,7 +83,7 @@ export function AccountChip() {
               onClick={() => void handleSignOut()}
               className="w-full rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-sm text-[var(--color-ink)] transition-colors hover:bg-[var(--color-canvas-soft)]"
             >
-              Sign out
+              {t("account.signOut")}
             </button>
           </div>
         </>

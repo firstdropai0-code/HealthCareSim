@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { useT } from "@/lib/i18n/strings";
 import { scoreHistogram } from "@/lib/progress/cohortStats";
 
 const WIDTH = 320;
@@ -11,11 +12,12 @@ const BASELINE = HEIGHT - 18;
 /** Distribution of overall scores across a group. Hand-rolled, same as the rest. */
 export function ScoreHistogram({ scores }: { scores: number[] }) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
 
   if (scores.length === 0) {
     return (
       <p className="text-sm leading-6 text-[var(--color-ink-soft)]">
-        No scored cases in this group yet.
+        {t("histogram.empty")}
       </p>
     );
   }
@@ -33,7 +35,7 @@ export function ScoreHistogram({ scores }: { scores: number[] }) {
         role="img"
         aria-label={bins
           .filter((bin) => bin.count > 0)
-          .map((bin) => `${bin.count} at ${bin.score} out of 10`)
+          .map((bin) => t("histogram.barAria", { count: bin.count, score: bin.score }))
           .join(", ")}
       >
         <line
@@ -85,7 +87,7 @@ export function ScoreHistogram({ scores }: { scores: number[] }) {
         })}
       </svg>
       <figcaption className="mt-1 text-[0.8125rem] text-[var(--color-ink-soft)]">
-        Overall score, 1&ndash;10. {scores.length} scored {scores.length === 1 ? "case" : "cases"}.
+        {t.plural("histogram.caption", scores.length)}
       </figcaption>
     </figure>
   );

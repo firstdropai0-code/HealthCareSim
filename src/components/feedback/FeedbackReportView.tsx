@@ -1,5 +1,6 @@
 "use client";
 
+import { useT, type StringKey, type Translator } from "@/lib/i18n/strings";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -14,26 +15,19 @@ import { resolveRespondedMessage } from "@/lib/feedback/betterResponses";
 import type { BetterResponse, FeedbackReport } from "@/types/feedback";
 import type { SimulationMessage } from "@/types/simulation";
 
-const speakerLabels: Record<string, string> = {
-  patient: "Patient",
-  family_member: "Family member",
-  nurse: "Nurse",
-  bystander: "Bystander",
-  narrator: "Narrator",
-};
-
 type FeedbackTone = "emerald" | "amber" | "rose" | "blue";
 
-function scoreLabel(score: number): string {
+/** Thresholds match `scoreBand` in progressModel, so bands read the same everywhere. */
+function scoreLabel(t: Translator, score: number): string {
   if (score >= 8) {
-    return "Strong";
+    return t("band.strong");
   }
 
   if (score >= 6) {
-    return "Developing";
+    return t("band.developing");
   }
 
-  return "Needs focus";
+  return t("band.needsFocus");
 }
 
 function FeedbackItemGrid({
@@ -45,8 +39,10 @@ function FeedbackItemGrid({
   items: string[];
   tone: FeedbackTone;
 }) {
+  const t = useT();
+
   return (
-    <InfoCard label={label} title={`${items.length} notes`} tone={tone}>
+    <InfoCard label={label} title={t("report.notes", { count: items.length })} tone={tone}>
       <div className="grid gap-2">
         {items.map((item) => (
           <div
@@ -74,16 +70,19 @@ function BetterResponseCard({
   entry: BetterResponse;
   scenarioMessages: SimulationMessage[];
 }) {
+  const t = useT();
   const responded = resolveRespondedMessage(entry, scenarioMessages);
-  const speaker = responded?.speaker ? speakerLabels[responded.speaker] : null;
+  const speaker = responded?.speaker ? t(`speaker.${responded.speaker}` as StringKey) : null;
 
   return (
     <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)]">
       {responded ? (
         <div className="border-b border-[var(--color-border)] bg-[var(--color-canvas-soft)] px-4 py-2.5">
           <p className="eyebrow eyebrow-tight text-[var(--color-ink-soft)]">
-            {speaker ? `When the ${speaker.toLowerCase()} said` : "In response to"}
-            {entry.respondsToTurn ? ` · turn ${entry.respondsToTurn}` : ""}
+            {speaker
+              ? t("report.whenSaid", { speaker: speaker.toLowerCase() })
+              : t("report.inResponseTo")}
+            {entry.respondsToTurn ? t("report.turn", { n: entry.respondsToTurn }) : ""}
           </p>
           <p className="mt-1 text-[0.9375rem] italic leading-6 text-[var(--color-ink-muted)]">
             &ldquo;{responded.content}&rdquo;
@@ -92,7 +91,7 @@ function BetterResponseCard({
       ) : null}
       <div className="border-l-4 border-l-[var(--color-primary)] px-4 py-3">
         <p className="eyebrow eyebrow-tight text-[var(--color-primary)]">
-          You could have said
+          {t("report.couldHaveSaid")}
         </p>
         <div className="mt-1 text-[var(--color-ink)]">
           <ReadMoreText text={entry.suggestion} maxLength={160} />
@@ -147,34 +146,35 @@ type DeckPage = {
 function buildPages(
   report: FeedbackReport,
   scenarioMessages: SimulationMessage[],
+  t: Translator,
 ): DeckPage[] {
   const score = Math.max(1, Math.min(10, report.overallScore));
-  const topStrength = report.whatWentWell[0] || "Stayed engaged in the scenario.";
+  const topStrength = report.whatWentWell[0] || t("report.defaultStrength");
   const topFocus =
     report.whatCouldImprove[0] ||
     report.communicationGaps[0] ||
-    "Use clearer structure in the next response.";
+    t("report.defaultFocus");
   const customCriteriaFeedback = report.customCriteriaFeedback || [];
   const deliveryFeedback = report.deliveryFeedback || [];
 
   const pages: DeckPage[] = [
     {
       id: "overview",
-      label: "Overview",
-      eyebrow: "At a glance",
-      title: "How it went",
+      label: t("report.page.overview"),
+      eyebrow: t("report.atAGlance"),
+      title: t("report.howItWent"),
       body: (
         <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
-          <ScoreCard score={score} label={scoreLabel(score)} />
+          <ScoreCard score={score} label={scoreLabel(t, score)} />
           <div className="space-y-4">
-            <InfoCard label="Summary" title="Quick read" tone="slate">
+            <InfoCard label={t("report.summary")} title={t("report.quickRead")} tone="slate">
               <ReadMoreText text={report.summary} maxLength={170} />
             </InfoCard>
             <div className="grid gap-3 md:grid-cols-2">
-              <InfoCard label="Strength" title="What worked" tone="emerald">
+              <InfoCard label={t("report.strength")} title={t("report.whatWorked")} tone="emerald">
                 <ReadMoreText text={topStrength} maxLength={120} />
               </InfoCard>
-              <InfoCard label="Improve" title="Next focus" tone="amber">
+              <InfoCard label={t("report.improve")} title={t("report.nextFocus")} tone="amber">
                 <ReadMoreText text={topFocus} maxLength={120} />
               </InfoCard>
             </div>
@@ -184,23 +184,23 @@ function buildPages(
     },
     {
       id: "detail",
-      label: "Detail",
-      eyebrow: "The full notes",
-      title: "Went well, improve, gaps",
+      label: t("report.page.detail"),
+      eyebrow: t("report.fullNotes"),
+      title: t("report.detailTitle"),
       body: (
         <div className="grid gap-4 lg:grid-cols-3">
           <FeedbackItemGrid
-            label="What went well"
+            label={t("report.whatWentWell")}
             items={report.whatWentWell}
             tone="emerald"
           />
           <FeedbackItemGrid
-            label="Improve next time"
+            label={t("report.improveNextTime")}
             items={report.whatCouldImprove}
             tone="amber"
           />
           <FeedbackItemGrid
-            label="Watch gaps"
+            label={t("report.watchGaps")}
             items={report.communicationGaps}
             tone="rose"
           />
@@ -209,16 +209,16 @@ function buildPages(
     },
     {
       id: "examples",
-      label: "Examples",
-      eyebrow: "Example",
-      title: "Better response examples",
+      label: t("report.page.examples"),
+      eyebrow: t("report.example"),
+      title: t("report.examplesTitle"),
       body: (
-        <InfoCard label="Example" title="Lines you could have used" tone="blue">
+        <InfoCard label={t("report.example")} title={t("report.linesYouCouldHaveUsed")} tone="blue">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-info-soft)] text-[0.6875rem] font-semibold text-[var(--color-info)]">
               FD
             </span>
-            <span className="eyebrow text-[var(--color-info)]">FirstDrop Coach</span>
+            <span className="eyebrow text-[var(--color-info)]">{t("report.coach")}</span>
           </div>
           <div className="mt-4 grid gap-3">
             {report.betterResponses.map((item, index) => (
@@ -240,22 +240,18 @@ function buildPages(
   if (report.subscores) {
     pages.splice(1, 0, {
       id: "skills",
-      label: "Skills",
-      eyebrow: "By dimension",
-      title: "Where the score came from",
+      label: t("report.page.skills"),
+      eyebrow: t("report.byDimension"),
+      title: t("report.whereFrom"),
       body: (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <InfoCard label="Dimensions" title="Five communication skills" tone="slate">
+          <InfoCard label={t("report.dimensions")} title={t("report.fiveSkills")} tone="slate">
             <SubscoreBars subscores={report.subscores} />
           </InfoCard>
-          <InfoCard label="Reading this" title="What it means" tone="blue">
-            <p className="text-[0.9375rem] leading-6">
-              Each dimension is scored on its own, so being warm but unclear looks different
-              from being clear but cold. These are what your progress tracks over time.
-            </p>
+          <InfoCard label={t("report.readingThis")} title={t("report.whatItMeans")} tone="blue">
+            <p className="text-[0.9375rem] leading-6">{t("report.dimensionsBody")}</p>
             <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
-              The overall score is a judgement of the whole conversation, not the average of
-              these five.
+              {t("report.overallNote")}
             </p>
           </InfoCard>
         </div>
@@ -268,14 +264,13 @@ function buildPages(
   if (deliveryFeedback.length > 0) {
     pages.push({
       id: "delivery",
-      label: "Delivery",
-      eyebrow: "Delivery",
-      title: "How you sounded",
+      label: t("report.page.delivery"),
+      eyebrow: t("report.delivery"),
+      title: t("report.howYouSounded"),
       body: (
-        <InfoCard label="Delivery" title="How you sounded" tone="blue">
+        <InfoCard label={t("report.delivery")} title={t("report.howYouSounded")} tone="blue">
           <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
-            Measured from your spoken turns. These are cues about delivery, not a
-            score — the overall score reflects what you said.
+            {t("report.deliveryNote")}
           </p>
           <div className="mt-3 grid gap-2">
             {deliveryFeedback.map((item, index) => (
@@ -295,13 +290,13 @@ function buildPages(
   if (customCriteriaFeedback.length > 0) {
     pages.push({
       id: "criteria",
-      label: "Criteria",
-      eyebrow: "Custom criteria",
-      title: "Your added evaluation criteria",
+      label: t("report.page.criteria"),
+      eyebrow: t("report.customCriteria"),
+      title: t("report.yourAddedCriteria"),
       body: (
         <InfoCard
-          label="Custom criteria"
-          title="Your added evaluation criteria"
+          label={t("report.customCriteria")}
+          title={t("report.yourAddedCriteria")}
           tone="indigo"
         >
           <div className="grid gap-3 md:grid-cols-2">
@@ -324,11 +319,11 @@ function buildPages(
 
   pages.push({
     id: "advice",
-    label: "Carry forward",
-    eyebrow: "Final advice",
-    title: "Carry forward",
+    label: t("report.page.advice"),
+    eyebrow: t("report.finalAdvice"),
+    title: t("report.carryForward"),
     body: (
-      <InfoCard label="Final advice" title="Carry forward" tone="slate">
+      <InfoCard label={t("report.finalAdvice")} title={t("report.carryForward")} tone="slate">
         <ReadMoreText text={report.finalAdvice} maxLength={170} />
       </InfoCard>
     ),
@@ -346,9 +341,12 @@ export function FeedbackReportView({
   scenarioMessages?: SimulationMessage[];
 }) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
   const pages = useMemo(
-    () => buildPages(report, scenarioMessages),
-    [report, scenarioMessages],
+    () => buildPages(report, scenarioMessages, t),
+    // `t` changes identity only with the language, which is exactly when the
+    // page labels have to be rebuilt.
+    [report, scenarioMessages, t],
   );
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -415,8 +413,9 @@ export function FeedbackReportView({
     <div className="space-y-4">
       {report.source === "fallback" ? (
         <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-warning)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
-          {report.fallbackReason ||
-            "Basic fallback feedback generated because Gemini feedback was unavailable."}
+          {/* The route's own reason is English prose, so the reader gets the
+              translated explanation instead of it. */}
+          {t("feedback.fallback")}
         </div>
       ) : null}
 
@@ -425,7 +424,7 @@ export function FeedbackReportView({
         tabIndex={0}
         role="group"
         aria-roledescription="carousel"
-        aria-label="Feedback report pages"
+        aria-label={t("report.pages")}
         className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] shadow-[var(--shadow-soft)]"
       >
         {/* The spine: a bound edge on the left, so turning a page reads as a
@@ -464,7 +463,7 @@ export function FeedbackReportView({
               className="btn-editorial btn-editorial--quiet min-h-9 px-3 py-1.5 text-xs"
             >
               <ArrowIcon direction="left" />
-              Previous
+              {t("common.previous")}
             </button>
 
             <div className="flex flex-wrap items-center justify-center gap-1.5">
@@ -477,7 +476,7 @@ export function FeedbackReportView({
                     type="button"
                     onClick={() => goTo(entryIndex)}
                     aria-current={isCurrent ? "true" : undefined}
-                    aria-label={`Go to ${entry.label}`}
+                    aria-label={t("report.goTo", { label: entry.label })}
                     className={`eyebrow eyebrow-tight min-h-7 rounded-full border px-2.5 py-1 transition-colors duration-200 ${
                       isCurrent
                         ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]"
@@ -496,7 +495,7 @@ export function FeedbackReportView({
               disabled={isLast}
               className="btn-editorial btn-editorial--quiet min-h-9 px-3 py-1.5 text-xs"
             >
-              Next
+              {t("common.next")}
               <ArrowIcon direction="right" />
             </button>
           </div>
@@ -504,7 +503,7 @@ export function FeedbackReportView({
       </div>
 
       <p className="text-center text-[0.8125rem] leading-4 text-[var(--color-ink-soft)]">
-        Page {safeIndex + 1} of {pages.length} — use the arrows or arrow keys to turn.
+        {t("report.pageOf", { n: safeIndex + 1, total: pages.length })}
       </p>
     </div>
   );

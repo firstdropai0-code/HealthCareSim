@@ -13,11 +13,13 @@ import { RoleChoice } from "@/components/auth/RoleChoice";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { friendlyAuthError, signUp } from "@/lib/firebase/authRepository";
 import { useAuthState } from "@/lib/firebase/useAuth";
+import { useT } from "@/lib/i18n/strings";
 import type { Role } from "@/types/user";
 
 export default function SignUpPage() {
   const state = useAuthState();
   const router = useRouter();
+  const t = useT();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,13 +61,13 @@ export default function SignUpPage() {
 
   return (
     <AuthCard
-      eyebrow="Create account"
-      title="Set up your account."
+      eyebrow={t("signup.eyebrow")}
+      title={t("signup.title")}
       footer={
         <>
-          Already have one?{" "}
+          {t("signup.haveOne")}{" "}
           <Link href="/login" className="link-editorial font-medium text-[var(--color-primary)]">
-            Sign in
+            {t("signup.signIn")}
           </Link>
         </>
       }
@@ -73,16 +75,16 @@ export default function SignUpPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthField
           id="signup-name"
-          label="Full name"
+          label={t("auth.fullName")}
           autoComplete="name"
           required
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
-          hint="Your mentor sees this next to your results."
+          hint={t("signup.nameHint")}
         />
         <AuthField
           id="signup-email"
-          label="Email"
+          label={t("auth.email")}
           type="email"
           autoComplete="email"
           required
@@ -91,14 +93,14 @@ export default function SignUpPage() {
         />
         <AuthField
           id="signup-password"
-          label="Password"
+          label={t("auth.password")}
           type="password"
           autoComplete="new-password"
           required
           minLength={6}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          hint="At least 6 characters."
+          hint={t("signup.passwordHint")}
         />
 
         <RoleChoice value={role} onChange={setRole} disabled={loading} />
@@ -111,7 +113,7 @@ export default function SignUpPage() {
           disabled={!displayName.trim() || !email.trim() || password.length < 6}
           className="w-full justify-center"
         >
-          Create account
+          {t("signup.submit")}
         </LoadingButton>
       </form>
     </AuthCard>

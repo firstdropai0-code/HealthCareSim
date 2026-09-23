@@ -19,6 +19,7 @@ import {
   getExtraEvaluationCriteria,
 } from "@/lib/prompts/feedbackPrompt";
 import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
+import { isAppLanguage, type AppLanguage } from "@/types/language";
 import {
   difficultyOrder,
   type ScenarioDifficulty,
@@ -43,7 +44,7 @@ import type {
 type GeminiRequest =
   | {
       action: "generateScenario";
-      payload: { input: string; difficulty?: ScenarioDifficulty };
+      payload: { input: string; difficulty?: ScenarioDifficulty; language?: string };
     }
   | {
       action: "nextTurn";
@@ -428,8 +429,9 @@ function buildFallbackFeedback(state: SimulationState): FeedbackReport {
 async function generateScenario(
   input: string,
   difficulty: ScenarioDifficulty,
+  language: AppLanguage,
 ): Promise<Scenario> {
-  const prompt = buildScenarioPrompt(input, difficulty);
+  const prompt = buildScenarioPrompt(input, difficulty, language);
   const result = await callGeminiJson({
     action: "scenario",
     prompt,
@@ -440,7 +442,7 @@ async function generateScenario(
     schema: scenarioSchema,
   });
 
-  return normalizeScenario(result);
+  return { ...normalizeScenario(result), language };
 }
 
 async function generateTurn(
@@ -586,11 +588,20 @@ export async function POST(request: Request) {
         ? body.payload.difficulty
         : "intermediate";
 
+      // Same reasoning as difficulty: an unrecognised value would index the
+      // directive map to undefined and silently drop the language from the
+      // prompt, which reads as "the model ignored Hindi".
+      const language: AppLanguage = isAppLanguage(body.payload.language)
+        ? body.payload.language
+        : "en";
+
       try {
-        return NextResponse.json({ result: await generateScenario(input, difficulty) });
+        return NextResponse.json({ result: await generateScenario(input, difficulty, language) });
       } catch (error) {
         if (isInvalidJsonResponse(error)) {
           console.error("Gemini scenario generation returned invalid JSON, using fallback:", error);
+          // The fallback is hardcoded English prose, so it is honestly labelled
+          // as English rather than stamped with a language it is not written in.
           return NextResponse.json({ result: buildFallbackScenario(input) });
         }
 

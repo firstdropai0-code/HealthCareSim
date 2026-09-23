@@ -11,9 +11,12 @@ import {
 import { createPortal } from "react-dom";
 import { EASE_OUT_CUBIC, springSoft } from "@/components/motion/motionConfig";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { useLanguage } from "@/lib/i18n/languageStore";
+import { categoryLabel, useT } from "@/lib/i18n/strings";
 import {
   difficultyMeta,
   difficultyOrder,
+  localizeLibraryEntry,
   pickRandomScenario,
   scenarioLibrary,
   type LibraryScenario,
@@ -21,6 +24,21 @@ import {
 } from "@/lib/scenarios/scenarioLibrary";
 
 type Filter = ScenarioDifficulty | "all";
+
+/**
+ * The library as the reader should see it. Localised once here rather than per
+ * card, so search, the shuffle reel and the entry handed back to the creator
+ * all agree -- and the idea that lands in the box is in the reader's language,
+ * which is the language the case will then be generated in.
+ */
+function useLocalizedLibrary(): LibraryScenario[] {
+  const language = useLanguage();
+
+  return useMemo(
+    () => scenarioLibrary.map((entry) => localizeLibraryEntry(entry, language)),
+    [language],
+  );
+}
 
 /**
  * False until React has finished hydrating, then true forever.
@@ -154,13 +172,14 @@ function CloseIcon() {
 
 function DifficultyChip({ difficulty }: { difficulty: ScenarioDifficulty }) {
   const meta = difficultyMeta[difficulty];
+  const t = useT();
 
   return (
     <span
       className={`eyebrow eyebrow-tight inline-flex min-h-5 items-center gap-1.5 rounded-full border px-2 py-0.5 ${meta.chip}`}
     >
       <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
-      {meta.label}
+      {t(`difficulty.${difficulty}`)}
     </span>
   );
 }
@@ -175,13 +194,14 @@ function CaseCard({
   onSelect: (entry: LibraryScenario) => void;
 }) {
   const meta = difficultyMeta[entry.difficulty];
+  const t = useT();
 
   return (
     <button
       type="button"
       onClick={() => onSelect(entry)}
       aria-pressed={isSelected}
-      aria-label={`Use ${entry.code}: ${entry.title}`}
+      aria-label={t("library.useCase", { code: entry.code, title: entry.title })}
       className={`card-hover relative w-full overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--color-surface)] p-4 pl-5 text-left shadow-[var(--shadow-card)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[''] ${meta.rule} ${
         isSelected
           ? "border-[var(--color-primary)] shadow-[var(--shadow-soft)]"
@@ -202,7 +222,7 @@ function CaseCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className="eyebrow eyebrow-tight text-[var(--color-ink-soft)]">
-          {entry.category}
+          {categoryLabel(t, entry.category)}
         </span>
         {entry.tags.map((tag) => (
           <span
@@ -230,6 +250,8 @@ function LibraryDrawer({
 }) {
   const shouldAnimate = useShouldAnimate();
   const isHydrated = useIsHydrated();
+  const t = useT();
+  const library = useLocalizedLibrary();
   const panelRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -264,19 +286,19 @@ function LibraryDrawer({
   const counts = useMemo(() => {
     return difficultyOrder.reduce<Record<ScenarioDifficulty, number>>(
       (totals, level) => {
-        totals[level] = scenarioLibrary.filter(
+        totals[level] = library.filter(
           (entry) => entry.difficulty === level,
         ).length;
         return totals;
       },
       { foundational: 0, intermediate: 0, advanced: 0 },
     );
-  }, []);
+  }, [library]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
-    return scenarioLibrary.filter((entry) => {
+    return library.filter((entry) => {
       if (filter !== "all" && entry.difficulty !== filter) {
         return false;
       }
@@ -285,12 +307,21 @@ function LibraryDrawer({
         return true;
       }
 
-      return [entry.title, entry.summary, entry.category, entry.idea, ...entry.tags]
+      // Both the shown and the stored track name, so a search typed in either
+      // language still finds the track.
+      return [
+        entry.title,
+        entry.summary,
+        entry.category,
+        categoryLabel(t, entry.category),
+        entry.idea,
+        ...entry.tags,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(needle);
     });
-  }, [filter, query]);
+  }, [filter, library, query, t]);
 
   const groups = useMemo(
     () =>
@@ -310,10 +341,10 @@ function LibraryDrawer({
   }
 
   const filters: Array<{ value: Filter; label: string; count: number }> = [
-    { value: "all", label: "All", count: scenarioLibrary.length },
+    { value: "all", label: t("library.all"), count: library.length },
     ...difficultyOrder.map((level) => ({
       value: level as Filter,
-      label: difficultyMeta[level].label,
+      label: t(`difficulty.${level}`),
       count: counts[level],
     })),
   ];
@@ -352,7 +383,7 @@ function LibraryDrawer({
     >
       <Backdrop
         type="button"
-        aria-label="Close scenario library"
+        aria-label={t("library.close")}
         onClick={onClose}
         tabIndex={open ? 0 : -1}
         className="absolute inset-0 h-full w-full cursor-default bg-[rgba(22,33,30,0.32)] backdrop-blur-[2px]"
@@ -371,15 +402,15 @@ function LibraryDrawer({
         <header className="accent-edge border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 pb-4 pt-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="eyebrow text-[var(--color-primary)]">Scenario library</p>
+              <p className="eyebrow text-[var(--color-primary)]">{t("library.eyebrow")}</p>
               <h2 id="scenario-library-title" className="display-md mt-1.5">
-                Pick a case study
+                {t("library.title")}
               </h2>
             </div>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close scenario library"
+              aria-label={t("library.close")}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-soft)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
               <CloseIcon />
@@ -387,7 +418,7 @@ function LibraryDrawer({
           </div>
 
           <p className="mt-2 text-xs leading-5 text-[var(--color-ink-soft)]">
-            Choosing a case fills the idea box. You can still edit it before generating.
+            {t("library.hint")}
           </p>
 
           <div className="mt-4 flex items-center gap-2 border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 transition focus-within:border-[var(--color-ink)] focus-within:bg-white">
@@ -398,8 +429,8 @@ function LibraryDrawer({
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search cases, tags, or settings"
-              aria-label="Search the scenario library"
+              placeholder={t("library.search")}
+              aria-label={t("library.searchAria")}
               className="min-h-10 w-full bg-transparent text-sm text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-soft)]"
             />
           </div>
@@ -437,7 +468,7 @@ function LibraryDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {groups.length === 0 ? (
             <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border-strong)] px-4 py-6 text-center text-sm text-[var(--color-ink-soft)]">
-              No cases match that search.
+              {t("library.noMatch")}
             </p>
           ) : (
             <div className="space-y-6">
@@ -445,10 +476,10 @@ function LibraryDrawer({
                 <section key={group.level} className="space-y-3">
                   <div className="flex items-baseline justify-between gap-3 border-b border-[var(--color-border)] pb-2">
                     <p className="eyebrow text-[var(--color-ink)]">
-                      {difficultyMeta[group.level].label}
+                      {t(`difficulty.${group.level}`)}
                     </p>
                     <p className="text-[0.8125rem] leading-5 text-[var(--color-ink-soft)]">
-                      {difficultyMeta[group.level].blurb}
+                      {t(`difficultyBlurb.${group.level}`)}
                     </p>
                   </div>
                   {group.entries.map((entry) => (
@@ -484,13 +515,15 @@ export function ScenarioLibraryBar({
   disabled?: boolean;
 }) {
   const shouldAnimate = useShouldAnimate();
+  const t = useT();
+  const library = useLocalizedLibrary();
   const [open, setOpen] = useState(false);
   const [reelIndex, setReelIndex] = useState<number | null>(null);
   const timers = useRef<{ tick?: number; stop?: number }>({});
 
   const selected = useMemo(
-    () => scenarioLibrary.find((entry) => entry.id === selectedId) ?? null,
-    [selectedId],
+    () => library.find((entry) => entry.id === selectedId) ?? null,
+    [library, selectedId],
   );
 
   useEffect(() => {
@@ -513,7 +546,7 @@ export function ScenarioLibraryBar({
       return;
     }
 
-    const pick = pickRandomScenario(scenarioLibrary, selectedId ?? undefined);
+    const pick = pickRandomScenario(library, selectedId ?? undefined);
 
     // Reduced motion (or a hidden tab) gets the result without the flicker.
     if (!shouldAnimate) {
@@ -521,10 +554,10 @@ export function ScenarioLibraryBar({
       return;
     }
 
-    setReelIndex(Math.floor(Math.random() * scenarioLibrary.length));
+    setReelIndex(Math.floor(Math.random() * library.length));
 
     timers.current.tick = window.setInterval(() => {
-      setReelIndex(Math.floor(Math.random() * scenarioLibrary.length));
+      setReelIndex(Math.floor(Math.random() * library.length));
     }, REEL_TICK_MS);
 
     timers.current.stop = window.setTimeout(() => {
@@ -535,7 +568,7 @@ export function ScenarioLibraryBar({
   }
 
   const isSpinning = reelIndex !== null;
-  const reelEntry = isSpinning ? scenarioLibrary[reelIndex] : selected;
+  const reelEntry = isSpinning ? library[reelIndex] : selected;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -546,9 +579,9 @@ export function ScenarioLibraryBar({
         className="btn-editorial sheen-idle min-h-9 px-3 py-1.5 text-xs"
       >
         <BooksIcon />
-        Case library
+        {t("library.open")}
         <span className="tabular-nums text-[var(--color-ink-soft)]">
-          {scenarioLibrary.length}
+          {library.length}
         </span>
       </button>
 
@@ -556,7 +589,7 @@ export function ScenarioLibraryBar({
         type="button"
         onClick={handleShuffle}
         disabled={disabled || isSpinning}
-        aria-label="Load a random case from the library"
+        aria-label={t("library.shuffleAria")}
         className="btn-editorial btn-editorial--quiet min-h-9 px-3 py-1.5 text-xs"
       >
         <motion.span
@@ -570,7 +603,7 @@ export function ScenarioLibraryBar({
         >
           <ShuffleIcon />
         </motion.span>
-        Surprise me
+        {t("library.shuffle")}
       </button>
 
       {/* The reel: flickers case names while spinning, then holds the pick.

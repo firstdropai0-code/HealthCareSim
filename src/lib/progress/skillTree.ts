@@ -1,6 +1,5 @@
 import {
   GENERAL_CATEGORY,
-  difficultyMeta,
   difficultyOrder,
   scenarioLibrary,
   type ScenarioDifficulty,
@@ -22,9 +21,17 @@ export type SkillNode = {
 };
 
 export type SkillNodeProgress = SkillNode & {
-  unlocked: boolean;
-  /** Why it is locked, phrased as something the trainee can act on. */
-  lockedHint: string;
+  /**
+   * The level to do next in this track: the lowest tier with a case to run
+   * that has not been cleared yet. At most one per track.
+   *
+   * A suggestion, not a gate. Levels used to lock until the one below was
+   * cleared, but nothing else enforced that -- My Cases offered every assigned
+   * case regardless -- and the mentor already decides what a trainee may run
+   * by choosing what to publish. So every level with a case is startable, and
+   * the tree only points at a sensible order.
+   */
+  suggested: boolean;
   /** Cases the mentor has published in this cell. */
   availableCount: number;
   /**
@@ -43,10 +50,8 @@ export type SkillNodeProgress = SkillNode & {
   unset: boolean;
 };
 
-/** Score at which a case counts as cleared for unlocking the next tier. */
+/** Score at which a level counts as cleared. */
 export const CLEAR_SCORE = 6;
-/** Escape hatch: this many runs at the previous tier, in any track, also opens. */
-export const CROSS_TRACK_UNLOCK_RUNS = 3;
 
 /**
  * A missing category becomes the catch-all track rather than being dropped.
@@ -91,7 +96,7 @@ function meanOf(values: number[]): number | null {
 
 /**
  * Only scored runs are passed in — callers query on `countsTowardStats`, so the
- * fallback report's placeholder score can never unlock a node or move a mastery
+ * fallback report's placeholder score can never clear a level or move a mastery
  * figure.
  */
 export function computeSkillTree(
@@ -100,10 +105,7 @@ export function computeSkillTree(
 ): SkillNodeProgress[] {
   const tree = buildSkillTree(cases);
 
-  const runsAtTier = (difficulty: ScenarioDifficulty) =>
-    runs.filter((run) => run.difficulty === difficulty);
-
-  return tree.map((node) => {
+  const progress = tree.map((node) => {
     const matching = runs.filter(
       (run) => trackOf(run.category) === node.category && run.difficulty === node.difficulty,
     );
@@ -119,43 +121,9 @@ export function computeSkillTree(
       ...inCell.filter((entry) => !attemptedIds.has(entry.scenario.id)),
     ].map((entry) => entry.id);
 
-    const tierIndex = difficultyOrder.indexOf(node.difficulty);
-    const previousTier = tierIndex > 0 ? difficultyOrder[tierIndex - 1] : null;
-
-    let unlocked = true;
-    let lockedHint = "";
-
-    if (previousTier) {
-      const previousInTrack = runs.filter(
-        (run) => trackOf(run.category) === node.category && run.difficulty === previousTier,
-      );
-      const clearedPreviousInTrack = previousInTrack.some(
-        (run) => run.score !== null && run.score >= CLEAR_SCORE,
-      );
-      // Nobody should be hard-blocked by one stubborn track, so broad practice
-      // at the tier below opens the next one anywhere.
-      const broadPractice = runsAtTier(previousTier).length >= CROSS_TRACK_UNLOCK_RUNS;
-
-      unlocked = clearedPreviousInTrack || broadPractice;
-
-      if (!unlocked) {
-        // Only offer the in-track route when there is actually a case to run
-        // there. Otherwise it names an impossible action, which is how this
-        // read before published cases drove the counts.
-        const previousTierIsRunnable = cases.some(
-          (entry) => trackOf(entry.category) === node.category && entry.difficulty === previousTier,
-        );
-
-        lockedHint = previousTierIsRunnable
-          ? `Score ${CLEAR_SCORE}+ on a ${difficultyMeta[previousTier].label.toLowerCase()} case in this track to open it.`
-          : `Complete ${CROSS_TRACK_UNLOCK_RUNS} ${difficultyMeta[previousTier].label.toLowerCase()} cases to open this level.`;
-      }
-    }
-
     return {
       ...node,
-      unlocked,
-      lockedHint,
+      suggested: false,
       availableCount: inCell.length,
       availableCaseIds,
       runCount: matching.length,
@@ -165,4 +133,24 @@ export function computeSkillTree(
       unset: inCell.length === 0 && matching.length === 0,
     };
   });
+
+  // One suggestion per track: walk its tiers in order and stop at the first
+  // one with a case to run that is not yet cleared. Nodes arrive grouped by
+  // track in tier order from buildSkillTree, but matching on category keeps
+  // this from depending on that.
+  const tracks = [...new Set(progress.map((node) => node.category))];
+
+  for (const track of tracks) {
+    const next = difficultyOrder
+      .map((difficulty) =>
+        progress.find((node) => node.category === track && node.difficulty === difficulty),
+      )
+      .find((node) => node && node.availableCount > 0 && !node.cleared);
+
+    if (next) {
+      next.suggested = true;
+    }
+  }
+
+  return progress;
 }

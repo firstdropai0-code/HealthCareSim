@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/lib/i18n/strings";
 import { scoreBand, scoreBandMeta, type ScoreBand } from "@/lib/progress/progressModel";
 
 const order: ScoreBand[] = ["needsFocus", "developing", "strong"];
@@ -11,10 +12,12 @@ const order: ScoreBand[] = ["needsFocus", "developing", "strong"];
  * used on every individual report.
  */
 export function ScoreBands({ scores }: { scores: number[] }) {
+  const t = useT();
+
   if (scores.length === 0) {
     return (
       <p className="text-[0.9375rem] leading-7 text-[var(--color-ink-soft)]">
-        No scored cases in this group yet.
+        {t("bands.empty")}
       </p>
     );
   }
@@ -45,7 +48,7 @@ export function ScoreBands({ scores }: { scores: number[] }) {
           <div key={band} className="flex items-baseline justify-between gap-3">
             <dt className="flex items-center gap-2">
               <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${meta.fill}`} />
-              <span className={`text-[0.9375rem] ${meta.ink}`}>{meta.label}</span>
+              <span className={`text-[0.9375rem] ${meta.ink}`}>{t(`band.${band}`)}</span>
             </dt>
             <dd className="text-[0.9375rem] font-semibold tabular-nums text-[var(--color-ink)]">
               {count}
@@ -59,7 +62,7 @@ export function ScoreBands({ scores }: { scores: number[] }) {
       </dl>
 
       <p className="mt-3 text-xs leading-5 text-[var(--color-ink-soft)]">
-        A case counts as cleared at 6 or above.
+        {t("bands.clearNote")}
       </p>
     </div>
   );

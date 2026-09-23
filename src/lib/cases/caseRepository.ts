@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/firebase/firebaseApp";
+import { translate } from "@/lib/i18n/strings";
 import type { AssignedCase } from "@/types/assignedCase";
 import type { Scenario } from "@/types/scenario";
 import type { UserProfile } from "@/types/user";
@@ -15,7 +16,7 @@ export async function publishCase(
   scenario: Scenario,
 ): Promise<AssignedCase> {
   if (!mentor.groupId) {
-    throw new Error("Select a group before publishing a case.");
+    throw new Error(translate("error.selectGroupFirst"));
   }
 
   const [db, { collection, doc, setDoc }] = await Promise.all([
