@@ -224,6 +224,70 @@ service cloud.firestore {
       }
     }
 
+    // ---- run notes ---------------------------------------------------------
+    // A mentor's note to a trainee about one run, keyed BY THE RUN ID so there
+    // is at most one per run and every check below is a get() by id.
+    //
+    // Its own collection, not a field on the run: a scored run is immutable,
+    // and a note field would need an update rule that reopens it.
+    //
+    // What this closes:
+    //   - writing a note on a run that is not yours to review (the writer must
+    //     be the run's own mentor, read from the run, not claimed by the client);
+    //   - addressing a note to somebody other than the trainee who ran it
+    //     (userId and groupId must equal the run's);
+    //   - re-addressing or back-dating one afterwards (an update may change the
+    //     text and the signature, nothing else, and stamps the server's time).
+    match /runNotes/{runId} {
+      function noteRun() {
+        return get(/databases/$(database)/documents/runs/$(runId)).data;
+      }
+
+      function validNote() {
+        return request.resource.data.keys().hasOnly(
+            ['runId', 'userId', 'mentorId', 'mentorName', 'groupId', 'text', 'createdAt', 'updatedAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.mentorName is string
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      // Authorised through the RUN, not through the note's own fields, so that
+      // reading the note of a run that has none answers "does not exist"
+      // instead of being refused. `resource` is null for a missing document,
+      // and a rule that dereferences it denies.
+      allow get: if signedIn()
+        && (noteRun().userId == request.auth.uid || noteRun().mentorId == request.auth.uid);
+
+      // A list is the opposite case: there is no single run to get(), and rules
+      // are not filters, so this has to be a plain comparison on the note's own
+      // fields that the query's `where` can prove. The client always filters on
+      // userId == me (trainee) or mentorId == me (mentor).
+      allow list: if signedIn()
+        && (resource.data.userId == request.auth.uid || resource.data.mentorId == request.auth.uid);
+
+      allow create: if signedIn()
+        && noteRun().mentorId == request.auth.uid
+        && request.resource.data.runId == runId
+        && request.resource.data.mentorId == request.auth.uid
+        && request.resource.data.userId == noteRun().userId
+        && request.resource.data.groupId == noteRun().groupId
+        && request.resource.data.createdAt == request.time
+        && validNote();
+
+      allow update: if resource.data.mentorId == request.auth.uid
+        && request.resource.data.runId == resource.data.runId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.mentorId == resource.data.mentorId
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validNote();
+
+      // The author may withdraw their own note. Nothing else depends on it.
+      allow delete: if resource.data.mentorId == request.auth.uid;
+    }
+
     // ---- cohort projection -------------------------------------------------
     // Firestore has no field-level security: `allow read` hands over the whole
     // document. A trainee needs the group's score distribution but must never

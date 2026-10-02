@@ -19,6 +19,7 @@ import { computeCohort, selectBucket } from "@/lib/progress/cohortStats";
 import { computeProgress } from "@/lib/progress/progressModel";
 import { computeSkillTree } from "@/lib/progress/skillTree";
 import { listGroupCases } from "@/lib/cases/caseRepository";
+import { listMyRunNoteIds } from "@/lib/runs/runNoteRepository";
 import { listGroupRunStats, listMyRuns } from "@/lib/runs/runRepository";
 import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
 import {
@@ -53,6 +54,8 @@ export default function ProgressPage() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [stats, setStats] = useState<RunStat[]>([]);
   const [cases, setCases] = useState<AssignedCase[]>([]);
+  // Runs their mentor has written a note on, so the list can say so.
+  const [notedRunIds, setNotedRunIds] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,16 +68,20 @@ export default function ProgressPage() {
 
     void (async () => {
       try {
-        const [myRuns, groupStats, groupCases] = await Promise.all([
+        const [myRuns, groupStats, groupCases, noteIds] = await Promise.all([
           listMyRuns(uid),
           groupId ? listGroupRunStats(groupId) : Promise.resolve([]),
           groupId ? listGroupCases(groupId) : Promise.resolve([]),
+          // A marker, not content: if it cannot be read the page still has
+          // everything it had before notes existed, so it must not fail the load.
+          listMyRunNoteIds(uid).catch(() => [] as string[]),
         ]);
 
         if (!cancelled) {
           setRuns(myRuns);
           setStats(groupStats);
           setCases(groupCases);
+          setNotedRunIds(new Set(noteIds));
         }
       } catch (err) {
         if (!cancelled) {
@@ -251,14 +258,19 @@ export default function ProgressPage() {
                         {t.plural("common.turns", run.turnCount)}
                       </p>
                     </div>
-                    {run.score === null ? (
-                      <MetricChip label={t("progress.notScored")} tone="amber" />
-                    ) : (
-                      <p className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
-                        {run.score}
-                        <span className="font-normal text-[var(--color-ink-soft)]"> / 10</span>
-                      </p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {notedRunIds.has(run.id) ? (
+                        <MetricChip label={t("progress.hasNote")} tone="emerald" />
+                      ) : null}
+                      {run.score === null ? (
+                        <MetricChip label={t("progress.notScored")} tone="amber" />
+                      ) : (
+                        <p className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
+                          {run.score}
+                          <span className="font-normal text-[var(--color-ink-soft)]"> / 10</span>
+                        </p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

@@ -76,6 +76,8 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 
 **Updating an existing project?** Re-publish `firestore.rules` and re-apply `firestore.indexes.json`. A mentor owning several groups needs `list` permission on `groups` and two new `runs` indexes; without them the mentor pages fail with a permissions error. The rules also now let a trainee delete their own membership document, which is what "leave group" does.
 
+Mentor notes add a `runNotes` collection, so `firestore.rules` must be re-published before that feature works; it needs no new index. Until the rules are published the rest of the app is unaffected: a mentor sees "Could not load the note for this session" on a run, and trainees see no notes.
+
 Then: sign up as a mentor, create a group, copy the join code, and sign up as a trainee in a **separate browser profile** (not a second tab — Firebase Auth is per-origin) to redeem it.
 
 ### Security model, stated plainly
@@ -117,6 +119,7 @@ The `NEXT_PUBLIC_FIREBASE_*` values are the one deliberate exception. They are p
 - Trainees can leave a group from the join screen, which is how a code redeemed for the wrong group gets fixed. Completed runs are immutable and stay on the mentor's dashboard.
 - Completed runs saved per trainee, with a skill tree derived from the case library, score trends, and per-dimension movement.
 - Trainees can reopen any past run from My Progress — the full feedback report and transcript, exactly as the mentor sees it.
+- Mentors can leave a written note on any trainee's run, from the run itself or straight from that trainee's session list. The trainee sees it at the top of that run, and both session lists mark which runs carry one. The note never changes the score.
 - Anonymized cohort comparison within a group, suppressed below 3 trainees and 5 cases so a tiny sample never masquerades as a ranking.
 - Mentor dashboard: group score distribution, per-dimension averages, a trainee roster, and drilldown into any run's report and full transcript — scoped to the active group.
 
@@ -251,6 +254,7 @@ src/
     group.ts
     media.ts
     run.ts
+    runNote.ts
     scenario.ts
     simulation.ts
     user.ts
