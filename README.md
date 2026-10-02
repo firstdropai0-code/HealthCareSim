@@ -116,6 +116,7 @@ The `NEXT_PUBLIC_FIREBASE_*` values are the one deliberate exception. They are p
 - Multiple groups per mentor — one per rotation or specialty, each with its own join code, roster and published cases. A header switcher picks the active group, and the dashboard, case list and publish action all follow it. A trainee still belongs to exactly one group.
 - Trainees can leave a group from the join screen, which is how a code redeemed for the wrong group gets fixed. Completed runs are immutable and stay on the mentor's dashboard.
 - Completed runs saved per trainee, with a skill tree derived from the case library, score trends, and per-dimension movement.
+- Trainees can reopen any past run from My Progress — the full feedback report and transcript, exactly as the mentor sees it.
 - Anonymized cohort comparison within a group, suppressed below 3 trainees and 5 cases so a tiny sample never masquerades as a ranking.
 - Mentor dashboard: group score distribution, per-dimension averages, a trainee roster, and drilldown into any run's report and full transcript — scoped to the active group.
 

@@ -17,6 +17,11 @@ export const en = {
   "progress.profile": "Profile",
   "progress.treeIntro": "Your mentor's cases, grouped by track and level.",
   "progress.notScored": "Not scored",
+  "progress.sessionsHint": "Select a session to reopen its feedback report and transcript.",
+
+  "ownRun.back": "← Back to my progress",
+  "ownRun.backToProgress": "Back to my progress",
+  "ownRun.notFoundBody": "It may have been saved under a different account.",
 
   "average.noneTitle": "No scored cases yet",
   "average.label": "Average across cases",
@@ -95,6 +100,11 @@ export const hi: Record<keyof typeof en, string> = {
   "progress.profile": "प्रोफ़ाइल",
   "progress.treeIntro": "आपके मेंटर के केस, ट्रैक और स्तर के अनुसार।",
   "progress.notScored": "स्कोर नहीं बना",
+  "progress.sessionsHint": "किसी सेशन की फ़ीडबैक रिपोर्ट और बातचीत दोबारा देखने के लिए उसे चुनें।",
+
+  "ownRun.back": "← मेरी प्रगति पर वापस",
+  "ownRun.backToProgress": "मेरी प्रगति पर वापस",
+  "ownRun.notFoundBody": "हो सकता है वह किसी दूसरे अकाउंट से सहेजा गया हो।",
 
   "average.noneTitle": "अभी कोई स्कोर वाला केस नहीं",
   "average.label": "सभी केसों का औसत",

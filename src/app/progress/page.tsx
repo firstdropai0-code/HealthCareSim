@@ -230,13 +230,21 @@ export default function ProgressPage() {
 
             <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-card)]">
               <h2 className="display-sm">{t("progress.recentSessions")}</h2>
+              <p className="mt-1.5 text-[0.9375rem] leading-6 text-[var(--color-ink-muted)]">
+                {t("progress.sessionsHint")}
+              </p>
               <ul className="mt-4 divide-y divide-[var(--color-border)]">
                 {runs.slice(0, 12).map((run) => (
                   <li key={run.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--color-ink)]">
+                      {/* Unscored runs are linked too: a fallback report is
+                          still a report, and the transcript is the same. */}
+                      <Link
+                        href={`/runs/${run.id}`}
+                        className="link-editorial truncate text-sm font-medium text-[var(--color-ink)]"
+                      >
                         {run.scenarioTitle}
-                      </p>
+                      </Link>
                       <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
                         {run.category ? `${categoryLabel(t, run.category)} · ` : ""}
                         {t(`difficulty.${run.difficulty}`)} · {formatDate(run.completedAt, language)} ·{" "}
