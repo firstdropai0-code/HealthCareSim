@@ -133,6 +133,24 @@ export const en = {
   "run.transcript": "Full transcript",
   "run.noTranscript": "The transcript for this session is not available.",
 
+  "note.eyebrow": "Mentor note",
+  "note.title": "Your note to {name}",
+  "note.intro":
+    "Only {name} sees this, at the top of their copy of this session. It does not change the score.",
+  "note.label": "Note",
+  "note.placeholder":
+    "What should they keep doing, and what should they try differently next time?",
+  "note.save": "Save note",
+  "note.update": "Update note",
+  "note.remove": "Remove note",
+  "note.savedOn": "Last saved {date}",
+  "note.loadError": "Could not load the note for this session.",
+  "note.saveError": "Could not save the note.",
+  "note.removeError": "Could not remove the note.",
+  "note.left": "Note left",
+  "note.add": "Add note",
+  "note.edit": "Edit note",
+
   "mentorCases.eyebrow": "Published cases",
   "mentorCases.title": "Cases you have set for {group}.",
   "mentorCases.intro":
@@ -273,6 +291,24 @@ export const hi: Record<keyof typeof en, string> = {
   "run.score": "स्कोर",
   "run.transcript": "पूरी बातचीत",
   "run.noTranscript": "इस सेशन की बातचीत उपलब्ध नहीं है।",
+
+  "note.eyebrow": "मेंटर की टिप्पणी",
+  "note.title": "{name} के लिए आपकी टिप्पणी",
+  "note.intro":
+    "इसे केवल {name} देख सकते हैं, इस सेशन की अपनी कॉपी में सबसे ऊपर। इससे स्कोर नहीं बदलता।",
+  "note.label": "टिप्पणी",
+  "note.placeholder":
+    "उन्हें क्या जारी रखना चाहिए, और अगली बार क्या अलग आज़माना चाहिए?",
+  "note.save": "टिप्पणी सहेजें",
+  "note.update": "टिप्पणी अपडेट करें",
+  "note.remove": "टिप्पणी हटाएँ",
+  "note.savedOn": "पिछली बार {date} को सहेजी गई",
+  "note.loadError": "इस सेशन की टिप्पणी लोड नहीं हो सकी।",
+  "note.saveError": "टिप्पणी सहेजी नहीं जा सकी।",
+  "note.removeError": "टिप्पणी हटाई नहीं जा सकी।",
+  "note.left": "टिप्पणी दी गई",
+  "note.add": "टिप्पणी जोड़ें",
+  "note.edit": "टिप्पणी बदलें",
 
   "mentorCases.eyebrow": "प्रकाशित केस",
   "mentorCases.title": "{group} के लिए आपके तय किए गए केस।",

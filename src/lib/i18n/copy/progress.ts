@@ -22,6 +22,10 @@ export const en = {
   "ownRun.back": "← Back to my progress",
   "ownRun.backToProgress": "Back to my progress",
   "ownRun.notFoundBody": "It may have been saved under a different account.",
+  "progress.hasNote": "Mentor note",
+  "ownNote.eyebrow": "Mentor note",
+  "ownNote.title": "From {name}",
+  "ownNote.when": "Last updated {date}",
 
   "average.noneTitle": "No scored cases yet",
   "average.label": "Average across cases",
@@ -105,6 +109,10 @@ export const hi: Record<keyof typeof en, string> = {
   "ownRun.back": "← मेरी प्रगति पर वापस",
   "ownRun.backToProgress": "मेरी प्रगति पर वापस",
   "ownRun.notFoundBody": "हो सकता है वह किसी दूसरे अकाउंट से सहेजा गया हो।",
+  "progress.hasNote": "मेंटर की टिप्पणी",
+  "ownNote.eyebrow": "मेंटर की टिप्पणी",
+  "ownNote.title": "{name} की ओर से",
+  "ownNote.when": "पिछली बार {date} को अपडेट की गई",
 
   "average.noneTitle": "अभी कोई स्कोर वाला केस नहीं",
   "average.label": "सभी केसों का औसत",

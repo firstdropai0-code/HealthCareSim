@@ -12,13 +12,16 @@ import { AverageScoreCard } from "@/components/progress/AverageScoreCard";
 import { ScoreTrendLine } from "@/components/progress/ScoreTrendLine";
 import { SkillTree } from "@/components/progress/SkillTree";
 import { SubscoreRadar } from "@/components/progress/SubscoreRadar";
+import { RunNoteSection } from "@/components/runs/RunNoteSection";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
 import { computeProgress } from "@/lib/progress/progressModel";
 import { computeSkillTree } from "@/lib/progress/skillTree";
 import { listGroupCases } from "@/lib/cases/caseRepository";
+import { listRunNoteIdsForTrainee } from "@/lib/runs/runNoteRepository";
 import { listTraineeRuns } from "@/lib/runs/runRepository";
 import type { AssignedCase } from "@/types/assignedCase";
 import type { RunSummary } from "@/types/run";
+import type { RunNote } from "@/types/runNote";
 import { useLanguage } from "@/lib/i18n/languageStore";
 import { languageDateLocale, type AppLanguage } from "@/types/language";
 
@@ -50,6 +53,14 @@ export default function MentorTraineePage() {
 
   const [cases, setCases] = useState<AssignedCase[]>([]);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  // Runs this mentor has already written a note on, so the list can say so.
+  const [notedRunIds, setNotedRunIds] = useState<Set<string>>(new Set());
+  /*
+   * Sessions whose note editor is open in the list. A set rather than a single
+   * id: opening a second one must not close the first, because closing discards
+   * whatever was typed and not yet saved.
+   */
+  const [openNoteRunIds, setOpenNoteRunIds] = useState<Set<string>>(new Set());
   // Which group the state below belongs to, so a group switch shows a loading
   // state rather than the previous group's runs under this trainee's name.
   const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
@@ -66,13 +77,18 @@ export default function MentorTraineePage() {
 
     void (async () => {
       try {
-        const [nextRuns, nextCases] = await Promise.all([
+        const [nextRuns, nextCases, noteIds] = await Promise.all([
           listTraineeRuns(mentorId, uid, groupId),
           listGroupCases(groupId),
+          // A marker, not content: it must not fail the load. Not scoped by
+          // group, and need not be -- it is only ever matched against the runs
+          // above, which are.
+          listRunNoteIdsForTrainee(mentorId, uid).catch(() => [] as string[]),
         ]);
         if (!cancelled) {
           setRuns(nextRuns);
           setCases(nextCases);
+          setNotedRunIds(new Set(noteIds));
           // Cleared here rather than up front: a failure on the previous group
           // must not stay on screen once a different one has loaded cleanly.
           setError(null);
@@ -99,6 +115,30 @@ export default function MentorTraineePage() {
 
   if (gate.blocked) {
     return <AuthGate gate={gate} />;
+  }
+
+  function toggleNoteEditor(runId: string) {
+    setOpenNoteRunIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(runId)) {
+        next.add(runId);
+      }
+      return next;
+    });
+  }
+
+  // Keeps the "note left" marker in step with what the editor just did, so the
+  // row is right without refetching the whole list.
+  function handleNoteChange(runId: string, note: RunNote | null) {
+    setNotedRunIds((current) => {
+      const next = new Set(current);
+      if (note) {
+        next.add(runId);
+      } else {
+        next.delete(runId);
+      }
+      return next;
+    });
   }
 
   const traineeName = loaded
@@ -193,14 +233,42 @@ export default function MentorTraineePage() {
                         {t.plural("common.turns", run.turnCount)}
                       </p>
                     </div>
-                    {run.score === null ? (
-                      <MetricChip label={t("trainee.notScored")} tone="amber" />
-                    ) : (
-                      <p className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
-                        {run.score}
-                        <span className="font-normal text-[var(--color-ink-soft)]"> / 10</span>
-                      </p>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {notedRunIds.has(run.id) ? (
+                        <MetricChip label={t("note.left")} tone="emerald" />
+                      ) : null}
+                      {/* Writing a note used to mean opening the run first. The
+                          run page still has the same editor, for a mentor who
+                          wants the transcript in front of them while writing. */}
+                      <button
+                        type="button"
+                        onClick={() => toggleNoteEditor(run.id)}
+                        aria-expanded={openNoteRunIds.has(run.id)}
+                        className="link-editorial text-xs font-medium text-[var(--color-primary)]"
+                      >
+                        {openNoteRunIds.has(run.id)
+                          ? t("common.close")
+                          : notedRunIds.has(run.id)
+                            ? t("note.edit")
+                            : t("note.add")}
+                      </button>
+                      {run.score === null ? (
+                        <MetricChip label={t("trainee.notScored")} tone="amber" />
+                      ) : (
+                        <p className="text-sm font-semibold tabular-nums text-[var(--color-ink)]">
+                          {run.score}
+                          <span className="font-normal text-[var(--color-ink-soft)]"> / 10</span>
+                        </p>
+                      )}
+                    </div>
+                    {openNoteRunIds.has(run.id) ? (
+                      <RunNoteSection
+                        run={run}
+                        viewer="mentor"
+                        compact
+                        onNoteChange={(note) => handleNoteChange(run.id, note)}
+                      />
+                    ) : null}
                   </li>
                 ))}
               </ul>

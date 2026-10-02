@@ -13,7 +13,7 @@ export type SaveRunInput = {
 };
 
 /** Firestore hands timestamps back as objects; the app only ever wants ISO. */
-function toIso(value: unknown): string {
+export function toIso(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }

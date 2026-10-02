@@ -11,6 +11,7 @@ import { categoryLabel, useT } from "@/lib/i18n/strings";
 import { getRun, getRunTranscript } from "@/lib/runs/runRepository";
 import { languageDateLocale, type AppLanguage } from "@/types/language";
 import type { RunRecord, RunTranscript } from "@/types/run";
+import { RunNoteSection } from "./RunNoteSection";
 
 /** Who is looking at the run. Changes the frame around it, never the run. */
 export type RunViewer = "mentor" | "owner";
@@ -176,6 +177,10 @@ export function RunDetail({ runId, viewer }: { runId: string; viewer: RunViewer 
           )}
         </div>
       </Reveal>
+
+      {/* Above the report, so the trainee reads their mentor before the model.
+          Skipped on a mentor's own practice run: there is nobody to write to. */}
+      {run.userId !== run.mentorId ? <RunNoteSection run={run} viewer={viewer} /> : null}
 
       {/* The same deck the trainee saw when the run ended — no mentor-only or
           history-only variant to drift. */}
