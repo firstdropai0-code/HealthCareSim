@@ -591,6 +591,24 @@ button:disabled {
   animation: portraitFade 320ms ease-out forwards;
 }
 
+/* The person in the scene, breathing. A still cut-out reads as a cardboard
+   stand-in; a slow rise of well under one percent, from the feet, reads as
+   someone standing there. Off for reduced motion by the global rule below. */
+@keyframes figureBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.008);
+  }
+}
+
+.figure-breathe {
+  transform-origin: 50% 100%;
+  animation: figureBreathe 5.5s ease-in-out infinite;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
