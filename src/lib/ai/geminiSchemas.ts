@@ -23,6 +23,10 @@ export const scenarioSchema: GeminiSchema = {
     "setting",
     "summary",
     "patientProfile",
+    // Required and an enum, so the model has to decide alive or deceased
+    // outright. Left to free text it put the death in patientEmotion, where
+    // nothing could tell it from a feeling.
+    "patientStatus",
     "patientEmotion",
     // Required, not optional. Left optional the model skipped it even when the
     // family WAS the counterpart, which left them voiced with the patient's
@@ -43,6 +47,7 @@ export const scenarioSchema: GeminiSchema = {
     setting: { type: "STRING" },
     summary: { type: "STRING" },
     patientProfile: { type: "STRING" },
+    patientStatus: { type: "STRING", enum: ["alive", "deceased"] },
     patientEmotion: { type: "STRING" },
     familyEmotion: { type: "STRING" },
     traineeObjective: { type: "STRING" },

@@ -1,3 +1,4 @@
+import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import { languageDirective } from "@/types/language";
 import type { SimulationState } from "@/types/simulation";
 
@@ -41,6 +42,13 @@ export function buildSimulationPrompt(
     ? `\n\nSystem note: The previous reply was rejected because it spoke as the doctor/trainee instead of the patient, family, nurse, bystander, or narrator. Rejected reply: ${options.rejectedMessage || "not provided"}`
     : "";
 
+  // Stated outright because nothing else in this prompt says it: the summary
+  // describes the death, but the speaker list still offers "patient", and the
+  // route only re-attributes a slip after the fact.
+  const deceasedNote = isPatientDeceased(state.scenario)
+    ? `\nPatient status: DECEASED. The patient has died and never speaks. speaker must never be "patient" -- every spoken line comes from a family member, bystander, or nurse.`
+    : "";
+
   return {
     systemInstruction: `Continue this healthcare communication roleplay scenario.
 
@@ -62,7 +70,7 @@ Role boundary:
 - Do not use first-person doctor-like phrases such as "I understand you're concerned", "I can tell you", "I will check", "We are monitoring", "I can't share specific details", "Would you like me to...", "Let me...", or "I'm going to..." unless the speaker is clearly "nurse" or "narrator".
 
 Scenario summary: ${state.scenario.summary}
-Scenario context: ${state.scenario.patientProfile}; ${state.scenario.communicationChallenge}
+Scenario context: ${state.scenario.patientProfile}; ${state.scenario.communicationChallenge}${deceasedNote}
 Ending condition (this is what actually decides shouldEnd, not the turn count): ${state.scenario.endingCondition}
 Suggested pacing: aim for roughly ${state.scenario.suggestedTurns} turns, but this is only a loose guide.
 Current turn: ${state.currentTurn}

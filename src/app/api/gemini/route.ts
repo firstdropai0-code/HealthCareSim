@@ -12,6 +12,7 @@ import {
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
 import { assignCharacterVoices } from "@/lib/ai/voiceDirection";
+import { getPatientStatus, isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import { normalizeBetterResponses } from "@/lib/feedback/betterResponses";
 import {
   buildDeliveryFeedbackPrompt,
@@ -161,13 +162,20 @@ function normalizeScenario(value: unknown): Scenario {
     ? buildNarratorOpening(startingSituation)
     : scenario.firstPrompt;
 
+  // Resolved through the legacy reader rather than taken as given, so a model
+  // that still slips the death into patientEmotion is corrected here too.
+  const patientStatus = getPatientStatus(scenario);
+
   const normalized: Scenario = {
     id: scenario.id || crypto.randomUUID(),
     title: scenario.title,
     setting: scenario.setting || "Healthcare consultation",
     summary: scenario.summary || "Communication training scenario.",
     patientProfile: scenario.patientProfile || "Patient profile not specified.",
-    patientEmotion: scenario.patientEmotion || "concerned",
+    patientStatus,
+    // Emptied, not defaulted, for a death: "concerned" would brief a dead
+    // patient with a feeling, and the legacy "Deceased" text is now the status.
+    patientEmotion: patientStatus === "deceased" ? "" : scenario.patientEmotion || "concerned",
     familyEmotion: scenario.familyEmotion,
     traineeObjective: scenario.traineeObjective || "Communicate clearly and empathetically.",
     communicationChallenge:
@@ -207,6 +215,7 @@ function buildFallbackScenario(input: string): Scenario {
       ? `Communication practice based on: ${cleanInput.slice(0, 120)}`
       : "Communication practice with a concerned patient or family member.",
     patientProfile: "Patient or family member under communication stress.",
+    patientStatus: "alive",
     patientEmotion: "concerned",
     familyEmotion: "anxious",
     traineeObjective:
@@ -477,7 +486,30 @@ async function generateTurn(
     retryInvalidJson: !roleCorrection,
   });
 
-  return normalizeTurn(result);
+  return keepDeceasedPatientSilent(normalizeTurn(result), state.scenario);
+}
+
+/**
+ * A deceased patient never takes a turn. The prompt says so, but the scenario
+ * is still written about "the patient", and the likeliest slip is a relative's
+ * line tagged with the patient's speaker. Re-attributing it is cheaper than a
+ * retry and casts it in the family member's pinned voice rather than the dead
+ * patient's — the same "guard, don't trust" approach as appearsToSpeakAsTrainee.
+ */
+function keepDeceasedPatientSilent(
+  turn: NextSimulationTurn,
+  scenario: Scenario,
+): NextSimulationTurn {
+  if (turn.speaker !== "patient" || !isPatientDeceased(scenario)) {
+    return turn;
+  }
+
+  console.warn(
+    `[turn] deceased patient was given a line; re-attributed to family_member. ` +
+      `Line: ${JSON.stringify(turn.message.slice(0, 120))}`,
+  );
+
+  return { ...turn, speaker: "family_member" };
 }
 
 function fallbackCustomCriterionAssessment(criterion: string): { criterion: string; assessment: string } {

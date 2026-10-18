@@ -29,6 +29,7 @@ import {
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
 import { useT, type StringKey } from "@/lib/i18n/strings";
+import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
 import {
@@ -606,7 +607,14 @@ export default function SimulationPage() {
               <TensionBadge level={state.tensionLevel} />
               {/* Status is deliberately absent: the session rail already states
                   it in words, and a fifth chip wrapped the row onto two lines. */}
-              <MetricChip label={t("simulation.patient")} value={state.scenario.patientEmotion} tone="amber" />
+              {/* For a death the chip states the status, not an emotion: the
+                  patient has none, and "Patient: Deceased" in the emotion's
+                  amber read as if dying were a mood. */}
+              {isPatientDeceased(state.scenario) ? (
+                <MetricChip label={t("simulation.patient")} value={t("simulation.deceased")} tone="slate" />
+              ) : (
+                <MetricChip label={t("simulation.patient")} value={state.scenario.patientEmotion} tone="amber" />
+              )}
             </div>
           </div>
 
