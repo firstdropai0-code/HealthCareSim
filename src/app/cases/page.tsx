@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthGate } from "@/components/auth/AuthGate";
+import { LoadingButton } from "@/components/common/LoadingButton";
 import { MetricChip } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { Reveal, RevealGroup, RevealItem } from "@/components/motion/Reveal";
+import { castScenario } from "@/lib/ai/geminiClient";
 import { listGroupCases, removeCase } from "@/lib/cases/caseRepository";
 import { useRequireBackend } from "@/lib/firebase/useAuth";
 import { useLanguage } from "@/lib/i18n/languageStore";
@@ -20,6 +22,12 @@ import {
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
 import type { AssignedCase } from "@/types/assignedCase";
+
+/*
+ * How long Start waits for an older case's cast. A little over the server's
+ * own cap, so a slow answer that is coming is not thrown away a moment early.
+ */
+const CAST_WAIT_MS = 9_000;
 
 export default function CasesPage() {
   const gate = useRequireBackend();
@@ -43,6 +51,7 @@ export default function CasesPage() {
   const [cases, setCases] = useState<AssignedCase[]>([]);
   const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Tracks which group the list belongs to, not just that a fetch finished: a
@@ -122,11 +131,35 @@ export default function CasesPage() {
     return <AuthGate gate={gate} />;
   }
 
-  function handleStart(entry: AssignedCase) {
+  async function handleStart(entry: AssignedCase) {
+    setStartingId(entry.id);
+
+    // A case published before casts existed has no faces and voices cast
+    // without regard to gender. Work its cast out now, before the first line,
+    // which is the only moment every voice can be recast without someone
+    // changing voice mid-conversation. Best effort and capped: past the cap,
+    // or on any failure, the run starts exactly as it would have before.
+    let scenario = entry.scenario;
+
+    if (!scenario.cast?.length) {
+      try {
+        const casting = await Promise.race([
+          castScenario(scenario),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), CAST_WAIT_MS)),
+        ]);
+
+        if (casting?.cast?.length) {
+          scenario = { ...scenario, ...casting };
+        }
+      } catch (error) {
+        console.warn("Could not work out this case's cast; starting without portraits.", error);
+      }
+    }
+
     // A fresh run id per attempt, so running the same case twice produces two
     // records rather than overwriting the first.
     clearSimulationState();
-    saveSimulationState(createInitialSimulationState(entry.scenario));
+    saveSimulationState(createInitialSimulationState(scenario));
     router.push("/simulation");
   }
 
@@ -284,13 +317,14 @@ export default function CasesPage() {
                           </p>
 
                           <div className="mt-4 flex flex-wrap items-center gap-2">
-                            <button
+                            <LoadingButton
                               type="button"
-                              onClick={() => handleStart(entry)}
-                              className="btn-editorial btn-editorial--accent"
+                              onClick={() => void handleStart(entry)}
+                              loading={startingId === entry.id}
+                              disabled={startingId !== null}
                             >
                               {isMentor ? t("mentorCases.testRun") : t("join.startCase")}
-                            </button>
+                            </LoadingButton>
                             {isMentor ? (
                               <button
                                 type="button"

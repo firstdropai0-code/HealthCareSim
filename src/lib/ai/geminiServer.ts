@@ -16,7 +16,7 @@ export class GeminiCapacityError extends Error {
   }
 }
 
-export type GeminiServerAction = "scenario" | "nextTurn" | "feedback";
+export type GeminiServerAction = "scenario" | "cast" | "nextTurn" | "feedback";
 
 type GeminiCallOptions = {
   action: GeminiServerAction;

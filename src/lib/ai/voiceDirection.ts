@@ -1,5 +1,7 @@
 import type { CharacterVoice, OpenAiVoiceId, Scenario } from "@/types/scenario";
 import type { ScenarioSpeaker, TensionLevel } from "@/types/simulation";
+import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
+import { stableHash } from "@/lib/stableHash";
 
 /**
  * Voice pinning and delivery direction for the AI patient voice.
@@ -37,18 +39,6 @@ const SPEAKER_POOLS: { speaker: ScenarioSpeaker; pool: OpenAiVoiceId[]; slot: nu
   { speaker: "bystander", pool: STEADY_VOICE_POOL, slot: 1 },
 ];
 
-/** Small stable string hash (FNV-1a). Same id in, same voices out, every time. */
-function hashString(value: string): number {
-  let hash = 2166136261;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return hash >>> 0;
-}
-
 function emotionForSpeaker(scenario: Scenario, speaker: ScenarioSpeaker): string {
   switch (speaker) {
     case "patient":
@@ -67,26 +57,103 @@ function emotionForSpeaker(scenario: Scenario, speaker: ScenarioSpeaker): string
   }
 }
 
+export type VoiceGender = "female" | "male";
+
+/**
+ * What a slot token actually sounds like on the provider that will speak it.
+ * `identity` is the underlying voice, so two slots mapped to the same voice
+ * (the ElevenLabs cast puts Lily behind both coral and nova) count as one.
+ */
+export type SlotVoice = { identity: string; gender: VoiceGender | null };
+
+export type SlotVoiceResolver = (slot: OpenAiVoiceId) => SlotVoice;
+
+/* OpenAI's presets as they are heard. alloy is the narrator and reads as neither. */
+const OPENAI_VOICE_GENDER: Record<OpenAiVoiceId, VoiceGender | null> = {
+  alloy: null,
+  ash: "male",
+  ballad: "male",
+  coral: "female",
+  echo: "male",
+  fable: "male",
+  nova: "female",
+  onyx: "male",
+  sage: "female",
+  shimmer: "female",
+  verse: "male",
+};
+
+export const openAiSlotVoice: SlotVoiceResolver = (slot) => ({
+  identity: slot,
+  gender: OPENAI_VOICE_GENDER[slot],
+});
+
+function rotate<T>(list: T[], offset: number): T[] {
+  const start = offset % list.length;
+  return [...list.slice(start), ...list.slice(0, start)];
+}
+
 /**
  * Pin one voice per character. Called once when the scenario is created; the
  * result is stored on the scenario and reused for every later TTS call.
+ *
+ * With a cast, each character is voiced by someone of their own gender. Before
+ * the stage put a face beside every line this was invisible in a way it no
+ * longer is: the hash below happily gave a father Lily's voice. Without a cast
+ * (every scenario generated before it existed) the original hash is kept
+ * exactly, so no saved scenario changes voice.
  */
 export function assignCharacterVoices(
   scenario: Scenario,
+  slotVoice: SlotVoiceResolver = openAiSlotVoice,
 ): Partial<Record<ScenarioSpeaker, CharacterVoice>> {
   // Offset the whole assignment by the scenario id so different scenarios cast
   // different voices, while each speaker keeps a distinct slot within its pool.
-  const seed = hashString(scenario.id);
+  const seed = stableHash(scenario.id);
 
   const voices: Partial<Record<ScenarioSpeaker, CharacterVoice>> = {
     narrator: { voiceId: NARRATOR_VOICE, emotion: "neutral" },
   };
 
+  if (!scenario.cast?.length) {
+    SPEAKER_POOLS.forEach(({ speaker, pool, slot }) => {
+      voices[speaker] = {
+        voiceId: pool[(seed + slot) % pool.length],
+        emotion: emotionForSpeaker(scenario, speaker),
+      };
+    });
+
+    return voices;
+  }
+
+  const used = new Set<string>([slotVoice(NARRATOR_VOICE).identity]);
+  const deceased = isPatientDeceased(scenario);
+
   SPEAKER_POOLS.forEach(({ speaker, pool, slot }) => {
-    voices[speaker] = {
-      voiceId: pool[(seed + slot) % pool.length],
-      emotion: emotionForSpeaker(scenario, speaker),
-    };
+    const gender = scenario.cast?.find((member) => member.role === speaker)?.gender ?? null;
+    const otherPool = pool === EXPRESSIVE_VOICE_POOL ? STEADY_VOICE_POOL : EXPRESSIVE_VOICE_POOL;
+    const own = rotate(pool, seed + slot);
+    const fits = (id: OpenAiVoiceId) => !gender || slotVoice(id).gender === gender;
+
+    // Own pool first. The other pool only when this one has no free voice of
+    // the right gender -- a steadier read of the right gender beats a
+    // distraught one of the wrong gender. Then reuse over mis-gendering; then,
+    // if no voice of that gender exists at all, the original pick.
+    const voiceId =
+      [...own, ...rotate(otherPool, seed + slot)].find(
+        (id) => fits(id) && !used.has(slotVoice(id).identity),
+      ) ??
+      own.find(fits) ??
+      own[0];
+
+    // A deceased patient never speaks, so their voice is not held back from
+    // the living: a dead son and his father must not compete for the one male
+    // voice in the expressive pool.
+    if (!(speaker === "patient" && deceased)) {
+      used.add(slotVoice(voiceId).identity);
+    }
+
+    voices[speaker] = { voiceId, emotion: emotionForSpeaker(scenario, speaker) };
   });
 
   return voices;

@@ -6,7 +6,7 @@ import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
 import type { NextSimulationTurn, SimulationState } from "@/types/simulation";
 
-type GeminiAction = "generateScenario" | "nextTurn" | "feedback";
+type GeminiAction = "generateScenario" | "castScenario" | "nextTurn" | "feedback";
 
 async function callGemini<T>(action: GeminiAction, payload: unknown): Promise<T> {
   const response = await fetch("/api/gemini", {
@@ -32,6 +32,15 @@ export function generateScenarioFromIdea(
   language: AppLanguage = "en",
 ): Promise<Scenario> {
   return callGemini<Scenario>("generateScenario", { input, difficulty, language });
+}
+
+/**
+ * The cast, and voices recast to fit it, for a scenario published before
+ * casts existed. Call it before the run's first line, never mid-run: it
+ * recasts every voice, and a character must not change voice partway through.
+ */
+export function castScenario(scenario: Scenario): Promise<Pick<Scenario, "cast" | "characterVoices">> {
+  return callGemini<Pick<Scenario, "cast" | "characterVoices">>("castScenario", { scenario });
 }
 
 export function generateNextSimulationTurn(

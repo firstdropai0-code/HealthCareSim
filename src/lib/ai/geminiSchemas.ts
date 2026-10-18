@@ -1,3 +1,5 @@
+import { castRoles, expressions } from "@/types/cast";
+
 export type GeminiSchema = {
   type: "OBJECT" | "ARRAY" | "STRING" | "NUMBER" | "INTEGER" | "BOOLEAN";
   description?: string;
@@ -13,6 +15,32 @@ export type GeminiSchema = {
 const stringArraySchema: GeminiSchema = {
   type: "ARRAY",
   items: { type: "STRING" },
+};
+
+// Enums throughout: gender and age band choose a portrait and a voice, and
+// the expression names an image file. Free text here would have to be parsed
+// back into exactly these values anyway.
+const castSchema: GeminiSchema = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    required: ["role", "name", "relationship", "gender", "ageBand", "expression"],
+    properties: {
+      role: { type: "STRING", enum: [...castRoles] },
+      name: { type: "STRING" },
+      relationship: { type: "STRING" },
+      gender: { type: "STRING", enum: ["female", "male"] },
+      ageBand: { type: "STRING", enum: ["child", "young_adult", "adult", "older"] },
+      expression: { type: "STRING", enum: [...expressions] },
+    },
+  },
+};
+
+/** Just the cast, for a scenario that was published before casts existed. */
+export const castOnlySchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["cast"],
+  properties: { cast: castSchema },
 };
 
 export const scenarioSchema: GeminiSchema = {
@@ -40,9 +68,11 @@ export const scenarioSchema: GeminiSchema = {
     "endingCondition",
     "evaluationCriteria",
     "mediaAssets",
+    "cast",
   ],
   properties: {
     id: { type: "STRING" },
+    cast: castSchema,
     title: { type: "STRING" },
     setting: { type: "STRING" },
     summary: { type: "STRING" },
@@ -73,7 +103,10 @@ export const nextSimulationTurnSchema: GeminiSchema = {
   // fields and reliably skips optional ones, and a turn without its stage
   // direction falls back to the scenario's frozen emotion -- which is the
   // problem the field exists to fix. The narrator case returns "" instead.
-  required: ["speaker", "message", "delivery", "tensionLevel", "shouldEnd"],
+  // expression is required for the same reason as delivery: an optional field
+  // gets skipped, and a skipped one leaves the face frozen on its opening look
+  // while the voice is sobbing. Narrator turns return "calm", which is ignored.
+  required: ["speaker", "message", "delivery", "expression", "tensionLevel", "shouldEnd"],
   properties: {
     speaker: {
       type: "STRING",
@@ -81,6 +114,7 @@ export const nextSimulationTurnSchema: GeminiSchema = {
     },
     message: { type: "STRING" },
     delivery: { type: "STRING" },
+    expression: { type: "STRING", enum: [...expressions] },
     tensionLevel: {
       type: "STRING",
       enum: ["low", "medium", "high"],

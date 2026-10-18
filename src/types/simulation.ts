@@ -1,5 +1,6 @@
 import type { Scenario } from "./scenario";
 import type { VoiceMetrics } from "./voice";
+import type { Expression } from "./cast";
 
 export type SimulationMessageRole = "system" | "scenario" | "trainee" | "feedback";
 export type ScenarioSpeaker = "patient" | "family_member" | "nurse" | "bystander" | "narrator";
@@ -30,6 +31,14 @@ export type SimulationMessage = {
    * rather than spoken, or when analysis was unavailable.
    */
   voiceMetrics?: VoiceMetrics;
+  /** The speaker's face on this line. Character lines only, never narration. */
+  expression?: Expression;
+  /*
+   * Tension as it stood after this line. Kept per message, not only on the
+   * state, so a run can later be drawn as a curve -- whether the trainee
+   * brought the heat down is the question a report should answer at a glance.
+   */
+  tensionLevel?: TensionLevel;
 };
 
 export type SimulationState = {
@@ -62,6 +71,8 @@ export type NextSimulationTurn = {
    * feedback report, or the conversation history sent back to the model.
    */
   spokenMessage: string;
+  /** Absent for narrator turns, which have no face to change. */
+  expression?: Expression;
   tensionLevel: TensionLevel;
   shouldEnd: boolean;
 };

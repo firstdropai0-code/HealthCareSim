@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
 import {
   buildFeedbackReportSchema,
+  castOnlySchema,
   deliveryFeedbackSchema,
   nextSimulationTurnSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
-import { keepAllowedTags, stripAudioTags } from "@/lib/ai/elevenLabsVoice";
+import { elevenLabsSlotVoice, keepAllowedTags, stripAudioTags } from "@/lib/ai/elevenLabsVoice";
 import {
   callGeminiJson,
   isGeminiCapacityError,
   isInvalidJsonResponse,
 } from "@/lib/ai/geminiServer";
-import { assignCharacterVoices } from "@/lib/ai/voiceDirection";
+import { assignCharacterVoices, openAiSlotVoice } from "@/lib/ai/voiceDirection";
+import {
+  isCastRole,
+  isExpression,
+  type CastAgeBand,
+  type CastGender,
+  type CastMember,
+  type CastRole,
+} from "@/types/cast";
 import { getPatientStatus, isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import { normalizeBetterResponses } from "@/lib/feedback/betterResponses";
 import {
@@ -19,7 +28,7 @@ import {
   buildFeedbackPrompt,
   getExtraEvaluationCriteria,
 } from "@/lib/prompts/feedbackPrompt";
-import { buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
+import { buildCastPrompt, buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import { isAppLanguage, type AppLanguage } from "@/types/language";
 import {
   difficultyOrder,
@@ -56,9 +65,15 @@ type GeminiRequest =
         messages?: SimulationPromptMessage[];
       };
     }
-  | { action: "feedback"; payload: { state: SimulationState } };
+  | { action: "feedback"; payload: { state: SimulationState } }
+  | { action: "castScenario"; payload: { scenario: Scenario } };
 
 const SCENARIO_TIMEOUT_MS = 22_000;
+/*
+ * Short on purpose: this runs while a trainee waits on the Start button, and
+ * the run starts anyway without it -- a slow cast costs faces, not the run.
+ */
+const CAST_TIMEOUT_MS = 8_000;
 const NEXT_TURN_TIMEOUT_MS = 35_000;
 const FEEDBACK_TIMEOUT_MS = 22_000;
 
@@ -196,11 +211,58 @@ function normalizeScenario(value: unknown): Scenario {
     ...(scenario.libraryId ? { libraryId: scenario.libraryId } : {}),
     ...(scenario.category ? { category: scenario.category } : {}),
     ...(scenario.difficulty ? { difficulty: scenario.difficulty } : {}),
+    ...(normalizeCast(scenario.cast) ?? {}),
   };
 
   // Pin voices here rather than asking the model for them: it's a closed set of
   // preset voice ids, and the assignment only needs to happen once per scenario.
-  return { ...normalized, characterVoices: assignCharacterVoices(normalized) };
+  // Cast against the provider that will actually speak, because a slot's gender
+  // is a property of the voice behind it: "ballad" is a man on OpenAI and Laura
+  // on the current ElevenLabs cast.
+  const slotVoice = process.env.TTS_PROVIDER === "elevenlabs" ? elevenLabsSlotVoice : openAiSlotVoice;
+  return { ...normalized, characterVoices: assignCharacterVoices(normalized, slotVoice) };
+}
+
+const castGenders: CastGender[] = ["female", "male"];
+const castAgeBands: CastAgeBand[] = ["child", "young_adult", "adult", "older"];
+
+/**
+ * Keeps only cast entries every consumer can rely on: a known role, a gender
+ * and age band from the closed sets, a known expression. One per role, first
+ * wins, because speakers are role-level -- there is one "family_member" voice
+ * and one portrait for it, so a second mother would have nowhere to go.
+ * Returns undefined (spread to nothing) rather than an empty list, so the stage
+ * treats a scenario with no usable cast the same as one generated before it.
+ */
+function normalizeCast(value: unknown): { cast: CastMember[] } | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const byRole = new Map<CastRole, CastMember>();
+
+  for (const raw of value as Array<Partial<CastMember>>) {
+    if (
+      !raw ||
+      !isCastRole(raw.role) ||
+      byRole.has(raw.role) ||
+      !castGenders.includes(raw.gender as CastGender) ||
+      !castAgeBands.includes(raw.ageBand as CastAgeBand)
+    ) {
+      continue;
+    }
+
+    byRole.set(raw.role, {
+      role: raw.role,
+      name: typeof raw.name === "string" ? raw.name.trim().slice(0, 40) : "",
+      relationship: typeof raw.relationship === "string" ? raw.relationship.trim().slice(0, 40) : "",
+      gender: raw.gender as CastGender,
+      ageBand: raw.ageBand as CastAgeBand,
+      expression: isExpression(raw.expression) ? raw.expression : "calm",
+    });
+  }
+
+  return byRole.size > 0 ? { cast: [...byRole.values()] } : undefined;
 }
 
 function buildFallbackScenario(input: string): Scenario {
@@ -269,6 +331,9 @@ function normalizeTurn(value: unknown): NextSimulationTurn {
     // This function rebuilds the turn field by field, so anything not listed
     // here is silently dropped.
     delivery: typeof turn.delivery === "string" ? turn.delivery.trim().slice(0, 160) : "",
+    // A narrator has no face, so its "calm" placeholder is dropped here rather
+    // than stored and later mistaken for a character's expression.
+    ...(speaker !== "narrator" && isExpression(turn.expression) ? { expression: turn.expression } : {}),
     tensionLevel,
     shouldEnd: Boolean(turn.shouldEnd),
   };
@@ -446,12 +511,47 @@ async function generateScenario(
     prompt,
     models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
     temperature: 0.25,
-    maxOutputTokens: 1000,
+    // Raised from 1000 for the cast block. Devanagari costs several tokens per
+    // word, so a Hindi brief plus four cast entries could otherwise truncate
+    // into invalid JSON and fall back to the canned English scenario.
+    maxOutputTokens: 1500,
     timeoutMs: SCENARIO_TIMEOUT_MS,
     schema: scenarioSchema,
   });
 
   return { ...normalizeScenario(result), language };
+}
+
+/**
+ * A cast, and voices recast to fit it, for a scenario published before casts
+ * existed. Returned rather than saved: the published case belongs to its
+ * mentor and the rules let no one else rewrite it, so each run works its cast
+ * out afresh -- one short call -- and carries it in its own state.
+ *
+ * Every voice is recast, which is safe only because this runs before the
+ * first line: no character has spoken yet, so no one changes voice mid-run.
+ */
+async function castExistingScenario(
+  scenario: Scenario,
+): Promise<Pick<Scenario, "cast" | "characterVoices"> | null> {
+  const result = await callGeminiJson({
+    action: "cast",
+    prompt: buildCastPrompt(scenario),
+    models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
+    temperature: 0.2,
+    maxOutputTokens: 600,
+    timeoutMs: CAST_TIMEOUT_MS,
+    schema: castOnlySchema,
+  });
+
+  const cast = normalizeCast((result as { cast?: unknown })?.cast)?.cast;
+
+  if (!cast) {
+    return null;
+  }
+
+  const slotVoice = process.env.TTS_PROVIDER === "elevenlabs" ? elevenLabsSlotVoice : openAiSlotVoice;
+  return { cast, characterVoices: assignCharacterVoices({ ...scenario, cast }, slotVoice) };
 }
 
 async function generateTurn(
@@ -705,6 +805,17 @@ export async function POST(request: Request) {
         console.error("Gemini feedback generation failed, using fallback:", error);
         return NextResponse.json({ result: buildFallbackFeedback(state) });
       }
+    }
+
+    if (body.action === "castScenario") {
+      const scenario = body.payload?.scenario;
+
+      if (!scenario?.id || !scenario.title) {
+        return errorResponse("A scenario is required.");
+      }
+
+      const result = await castExistingScenario(scenario);
+      return result ? NextResponse.json({ result }) : errorResponse("No cast could be worked out.", 422);
     }
 
     return errorResponse("Unsupported Gemini action.");

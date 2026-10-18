@@ -81,7 +81,93 @@ export type SpeakTextOptions = {
    * buffering stalls and in background tabs.
    */
   onProgress?: (progress: { elapsedMs: number; durationMs: number | null }) => void;
+  /**
+   * Called on every animation frame with how loud the clip is right now, 0 to
+   * 1, and with 0 once it stops. Best effort: where the browser will not let
+   * the clip be metered, this is simply never called and playback is
+   * unaffected.
+   */
+  onLevel?: (level: number) => void;
 };
+
+/*
+ * One context for the whole page. Browsers cap how many can exist, and each
+ * turn would otherwise open another.
+ */
+let meterContext: AudioContext | null = null;
+
+/** How long to wait for a suspended context to start before giving up on it. */
+const METER_RESUME_TIMEOUT_MS = 150;
+
+/**
+ * Route the clip through an analyser so its loudness can be read each frame.
+ * Returns a sampler and a detach, or null when metering is not possible.
+ *
+ * The ordering is the safety: once an element is handed to a context its
+ * sound plays THROUGH that context, so a suspended context means silence. The
+ * context is therefore confirmed running before the element is connected, and
+ * every failure returns null before anything is rerouted -- the worst case is
+ * a portrait that does not pulse, never a character who goes quiet. The resume
+ * wait is capped because a context with no user gesture can stay pending
+ * indefinitely, and that must not hold up the voice.
+ */
+async function attachLevelMeter(
+  audio: HTMLAudioElement,
+): Promise<{ sample: () => number; detach: () => void } | null> {
+  try {
+    const Context =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!Context) {
+      return null;
+    }
+
+    meterContext ??= new Context();
+    const context = meterContext;
+
+    if (context.state !== "running") {
+      await Promise.race([
+        context.resume(),
+        new Promise((resolve) => setTimeout(resolve, METER_RESUME_TIMEOUT_MS)),
+      ]);
+    }
+
+    if (context.state !== "running") {
+      return null;
+    }
+
+    const source = context.createMediaElementSource(audio);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    analyser.connect(context.destination);
+
+    const samples = new Uint8Array(analyser.fftSize);
+
+    return {
+      sample() {
+        analyser.getByteTimeDomainData(samples);
+        let sum = 0;
+
+        for (const value of samples) {
+          const centred = (value - 128) / 128;
+          sum += centred * centred;
+        }
+
+        // Speech RMS rarely passes ~0.3, so scale it up to use the ring's
+        // whole range; the square root keeps quiet syllables visible.
+        return Math.min(1, Math.sqrt(Math.sqrt(sum / samples.length) / 0.3));
+      },
+      detach() {
+        source.disconnect();
+        analyser.disconnect();
+      },
+    };
+  } catch {
+    return null;
+  }
+}
 
 export type SpeechPlayback = {
   /**
@@ -211,6 +297,7 @@ export async function speakText(
 
   let settled = false;
   let frame: number | null = null;
+  let meter: Awaited<ReturnType<typeof attachLevelMeter>> = null;
 
   const cleanup = () => {
     if (settled) {
@@ -223,6 +310,8 @@ export async function speakText(
       frame = null;
     }
 
+    meter?.detach();
+    options.onLevel?.(0);
     URL.revokeObjectURL(url);
   };
 
@@ -256,6 +345,12 @@ export async function speakText(
     rejectFinished(new Error("Audio playback failed."));
   };
 
+  // Before play(), not after: connecting an element that is already sounding
+  // makes an audible jump as its output moves into the context.
+  if (options.onLevel) {
+    meter = await attachLevelMeter(audio);
+  }
+
   try {
     // Unwrapped on purpose: the rejection is the DOMException the autoplay and
     // abort classifiers need to see.
@@ -266,15 +361,21 @@ export async function speakText(
     throw error;
   }
 
-  const { onProgress } = options;
+  const { onProgress, onLevel } = options;
+  const activeMeter = meter;
 
-  if (onProgress) {
+  if (onProgress || (onLevel && activeMeter)) {
     const tick = () => {
       if (settled) {
         return;
       }
 
-      onProgress({ elapsedMs: audio.currentTime * 1000, durationMs });
+      onProgress?.({ elapsedMs: audio.currentTime * 1000, durationMs });
+
+      if (onLevel && activeMeter) {
+        onLevel(activeMeter.sample());
+      }
+
       frame = window.requestAnimationFrame(tick);
     };
 
