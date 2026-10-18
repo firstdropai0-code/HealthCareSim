@@ -6,13 +6,11 @@ import { useRouter } from "next/navigation";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { LoadingButton } from "@/components/common/LoadingButton";
 import { MicButton } from "@/components/common/MicButton";
-import { SafetyNotice } from "@/components/common/SafetyNotice";
-import { MetricChip, StepProgress } from "@/components/common/VisualCards";
 import { AppShell } from "@/components/layout/AppShell";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
-import { SimulationStage } from "@/components/simulation/SimulationStage";
+import { SimulationScene } from "@/components/simulation/SimulationScene";
 import { createSpeakingLevelStore } from "@/components/simulation/speakingLevel";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { castScenario, generateNextSimulationTurn } from "@/lib/ai/geminiClient";
@@ -30,7 +28,7 @@ import {
 } from "@/lib/ai/voiceDirection";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
-import { useT, type StringKey } from "@/lib/i18n/strings";
+import { useT } from "@/lib/i18n/strings";
 import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
@@ -170,6 +168,8 @@ export default function SimulationPage() {
   const castPatchRef = useRef<CastPatch | null>(null);
   const castRequestedFor = useRef<string | null>(null);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const transcriptCloseRef = useRef<HTMLButtonElement>(null);
 
   // On by default: the voice is most of what makes the roleplay feel like a
   // conversation, and a toggle nobody finds is a feature nobody hears. Any
@@ -542,6 +542,33 @@ export default function SimulationPage() {
     return () => observer.disconnect();
   }, [hasState, scrollHistoryToBottom]);
 
+  // Opening the transcript lands on the latest turn with focus on its close
+  // button, so a keyboard user is inside the drawer rather than behind it;
+  // Escape closes it from anywhere.
+  useEffect(() => {
+    if (!transcriptOpen) {
+      return undefined;
+    }
+
+    // Whatever opened the drawer gets focus back when it closes, rather than
+    // the keyboard user being dropped at the top of the page.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    scrollHistoryToBottom(false);
+    transcriptCloseRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTranscriptOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      opener?.focus();
+    };
+  }, [transcriptOpen, scrollHistoryToBottom]);
+
   // A draft can be built from several dictations (plus typing), so metrics
   // accumulate here and are combined when the turn is actually sent.
   function handleTranscript(text: string, voiceMetrics: VoiceMetrics | null) {
@@ -657,349 +684,327 @@ export default function SimulationPage() {
   }
 
   const completed = state.status === "completed";
-  const latestScenarioMessage = state.messages.findLast(
-    (message) => message.role === "scenario" && message.speaker,
-  );
-  const currentSpeaker = latestScenarioMessage?.speaker
-    ? t(`speaker.${latestScenarioMessage.speaker}` as StringKey)
-    : t("simulation.narrator");
+  const deceased = isPatientDeceased(state.scenario);
 
   return (
     <AppShell>
       {/* No entrance animation on the page root: the whole simulation room
           would be hidden until it ran. `template.tsx` already animates the
           route change. */}
-      {/* Three fixed regions: a briefing bar, a session rail, and the roleplay
-          itself. The page as a whole does not scroll — only the conversation
-          history does — so the composer and the brief stay put while the
-          trainee works. */}
-      {/* On a viewport with room for it, the page height is pinned so only the
-          conversation history scrolls — the brief and composer never move. The
-          lock is gated on available height because below roughly 800px there
-          is genuinely not enough room, and squeezing would clip the composer;
-          short viewports fall back to ordinary page flow. */}
-      <div className="flex flex-col gap-3 lg:[@media(min-height:800px)]:h-[calc(100dvh-var(--header-height)-5rem)]">
-        {/* 1. Briefing bar — everything the trainee needs at a glance. */}
-        <header className="accent-edge shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)]">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-            <div className="min-w-0 lg:flex-1">
+      {/* Three bands: a slim bar about the exercise, the scene, and the
+          composer. The scene is the page. It used to be a 320px column beside
+          a chat log, with a briefing card, a session rail and four chips around
+          it -- a dashboard with a roleplay inside, the person cut off at the
+          neck and their words on the other side of the panel. The transcript
+          is now a drawer, and the session controls live in the bar. */}
+      {/* On a viewport with room for it, the page height is pinned so the bar
+          and composer never move and the scene takes the rest. Pinned from
+          640px tall, not the old layout's 800px: the bar and composer are now
+          about 170px together, and the common laptop window (1536 x ~790 CSS
+          pixels) sits between the two -- at the old cut-off it fell back to
+          page flow, where the scene had no height and collapsed. Shorter
+          viewports still fall back, with the scene given a height of its own. */}
+      <div className="flex flex-col gap-2.5 lg:[@media(min-height:640px)]:h-[calc(100dvh-var(--header-height)-5rem)]">
+        {/* 1. The exercise: title, goal, pace, tension, brief, and the way out. */}
+        <header className="accent-edge shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 py-2.5 shadow-[var(--shadow-soft)]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="min-w-0 max-w-full lg:max-w-[22rem]">
               <p className="eyebrow text-[var(--color-primary)]">{t("simulation.room")}</p>
-              <h1 className="display-md mt-1.5">{state.scenario.title}</h1>
+              <h1
+                className="truncate text-[1.0625rem] font-semibold leading-6 text-[var(--color-ink)]"
+                title={state.scenario.title}
+              >
+                {state.scenario.title}
+              </h1>
             </div>
-            {/* The title and the chips share the row, the chips taking the
-                larger part and wrapping inside it. The chips used to be barred
-                from shrinking, so they claimed their full one-line width and
-                the title got whatever was left: with a long setting and a long
-                patient emotion ("anxious about son's wedding"), that was one
-                word per line, and the bar grew tall enough to push the stage's
-                figure below the fold. Penned into a narrow column instead they
-                had wrapped onto three rows, so the split is weighted their way. */}
-            {/* Short, fixed-length facts live as chips; only the prose fields
-                get a column below. Setting is two words — giving it a third of
-                the brief row wasted the measure the long fields needed. */}
-            <div className="flex flex-wrap items-center gap-2 lg:flex-[1.4] lg:justify-end">
-              <MetricChip label={t("simulation.setting")} value={state.scenario.setting} tone="emerald" />
-              <MetricChip label={t("simulation.speaker")} value={currentSpeaker} tone="blue" />
+            {/* One line, the whole goal on hover and in the brief: the goal is
+                what the trainee acts on turn by turn, so it stays in view where
+                there is room for it. Below xl the title and the controls leave
+                it a few pixels -- it showed as "G." -- so it lives in the brief. */}
+            <p
+              className="hidden min-w-0 flex-1 truncate border-l border-[var(--color-border)] pl-4 text-sm text-[var(--color-ink-muted)] xl:block"
+              title={state.scenario.traineeObjective}
+            >
+              <span className="eyebrow eyebrow-tight mr-2 text-[var(--color-primary)]">{t("simulation.goal")}</span>
+              {state.scenario.traineeObjective}
+            </p>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {/* The pacing, not the cap: most roleplays end on their ending
+                  condition well before the hard limit. */}
+              <span
+                className="text-xs tabular-nums text-[var(--color-ink-soft)]"
+                title={t("simulation.pacedFor", { n: state.scenario.suggestedTurns })}
+              >
+                {t("simulation.turnOf", { n: state.currentTurn, total: state.scenario.suggestedTurns })}
+              </span>
               <TensionBadge level={state.tensionLevel} />
-              {/* Status is deliberately absent: the session rail already states
-                  it in words, and a fifth chip wrapped the row onto two lines. */}
-              {/* For a death the chip states the status, not an emotion: the
-                  patient has none, and "Patient: Deceased" in the emotion's
-                  amber read as if dying were a mood. */}
-              {isPatientDeceased(state.scenario) ? (
-                <MetricChip label={t("simulation.patient")} value={t("simulation.deceased")} tone="slate" />
+              <button
+                type="button"
+                aria-expanded={briefOpen}
+                aria-controls="simulation-brief"
+                onClick={() => setBriefOpen((open) => !open)}
+                className="btn-editorial btn-editorial--quiet min-h-9 px-3 py-1.5"
+              >
+                {t("simulation.brief")}
+              </button>
+              {!completed ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleEndSimulation}
+                    className="btn-editorial btn-editorial--quiet min-h-9 px-3 py-1.5 hover:border-[var(--color-danger)] hover:bg-transparent hover:text-[var(--color-danger)]"
+                  >
+                    {t("simulation.endShort")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleFinishAndGenerateFeedback}
+                    className="btn-editorial btn-editorial--solid min-h-9 px-3 py-1.5"
+                  >
+                    {t("simulation.finishShort")}
+                  </button>
+                </>
+              ) : hasFeedbackReport ? (
+                <button
+                  type="button"
+                  onClick={() => router.push("/feedback")}
+                  className="btn-editorial btn-editorial--solid min-h-9 px-3 py-1.5"
+                >
+                  {t("simulation.viewFeedback")}
+                </button>
               ) : (
-                <MetricChip label={t("simulation.patient")} value={state.scenario.patientEmotion} tone="amber" />
+                <button
+                  type="button"
+                  onClick={handleGenerateFeedback}
+                  className="btn-editorial btn-editorial--solid min-h-9 px-3 py-1.5"
+                >
+                  {t("simulation.generateFeedback")}
+                </button>
               )}
             </div>
           </div>
 
-          {/* The goal stays in view; the situation and challenge open on
-              request. All three used to be inlined, and on a 900px screen
-              their prose left the conversation history under 180px -- too
-              short for the stage's portrait or more than one message. The
-              trainee has read the whole brief on the way in; the goal is the
-              part they act on turn by turn. */}
-          <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-border)] pt-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-            <BriefItem label={t("simulation.goal")} tone="primary" value={state.scenario.traineeObjective} />
-            <button
-              type="button"
-              aria-expanded={briefOpen}
-              aria-controls="simulation-brief-detail"
-              onClick={() => setBriefOpen((open) => !open)}
-              className="link-editorial shrink-0 self-start text-sm"
-            >
-              {briefOpen ? t("simulation.hideBrief") : t("simulation.showBrief")}
-            </button>
-          </div>
           {briefOpen ? (
-            <div id="simulation-brief-detail" className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            <div
+              id="simulation-brief"
+              className="mt-2.5 grid gap-x-8 gap-y-3 border-t border-[var(--color-border)] pt-3 sm:grid-cols-2 lg:grid-cols-4"
+            >
+              <BriefItem label={t("simulation.goal")} tone="primary" value={state.scenario.traineeObjective} />
               <BriefItem label={t("simulation.situation")} tone="ink" value={state.scenario.summary} />
               <BriefItem
                 label={t("simulation.challenge")}
                 tone="warning"
                 value={state.scenario.communicationChallenge}
               />
-            </div>
-          ) : null}
-
-          {/* The total is the hard safety cap, not the target. Most roleplays
-              end well before it, on the ending condition. */}
-          <div className="mt-3 border-t border-[var(--color-border)] pt-3">
-            <StepProgress
-              variant="inline"
-              current={state.currentTurn}
-              total={state.maxTurns}
-              label={t("simulation.turnsUsed")}
-              hint={t("simulation.pacedFor", { n: state.scenario.suggestedTurns })}
-            />
-          </div>
-        </header>
-
-        {/* 2. Session rail (left) + 3. roleplay (centre). */}
-        {/* An explicit row track: an implicit `auto` row sizes to its content
-            and would overflow the pinned container instead of shrinking. */}
-        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-          {/* Conversation panel */}
-          <section className="order-1 flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)] lg:order-2">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-2.5">
-              <h2 className="eyebrow text-[var(--color-ink)]">{t("simulation.live")}</h2>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
-                  <input
-                    type="checkbox"
-                    checked={autoRead}
-                    onChange={(event) => {
-                      setAutoRead(event.target.checked);
-                      saveAutoRead(event.target.checked);
-
-                      if (!event.target.checked) {
-                        setAudioGestureMessage(null);
-                        stopSpeaking();
-                      }
-                    }}
-                    className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
-                  />
-                  {t("simulation.autoRead")}
-                </label>
-                <MetricChip label={t("simulation.messages")} value={`${state.messages.length}`} tone="slate" />
-              </div>
-            </div>
-
-            {/* On narrow screens the stage rides above the conversation, so the
-                face is never scrolled away from the lines it is saying. */}
-            <div className="lg:hidden">
-              <SimulationStage
-                variant="compact"
-                scenario={state.scenario}
-                messages={state.messages}
-                speakingMessageId={speakingMessageId}
-                level={speakingLevel}
+              {/* A death is a status, not an emotion -- the same rule as the
+                  scenario brief. */}
+              <BriefItem
+                label={t("simulation.patient")}
+                tone="ink"
+                value={deceased ? t("simulation.deceased") : state.scenario.patientEmotion}
               />
             </div>
+          ) : null}
+        </header>
 
-            {/* The person on the left, their words and the composer on the
-                right, like the other side of a call. The column runs the full
-                height of the panel so the portrait has room even on a 900px
-                screen, where the history alone is under 200px; it is sized from
-                that height, so on a shorter screen the face shrinks rather
-                than being cut off or pushing the composer down. */}
-            <div className="flex min-h-0 flex-1">
-              <div className="hidden w-64 shrink-0 border-r border-[var(--color-border)] lg:flex lg:flex-col">
-                <SimulationStage
-                  variant="column"
-                  scenario={state.scenario}
-                  messages={state.messages}
-                  speakingMessageId={speakingMessageId}
-                  level={speakingLevel}
+        {/* 2. The scene. */}
+        {/* A definite height either way. The scene positions its room and
+            dialogue against its own box, so a wrapper whose height came only
+            from content left it at zero: the room vanished and the dialogue
+            floated up over the bar. Pinned, it takes the space left over;
+            otherwise it gets a fixed share of the screen. */}
+        <div className="min-h-0 lg:h-[clamp(20rem,60vh,36rem)] lg:[@media(min-height:640px)]:h-auto lg:[@media(min-height:640px)]:flex-1">
+          <SimulationScene
+            scenario={state.scenario}
+            messages={state.messages}
+            tensionLevel={state.tensionLevel}
+            reveal={reveal}
+            speakingMessageId={speakingMessageId}
+            level={speakingLevel}
+            loading={loading}
+            pendingLine={loading ? response.trim() || null : null}
+            onSpeak={speakMessage}
+            onOpenTranscript={() => setTranscriptOpen(true)}
+          />
+        </div>
+
+        {/* 3. The composer. Voice first: the Speak button leads, typing is
+            beside it. */}
+        <div className="shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-3 py-2.5 shadow-[var(--shadow-soft)]">
+          {!completed ? (
+            <>
+              <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
+                {/* The scenario's language, not the reader's UI setting: a
+                    Hindi case is answered in Hindi. */}
+                <MicButton
+                  onTranscript={handleTranscript}
+                  disabled={loading}
+                  language={state.scenario.language ?? "en"}
+                  className="shrink-0"
                 />
-              </div>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <div
-                  ref={scrollRef}
-                  onScroll={handleHistoryScroll}
-                  tabIndex={0}
-                  aria-label={t("simulation.history")}
-                  aria-busy={loading}
-                  className="min-h-[16rem] min-w-0 max-h-[55dvh] flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 lg:[@media(min-height:800px)]:max-h-none lg:[@media(min-height:800px)]:min-h-0"
+                <label htmlFor="trainee-response" className="sr-only">
+                  {t("simulation.yourResponse")}
+                </label>
+                <textarea
+                  id="trainee-response"
+                  rows={1}
+                  value={response}
+                  onChange={(event) => setResponse(event.target.value)}
+                  placeholder={t("simulation.placeholder")}
+                  // Its own full-width row on a phone, with Speak and Send
+                  // beneath; between them on wider screens. Sharing a phone's
+                  // row it was squeezed to a 55px sliver.
+                  className="order-first min-h-11 w-full min-w-0 basis-full resize-y border border-[var(--color-border-strong)] bg-white px-3 py-2.5 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] sm:order-none sm:flex-1 sm:basis-0"
+                />
+                <LoadingButton
+                  type="button"
+                  loading={loading}
+                  disabled={!response.trim()}
+                  onClick={handleSend}
+                  className="sheen ml-auto min-h-11 shrink-0 px-5 sm:ml-0"
                 >
-                  <div ref={contentRef} className="space-y-4">
-                    <ChatMessageList
-                      messages={state.messages}
-                      reveal={reveal}
-                      onSpeak={speakMessage}
-                      speakingMessageId={speakingMessageId}
-                    />
-                    {loading ? <TypingIndicator /> : null}
-                  </div>
-                </div>
-
-                {/* Persistent bottom area: speech controls + composer / completed */}
-                <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
-                  {speakingMessageId || ttsError || audioGestureMessage ? (
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      {speakingMessageId ? (
-                        <button
-                          type="button"
-                          onClick={stopSpeaking}
-                          className="eyebrow eyebrow-tight inline-flex min-h-9 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-1.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
-                        >
-                          <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
-                          {t("simulation.stopReading")}
-                        </button>
-                      ) : null}
-                      {/* Deliberately quiet rather than in the danger colour: a
-                          browser waiting for a gesture is not a failure. Clicking
-                          is itself the gesture, so the call to speak has to come
-                          straight from the handler. */}
-                      {audioGestureMessage ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const blocked = audioGestureMessage;
-                              setAudioGestureMessage(null);
-                              void speakMessage(blocked);
-                            }}
-                            className="btn-editorial btn-editorial--quiet min-h-9"
-                          >
-                            {t("simulation.turnOnReadAloud")}
-                          </button>
-                          <p className="text-xs text-[var(--color-ink-soft)]">
-                            {t("simulation.gestureHint")}
-                          </p>
-                        </>
-                      ) : null}
-                      {ttsError ? (
-                        <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {!completed ? (
-                    <>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
-                          {t("simulation.yourResponse")}
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
-                            {t("common.chars", { n: response.trim().length })}
-                          </p>
-                          {/* The scenario's language, not the reader's UI setting:
-                              a Hindi case is answered in Hindi. */}
-                          <MicButton
-                            onTranscript={handleTranscript}
-                            disabled={loading}
-                            language={state?.scenario.language ?? "en"}
-                          />
-                        </div>
-                      </div>
-                      <textarea
-                        id="trainee-response"
-                        rows={2}
-                        value={response}
-                        onChange={(event) => setResponse(event.target.value)}
-                        placeholder={t("simulation.placeholder")}
-                        className="mt-2.5 w-full resize-y border border-[var(--color-border-strong)] bg-white p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
-                      />
-
-                      {error ? (
-                        <div className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
-                          {error}
-                          <button
-                            type="button"
-                            onClick={handleSend}
-                            disabled={!response.trim() || loading}
-                            className="ml-3 font-semibold underline disabled:opacity-50"
-                          >
-                            {t("common.retry")}
-                          </button>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-2.5">
-                        <LoadingButton
-                          type="button"
-                          loading={loading}
-                          disabled={!response.trim()}
-                          onClick={handleSend}
-                          className="sheen min-h-11 w-full"
-                        >
-                          {t("simulation.send")}
-                        </LoadingButton>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-3">
-                      <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
-                      <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
-                        {t("simulation.completedBody")}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                  {t("simulation.send")}
+                </LoadingButton>
               </div>
-            </div>
-          </section>
 
-          {/* Session rail. Sits alongside the roleplay rather than below it, so
-              ending the session never means scrolling away from the composer. */}
-          <aside className="order-2 flex flex-col gap-3 lg:order-1 lg:self-start">
-            <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-card)]">
-              <p className="eyebrow text-[var(--color-ink-soft)]">{t("simulation.session")}</p>
-              <p className="display-sm mt-2 text-[var(--color-ink)]">
-                {completed ? t("simulation.completed") : t("simulation.wrapUp")}
-              </p>
-              <p className="mt-1.5 text-xs leading-5 text-[var(--color-ink-soft)]">
-                {completed ? t("simulation.openReport") : t("simulation.finishOrEnd")}
-              </p>
-              <div className="mt-4 grid gap-2">
-                {!completed ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleEndSimulation}
-                      className="btn-editorial btn-editorial--quiet w-full hover:border-[var(--color-danger)] hover:bg-transparent hover:text-[var(--color-danger)]"
-                    >
-                      {t("simulation.end")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleFinishAndGenerateFeedback}
-                      className="btn-editorial btn-editorial--solid w-full"
-                    >
-                      {t("simulation.finish")}
-                    </button>
-                  </>
-                ) : hasFeedbackReport ? (
+              {error ? (
+                <div className="mt-2.5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                  {error}
                   <button
                     type="button"
-                    onClick={() => router.push("/feedback")}
-                    className="btn-editorial btn-editorial--solid w-full"
+                    onClick={handleSend}
+                    disabled={!response.trim() || loading}
+                    className="ml-3 font-semibold underline disabled:opacity-50"
                   >
-                    {t("simulation.viewFeedback")}
+                    {t("common.retry")}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleGenerateFeedback}
-                    className="btn-editorial btn-editorial--solid w-full"
-                  >
-                    {t("simulation.generateFeedback")}
-                  </button>
-                )}
-              </div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-2.5">
+              <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
+              <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">{t("simulation.completedBody")}</p>
             </div>
+          )}
 
-            <SafetyNotice />
+          {/* min-h-7 fits the stop button, so the row is the same height
+              whether audio is playing or not and the scene above never moves. */}
+          <div className="mt-2 flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
+              <input
+                type="checkbox"
+                checked={autoRead}
+                onChange={(event) => {
+                  setAutoRead(event.target.checked);
+                  saveAutoRead(event.target.checked);
 
-            <p className="text-[11px] leading-4 text-[var(--color-ink-soft)]">
-              {t("simulation.audioDisclaimer")}
+                  if (!event.target.checked) {
+                    setAudioGestureMessage(null);
+                    stopSpeaking();
+                  }
+                }}
+                className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
+              />
+              {t("simulation.autoRead")}
+            </label>
+            {/* Playback controls share this row rather than sitting above the
+                composer. Above it, they appeared and vanished with every
+                spoken line, and each time the scene -- which takes whatever
+                height is left -- shrank and grew, the figure with it. */}
+            {speakingMessageId ? (
+              <button
+                type="button"
+                onClick={stopSpeaking}
+                className="eyebrow eyebrow-tight inline-flex h-7 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-2.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
+              >
+                <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
+                {t("simulation.stopReading")}
+              </button>
+            ) : null}
+            {/* Deliberately quiet rather than in the danger colour: a browser
+                waiting for a gesture is not a failure. Clicking is itself the
+                gesture, so the call to speak has to come straight from the
+                handler. */}
+            {audioGestureMessage ? (
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const blocked = audioGestureMessage;
+                    setAudioGestureMessage(null);
+                    void speakMessage(blocked);
+                  }}
+                  className="link-editorial text-xs font-medium"
+                >
+                  {t("simulation.turnOnReadAloud")}
+                </button>
+                <span className="text-[11px] text-[var(--color-ink-soft)]">{t("simulation.gestureHint")}</span>
+              </span>
+            ) : null}
+            {ttsError ? <span className="text-[11px] font-medium text-[var(--color-danger)]">{ttsError}</span> : null}
+            {/* The safety line, with the note about the AI voice on hover: both
+                must stay reachable, neither needs a box of its own. */}
+            <p className="ml-auto text-[11px] leading-4 text-[var(--color-ink-soft)]" title={t("simulation.audioDisclaimer")}>
+              {t("safety.summary")}
             </p>
-          </aside>
+          </div>
         </div>
       </div>
+
+      {/* 4. The transcript, one click away. Kept mounted while closed --
+          hidden and inert rather than removed -- so the history keeps its
+          scroll position and the follow-the-latest-turn behaviour works the
+          moment it opens. */}
+      {transcriptOpen ? (
+        <div
+          aria-hidden
+          onClick={() => setTranscriptOpen(false)}
+          className="fixed inset-0 z-40 bg-[color-mix(in_srgb,var(--color-ink)_22%,transparent)]"
+        />
+      ) : null}
+      <aside
+        id="simulation-transcript"
+        aria-label={t("simulation.transcript")}
+        inert={!transcriptOpen}
+        // Off-screen and inert while closed, rather than visibility: hidden.
+        // Transitioning visibility alongside the slide left the opened drawer
+        // computed as hidden, and inert already takes it out of the tab order
+        // and the accessibility tree.
+        className={`fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-lift)] transition-transform duration-300 ${
+          transcriptOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
+          <h2 className="eyebrow text-[var(--color-ink)]">{t("simulation.transcript")}</h2>
+          <button
+            ref={transcriptCloseRef}
+            type="button"
+            onClick={() => setTranscriptOpen(false)}
+            className="btn-editorial btn-editorial--quiet min-h-8 px-3 py-1"
+          >
+            {t("simulation.closeTranscript")}
+          </button>
+        </div>
+        <div
+          ref={scrollRef}
+          onScroll={handleHistoryScroll}
+          tabIndex={0}
+          aria-label={t("simulation.history")}
+          aria-busy={loading}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4"
+        >
+          <div ref={contentRef} className="space-y-4">
+            <ChatMessageList
+              messages={state.messages}
+              reveal={reveal}
+              onSpeak={speakMessage}
+              speakingMessageId={speakingMessageId}
+            />
+            {loading ? <TypingIndicator /> : null}
+          </div>
+        </div>
+      </aside>
     </AppShell>
   );
 }

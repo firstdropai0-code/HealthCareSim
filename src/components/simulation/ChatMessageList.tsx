@@ -18,7 +18,7 @@ import type { SimulationMessage } from "@/types/simulation";
  * transcript, matching the rule that a transcript is never gated behind an
  * animation.
  */
-function useRevealedWordCount(reveal: RevealStore, messageId: string) {
+export function useRevealedWordCount(reveal: RevealStore, messageId: string) {
   const subscribe = useCallback(
     (onChange: () => void) => reveal.subscribe(messageId, onChange),
     [reveal, messageId],
@@ -28,7 +28,7 @@ function useRevealedWordCount(reveal: RevealStore, messageId: string) {
   return useSyncExternalStore(subscribe, getWordCount, () => Infinity);
 }
 
-function TypingCursor() {
+export function TypingCursor() {
   return <span className="ml-0.5 inline-block h-4 w-[2px] animate-pulse bg-current align-middle" />;
 }
 
@@ -40,7 +40,7 @@ function TypingCursor() {
  * stopped part-way through a word, so the wait before a voice arrives read as
  * the app having frozen rather than as a turn on its way.
  */
-function TypingDots({ className = "" }: { className?: string }) {
+export function TypingDots({ className = "" }: { className?: string }) {
   const shouldAnimate = useShouldAnimate();
 
   return (
@@ -178,7 +178,7 @@ function ChatMessage({ message, reveal, onSpeak, isSpeaking = false }: ChatMessa
   );
 }
 
-function SpeakerIcon() {
+export function SpeakerIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
       <path
@@ -195,7 +195,7 @@ function SpeakerIcon() {
   );
 }
 
-function SpeakerStopIcon() {
+export function SpeakerStopIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
       <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
