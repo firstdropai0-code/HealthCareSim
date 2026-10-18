@@ -15,7 +15,7 @@ import { countRevealWords, createRevealStore } from "@/components/simulation/rev
 import { SimulationStage } from "@/components/simulation/SimulationStage";
 import { createSpeakingLevelStore } from "@/components/simulation/speakingLevel";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
-import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
+import { castScenario, generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import {
   isAbortError,
   isAutoplayBlockedError,
@@ -43,10 +43,43 @@ import {
   savePendingFeedbackGeneration,
   saveSimulationState,
 } from "@/lib/storage/localSimulationStorage";
+import type { Scenario } from "@/types/scenario";
 import type {
   SimulationMessage,
   SimulationState,
 } from "@/types/simulation";
+
+type CastPatch = Pick<Scenario, "cast" | "characterVoices">;
+
+/**
+ * A run with a cast worked out for it after it started: a run reopened from
+ * before casts existed, which no start button got the chance to prepare.
+ *
+ * Faces for everyone, but new voices only for characters who have not spoken
+ * yet. The patch recasts every voice by gender, and applying that to someone
+ * who already spoke would change their voice mid-conversation -- worse than
+ * the mismatch it fixes. Returns the same object when there is nothing to
+ * apply, so callers can tell whether anything changed.
+ */
+function applyCastPatch(target: SimulationState, patch: CastPatch | null): SimulationState {
+  if (!patch?.cast?.length || target.scenario.cast?.length) {
+    return target;
+  }
+
+  const characterVoices = { ...patch.characterVoices };
+
+  for (const message of target.messages) {
+    const kept = message.role === "scenario" && message.speaker
+      ? target.scenario.characterVoices?.[message.speaker]
+      : undefined;
+
+    if (message.speaker && kept) {
+      characterVoices[message.speaker] = kept;
+    }
+  }
+
+  return { ...target, scenario: { ...target.scenario, cast: patch.cast, characterVoices } };
+}
 
 /**
  * mp3 encoders prepend a short run of silence. Subtracting it stops the first
@@ -131,6 +164,11 @@ export default function SimulationPage() {
   // How loud the current line is, for the stage's speaking ring. Same reason
   // as the reveal store for living outside React state: it changes per frame.
   const [speakingLevel] = useState(createSpeakingLevelStore);
+  // The cast worked out for a reopened run, kept aside as well as applied:
+  // handleSend builds each turn from the state it started with, and a cast
+  // that landed during the wait would otherwise be overwritten by that turn.
+  const castPatchRef = useRef<CastPatch | null>(null);
+  const castRequestedFor = useRef<string | null>(null);
   const [briefOpen, setBriefOpen] = useState(false);
 
   // On by default: the voice is most of what makes the roleplay feel like a
@@ -345,6 +383,49 @@ export default function SimulationPage() {
     [reveal, speakingLevel, speakingMessageId, state, stopSpeaking],
   );
 
+  // A run reopened from before casts existed has no faces and voices cast
+  // without regard to gender. Every start button now prepares a cast first, but
+  // a run already in the browser -- opened from the Simulation link or "Resume"
+  // -- never passed one, so it is worked out here, once, in the background.
+  useEffect(() => {
+    if (!state || state.scenario.cast?.length || state.status === "completed") {
+      return;
+    }
+
+    const runKey = state.id ?? state.scenario.id;
+
+    if (castRequestedFor.current === runKey) {
+      return;
+    }
+
+    castRequestedFor.current = runKey;
+
+    void castScenario(state.scenario)
+      .then((patch) => {
+        if (!patch?.cast?.length) {
+          return;
+        }
+
+        castPatchRef.current = patch;
+        setState((current) => {
+          if (!current) {
+            return current;
+          }
+
+          const next = applyCastPatch(current, patch);
+
+          if (next !== current) {
+            saveSimulationState(next);
+          }
+
+          return next;
+        });
+      })
+      .catch((error) => {
+        console.warn("Could not work out this run's cast; it continues without portraits.", error);
+      });
+  }, [state]);
+
   // Seed the "already handled" set once so auto-read only fires for genuinely
   // new AI turns, never for messages already on screen when the toggle flips on.
   useEffect(() => {
@@ -481,11 +562,14 @@ export default function SimulationPage() {
 
     try {
       const turn = await generateNextSimulationTurn(state, traineeResponse);
-      const updatedState = appendSimulationTurn(state, {
-        traineeResponse,
-        turn,
-        traineeVoiceMetrics: aggregateVoiceMetrics(pendingVoiceMetrics.current),
-      });
+      const updatedState = applyCastPatch(
+        appendSimulationTurn(state, {
+          traineeResponse,
+          turn,
+          traineeVoiceMetrics: aggregateVoiceMetrics(pendingVoiceMetrics.current),
+        }),
+        castPatchRef.current,
+      );
 
       // The message id is minted inside appendSimulationTurn, so the reveal has
       // to be armed here -- and before setState, in the same synchronous tick.
