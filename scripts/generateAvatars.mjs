@@ -18,10 +18,13 @@
  *   node scripts/generateAvatars.mjs                  # generate whatever is missing
  *   node scripts/generateAvatars.mjs --only man-older # one person (comma-separate several)
  *   node scripts/generateAvatars.mjs --only man-older --force   # redraw them
+ *   node scripts/generateAvatars.mjs --reprocess      # rebuild the WebPs from the
+ *                                                    # saved drawings, no API calls
  *
  * Raw model output is kept in scratch/avatars-raw/ (gitignored) so a rejected
  * expression can be redone without redrawing the person. The served files are
- * 448px WebP in public/avatars/<id>/<expression>.webp, converted with ffmpeg.
+ * 448px WebP in public/avatars/<id>/<expression>.webp with the background cut
+ * away, so the stage can stand each person in their scenario's room.
  * A contact sheet per person lands in scratch/avatars-sheet/ for review.
  *
  * Cost: one image is ~1,100 output tokens on gemini-3.1-flash-image, a few
@@ -78,13 +81,15 @@ async function readEnvLocal() {
 }
 
 function parseArgs(argv) {
-  const options = { only: null, force: false };
+  const options = { only: null, force: false, reprocess: false };
 
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--only") {
       options.only = new Set(argv[++index].split(","));
     } else if (argv[index] === "--force") {
       options.force = true;
+    } else if (argv[index] === "--reprocess") {
+      options.reprocess = true;
     }
   }
 
@@ -139,15 +144,137 @@ async function generateImage({ apiKey, model, parts }) {
   }
 }
 
-async function toWebp(rawPath, outPath) {
-  await run("ffmpeg", [
-    "-y", "-v", "error", "-i", rawPath,
-    "-vf", `scale=${OUTPUT_PX}:${OUTPUT_PX}`,
-    "-c:v", "libwebp", "-quality", "82", outPath,
-  ]);
+/** Working resolution for the cut: full size, so the edge is cut before it is scaled. */
+const CUT_PX = 1024;
+
+/*
+ * Distance from the background colour, in RGB. Within CUT_HARD a pixel is
+ * background; between the two it is an edge, made partly transparent; beyond
+ * CUT_SOFT it is the person. The fill only travels through background; edge
+ * pixels are softened at most CUT_EDGE_PX deep from it and never carry the
+ * fill further. Letting it travel through edge colour leaked into a light
+ * blue shirt wherever it met the frame -- light blue is within CUT_SOFT of
+ * sage -- and left it mottled.
+ */
+const CUT_HARD = 26;
+const CUT_SOFT = 48;
+const CUT_EDGE_PX = 3;
+
+/**
+ * Cut the person out of their flat background and save a transparent WebP.
+ *
+ * A flood fill inward from the image's border, not a colour key over the
+ * whole picture. The portraits sit on pale sage, and some of the cast wear
+ * sage -- a global key punched holes through a kameez and a dupatta pattern.
+ * Only background reachable from the edge is removed, so colour inside the
+ * figure is never touched. Edge pixels get partial alpha with the background
+ * unmixed from their colour, which is what keeps a sage halo off the hair
+ * when the portrait is laid over a room.
+ */
+async function cutOut(rawPath, outPath) {
+  const N = CUT_PX;
+  const { stdout } = await run(
+    "ffmpeg",
+    ["-v", "error", "-i", rawPath, "-vf", `scale=${N}:${N}`, "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
+    { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+  );
+  const px = new Uint8ClampedArray(stdout);
+  const borderPixels = [];
+
+  for (let i = 0; i < N; i += 1) {
+    borderPixels.push(i, (N - 1) * N + i, i * N, i * N + N - 1);
+  }
+
+  // The background colour, as the median of the border: robust to the odd
+  // shoulder or elbow that reaches the frame.
+  const background = [0, 1, 2].map((channel) => {
+    const values = borderPixels.map((index) => px[index * 4 + channel]).sort((a, b) => a - b);
+    return values[values.length >> 1];
+  });
+  const distance = (index) =>
+    Math.hypot(px[index * 4] - background[0], px[index * 4 + 1] - background[1], px[index * 4 + 2] - background[2]);
+
+  // 0 = person, 1 = background, 2..(1 + CUT_EDGE_PX) = edge, by depth.
+  const reached = new Uint8Array(N * N);
+  const queue = new Int32Array(N * N);
+  let head = 0;
+  let tail = 0;
+
+  const neighboursOf = (index) => {
+    const x = index % N;
+    return [x > 0 ? index - 1 : -1, x < N - 1 ? index + 1 : -1, index - N, index + N].filter(
+      (next) => next >= 0 && next < N * N,
+    );
+  };
+
+  for (const index of borderPixels) {
+    if (!reached[index] && distance(index) < CUT_HARD) {
+      reached[index] = 1;
+      queue[tail++] = index;
+    }
+  }
+
+  // Pass one: the background itself.
+  while (head < tail) {
+    const index = queue[head++];
+
+    for (const next of neighboursOf(index)) {
+      if (!reached[next] && distance(next) < CUT_HARD) {
+        reached[next] = 1;
+        queue[tail++] = next;
+      }
+    }
+  }
+
+  // Pass two: a few pixels of anti-aliased edge around it, and no further.
+  let frontier = Array.from(queue.subarray(0, tail));
+
+  for (let depth = 2; depth <= 1 + CUT_EDGE_PX; depth += 1) {
+    const next = [];
+
+    for (const index of frontier) {
+      for (const neighbour of neighboursOf(index)) {
+        if (!reached[neighbour] && distance(neighbour) < CUT_SOFT) {
+          reached[neighbour] = depth;
+          next.push(neighbour);
+        }
+      }
+    }
+
+    frontier = next;
+  }
+
+  for (let index = 0; index < N * N; index += 1) {
+    if (!reached[index]) {
+      continue;
+    }
+
+    const alpha = Math.max(0, Math.min(1, (distance(index) - CUT_HARD) / (CUT_SOFT - CUT_HARD)));
+    const offset = index * 4;
+
+    if (alpha > 0) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        px[offset + channel] = (px[offset + channel] - (1 - alpha) * background[channel]) / alpha;
+      }
+    }
+
+    px[offset + 3] = Math.round(alpha * 255);
+  }
+
+  await new Promise((resolve, reject) => {
+    const child = execFile(
+      "ffmpeg",
+      [
+        "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${N}x${N}`, "-i", "-",
+        "-vf", `scale=${OUTPUT_PX}:${OUTPUT_PX}`, "-c:v", "libwebp", "-quality", "85", "-pix_fmt", "yuva420p", outPath,
+      ],
+      (error) => (error ? reject(error) : resolve()),
+    );
+    child.stdin.end(Buffer.from(px.buffer));
+  });
 }
 
-async function buildPerson({ person, expressions, apiKey, model, force }) {
+async function buildPerson({ person, expressions, apiKey, model, force, reprocess }) {
   const rawDir = join(RAW_DIR, person.id);
   const outDir = join(OUT_DIR, person.id);
   await mkdir(rawDir, { recursive: true });
@@ -180,18 +307,22 @@ async function buildPerson({ person, expressions, apiKey, model, force }) {
       console.log(`  ${person.id}: ${expression}`);
     }
 
-    if (force || !(await exists(outPath))) {
-      await toWebp(rawPath, outPath);
+    if (force || reprocess || !(await exists(outPath))) {
+      await cutOut(rawPath, outPath);
     }
   }
 
   // One strip per person, every expression side by side, for the review pass.
+  // Laid on mid-grey, which shows a bad cut -- a halo or a hole -- that the
+  // portraits' own pale background would hide.
   await mkdir(SHEET_DIR, { recursive: true });
   const names = Object.keys(expressions);
   const inputs = names.flatMap((name) => ["-i", join(outDir, `${name}.webp`)]);
-  const scaled = names.map((_, index) => `[${index}]scale=256:256[s${index}]`).join(";");
+  const scaled = names
+    .map((_, index) => `color=c=0x64748b:s=256x256:d=1[g${index}];[${index}]scale=256:256[f${index}];[g${index}][f${index}]overlay[s${index}]`)
+    .join(";");
   const stack = `${names.map((_, index) => `[s${index}]`).join("")}hstack=inputs=${names.length}`;
-  await run("ffmpeg", ["-y", "-v", "error", ...inputs, "-filter_complex", `${scaled};${stack}`, join(SHEET_DIR, `${person.id}.png`)]);
+  await run("ffmpeg", ["-y", "-v", "error", ...inputs, "-filter_complex", `${scaled};${stack}`, "-frames:v", "1", join(SHEET_DIR, `${person.id}.png`)]);
 }
 
 async function main() {
@@ -226,7 +357,14 @@ async function main() {
         const person = queue.shift();
 
         try {
-          await buildPerson({ person, expressions, apiKey, model, force: options.force });
+          await buildPerson({
+            person,
+            expressions,
+            apiKey,
+            model,
+            force: options.force,
+            reprocess: options.reprocess,
+          });
           console.log(`done ${person.id}`);
         } catch (error) {
           failures.push(person.id);

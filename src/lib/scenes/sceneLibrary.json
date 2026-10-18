@@ -1,0 +1,105 @@
+{
+  "scenes": [
+    {
+      "id": "emergency",
+      "description": "the resuscitation bay of a busy Indian hospital emergency department: an empty trolley bed with a folded sheet, a patient monitor on a stand, oxygen and suction points on the wall, a curtain on a ceiling rail, a red crash cart",
+      "keywords": [
+        "emergency",
+        "casualty",
+        "a&e",
+        "resus",
+        "trauma",
+        "आपातकालीन",
+        "इमरजेंसी"
+      ],
+      "focusX": 0.66
+    },
+    {
+      "id": "icu",
+      "description": "an adult intensive care unit bay: an empty ICU bed with a monitor, a ventilator on a stand, an IV pole, a glass partition to the next bay, soft dim lighting",
+      "keywords": [
+        "icu",
+        "intensive care",
+        "critical care",
+        "गहन चिकित्सा",
+        "आईसीयू"
+      ],
+      "focusX": 0.62
+    },
+    {
+      "id": "picu",
+      "description": "a paediatric intensive care bay: a small hospital cot with raised side rails, a monitor, a soft toy on a chair, gentle animal decals on the pale wall",
+      "keywords": [
+        "picu",
+        "nicu",
+        "paediatric",
+        "pediatric",
+        "children's",
+        "neonatal",
+        "बाल",
+        "शिशु"
+      ],
+      "focusX": 0.6
+    },
+    {
+      "id": "ward",
+      "description": "a general hospital ward: a row of beds separated by curtains, bedside lockers, a tall window, a ceiling fan",
+      "keywords": [
+        "ward",
+        "bedside",
+        "वार्ड"
+      ],
+      "focusX": 0.72
+    },
+    {
+      "id": "clinic",
+      "description": "an outpatient consultation room: a doctor's desk with a computer monitor, two chairs facing it, an examination couch behind a half-drawn curtain, a wall chart with no readable text",
+      "keywords": [
+        "clinic",
+        "opd",
+        "outpatient",
+        "consultation",
+        "क्लिनिक",
+        "ओपीडी",
+        "परामर्श"
+      ],
+      "focusX": 0.62
+    },
+    {
+      "id": "relatives_room",
+      "description": "an empty relatives' room in an Indian hospital: a simple two-seat sofa and an armchair, a low table with a box of tissues and a jug of water, a window with half-closed blinds and soft daylight, a small potted plant, a plain wall clock, pale walls",
+      "keywords": [
+        "relatives",
+        "family room",
+        "counselling",
+        "counseling",
+        "quiet room",
+        "bereavement",
+        "परिजन कक्ष"
+      ],
+      "focusX": 0.78
+    },
+    {
+      "id": "waiting_area",
+      "description": "a hospital waiting area: rows of connected metal seats, a reception counter in the distance, a water cooler, a token display screen with no readable text",
+      "keywords": [
+        "waiting",
+        "reception",
+        "lobby",
+        "प्रतीक्षा",
+        "वेटिंग"
+      ],
+      "focusX": 0.58
+    },
+    {
+      "id": "corridor",
+      "description": "a hospital corridor: doors along both sides, wall handrails, an empty stretcher parked against one wall, a bench",
+      "keywords": [
+        "corridor",
+        "hallway",
+        "गलियारा"
+      ],
+      "focusX": 0.62
+    }
+  ]
+}

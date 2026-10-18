@@ -3,6 +3,7 @@ import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { MediaAsset } from "./media";
 import type { ScenarioSpeaker } from "./simulation";
 import type { CastMember } from "./cast";
+import type { SceneId } from "./scene";
 
 /** One of OpenAI's preset TTS voices. */
 export type OpenAiVoiceId =
@@ -40,6 +41,13 @@ export type Scenario = {
   id: string;
   title: string;
   setting: string;
+  /*
+   * Which illustrated room the simulation is staged in. The free-text setting
+   * above stays the words shown to the trainee; this is the picture. Optional
+   * so older scenarios load, and those are matched from their setting text by
+   * sceneForScenario().
+   */
+  settingKind?: SceneId;
   summary: string;
   patientProfile: string;
   /*
