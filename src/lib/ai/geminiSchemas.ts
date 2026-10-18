@@ -1,4 +1,5 @@
 import { castRoles, expressions } from "@/types/cast";
+import { sceneIds } from "@/types/scene";
 
 export type GeminiSchema = {
   type: "OBJECT" | "ARRAY" | "STRING" | "NUMBER" | "INTEGER" | "BOOLEAN";
@@ -49,6 +50,9 @@ export const scenarioSchema: GeminiSchema = {
     "id",
     "title",
     "setting",
+    // Required and an enum: it names the room image. Optional, the model would
+    // skip it and every scenario would fall back to keyword matching.
+    "settingKind",
     "summary",
     "patientProfile",
     // Required and an enum, so the model has to decide alive or deceased
@@ -75,6 +79,7 @@ export const scenarioSchema: GeminiSchema = {
     cast: castSchema,
     title: { type: "STRING" },
     setting: { type: "STRING" },
+    settingKind: { type: "STRING", enum: [...sceneIds] },
     summary: { type: "STRING" },
     patientProfile: { type: "STRING" },
     patientStatus: { type: "STRING", enum: ["alive", "deceased"] },

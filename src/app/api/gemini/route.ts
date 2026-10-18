@@ -22,6 +22,7 @@ import {
   type CastRole,
 } from "@/types/cast";
 import { getPatientStatus, isPatientDeceased } from "@/lib/scenarios/patientStatus";
+import { isSceneId } from "@/types/scene";
 import { normalizeBetterResponses } from "@/lib/feedback/betterResponses";
 import {
   buildDeliveryFeedbackPrompt,
@@ -185,6 +186,9 @@ function normalizeScenario(value: unknown): Scenario {
     id: scenario.id || crypto.randomUUID(),
     title: scenario.title,
     setting: scenario.setting || "Healthcare consultation",
+    // Spread to nothing when invalid, so the stage matches the room from the
+    // setting text rather than trusting an id with no image behind it.
+    ...(isSceneId(scenario.settingKind) ? { settingKind: scenario.settingKind } : {}),
     summary: scenario.summary || "Communication training scenario.",
     patientProfile: scenario.patientProfile || "Patient profile not specified.",
     patientStatus,

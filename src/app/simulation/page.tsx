@@ -716,7 +716,7 @@ export default function SimulationPage() {
                 that height, so on a shorter screen the face shrinks rather
                 than being cut off or pushing the composer down. */}
             <div className="flex min-h-0 flex-1">
-              <div className="hidden w-52 shrink-0 border-r border-[var(--color-border)] lg:flex lg:flex-col">
+              <div className="hidden w-64 shrink-0 border-r border-[var(--color-border)] lg:flex lg:flex-col">
                 <SimulationStage
                   variant="column"
                   scenario={state.scenario}

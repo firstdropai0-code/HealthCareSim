@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { MetricChip } from "@/components/common/VisualCards";
 import { castPortraits, portraitSrc } from "@/lib/avatars/avatars";
+import { sceneFocus, sceneForScenario, sceneSrc } from "@/lib/scenes/scenes";
 import { useT, type StringKey } from "@/lib/i18n/strings";
 import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import { expressions, isCastRole, type CastMember, type CastRole, type Expression } from "@/types/cast";
@@ -200,6 +201,46 @@ function SpeakingRing({ level, speaking }: { level: SpeakingLevelStore; speaking
   );
 }
 
+/**
+ * The speaker as a cut-out standing in the room, glowing along their own
+ * outline while they talk. A drop-shadow filter follows the transparent edge
+ * of the figure, where the framed portrait's inset ring would draw a box
+ * around someone who is meant to be standing in the scene. Its own component
+ * so only the figure repaints on every level change.
+ */
+function SpeakingFigure({
+  src,
+  alt,
+  speaking,
+  level,
+}: {
+  src: string;
+  alt: string;
+  speaking: boolean;
+  level: SpeakingLevelStore;
+}) {
+  const value = useSyncExternalStore(level.subscribe, level.getLevel, () => 0);
+
+  // A soft contact shadow always, so the figure sits in the room rather than
+  // floating over it; the green glow only while they speak.
+  const grounding = "drop-shadow(0 8px 14px color-mix(in srgb, var(--color-ink) 22%, transparent))";
+  const glow = speaking
+    ? ` drop-shadow(0 0 ${2 + value * 9}px color-mix(in srgb, var(--color-primary) ${55 + value * 40}%, transparent))`
+    : "";
+
+  return (
+    // Keyed on the image so a change of expression remounts it and fades in.
+    // eslint-disable-next-line @next/next/no-img-element -- tiny static WebP; next/image adds a loader round trip for nothing
+    <img
+      key={src}
+      src={src}
+      alt={alt}
+      className="portrait-fade block h-auto w-full"
+      style={{ filter: grounding + glow }}
+    />
+  );
+}
+
 function PersonFallback({ role }: { role: CastRole }) {
   // Scenarios generated before the cast existed have no portrait to show.
   // A silhouette keeps the stage's shape, and the role label beneath it says
@@ -331,8 +372,17 @@ export function SimulationStage({
     return (
       <section
         aria-label={t("stage.label")}
-        className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2.5"
+        className="relative isolate flex items-center gap-3 overflow-hidden border-b border-[var(--color-border)] px-4 py-2.5"
       >
+        {/* A slice of the room, veiled so the name stays readable over it. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static backdrop */}
+        <img
+          src={sceneSrc(sceneForScenario(scenario))}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover object-left"
+        />
+        <div aria-hidden className="absolute inset-0 -z-10 bg-[color-mix(in_srgb,var(--color-surface)_70%,transparent)]" />
         <Portrait
           person={active}
           className="h-14 w-14 shrink-0 rounded-full"
@@ -351,34 +401,55 @@ export function SimulationStage({
     );
   }
 
-  // The column beside the history. No card of its own: it sits inside the
-  // conversation panel and shares its frame, so it reads as the other side of
-  // the call rather than a widget next to it.
+  // The column beside the history: a tall view into the scenario's room with
+  // the person standing in it. No card and no frame, so they read as being in
+  // the scene; only their name plate is laid over it. The slice of the room is
+  // centred on its furniture -- every backdrop keeps its left third empty, and
+  // a person in front of a bare wall reads as standing nowhere in particular.
+  const figureSrc = active.portraitId ? portraitSrc(active.portraitId, active.expression) : null;
+  const scene = sceneForScenario(scenario);
+
   return (
-    <section aria-label={t("stage.label")} className="flex h-full min-h-0 flex-col p-3">
-      {/* As wide as the column, and allowed to shrink when the panel is
-          short: a fixed square was clipped there, and this way the face gets
-          smaller instead of being cut off or pushing the composer down. The
-          name follows straight under it rather than sinking to the bottom. */}
-      <div className="relative flex min-h-0 shrink justify-center">
-        <Portrait
-          person={active}
-          className="aspect-square max-h-full w-full max-w-48 rounded-[var(--radius-md)]"
-          speaking={speaking}
-          level={level}
-          alt={alt}
-          badge={
-            <span className="rounded-full bg-[var(--color-surface)] shadow-[var(--shadow-card)]">
-              <MetricChip label={t("stage.mood")} value={expressionLabel} tone={expressionTone[active.expression]} />
-            </span>
-          }
-        />
-        {othersRow ? <div className="absolute top-2 right-2">{othersRow}</div> : null}
+    <section
+      aria-label={t("stage.label")}
+      className="relative isolate flex h-full min-h-0 flex-col justify-between overflow-hidden"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- static backdrop, decorative */}
+      <img
+        src={sceneSrc(scene)}
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full object-cover"
+        style={{ objectPosition: sceneFocus(scene) }}
+      />
+      <div className="m-2.5 rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-surface)_88%,transparent)] px-3 py-2 shadow-[var(--shadow-card)] backdrop-blur-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-[0.9375rem] font-semibold leading-5 text-[var(--color-ink)]">{name}</p>
+            {narrating || detail ? (
+              <p className="mt-0.5 text-xs leading-4 text-[var(--color-ink-soft)]">
+                {narrating ? t("stage.narrating") : detail}
+              </p>
+            ) : null}
+          </div>
+          {othersRow}
+        </div>
+        <div className="mt-1.5">
+          <MetricChip label={t("stage.mood")} value={expressionLabel} tone={expressionTone[active.expression]} />
+        </div>
       </div>
-      <p className="mt-2 shrink-0 truncate text-[0.9375rem] font-semibold leading-5 text-[var(--color-ink)]">{name}</p>
-      <p className="mt-0.5 shrink-0 text-xs leading-4 text-[var(--color-ink-soft)]">
-        {narrating ? t("stage.narrating") : detail}
-      </p>
+      {/* Anchored to the floor of the panel and allowed to shrink with it, so
+          on a short screen the figure gets smaller rather than overlapping the
+          name plate. */}
+      <div className="flex min-h-0 shrink items-end justify-center overflow-hidden px-1">
+        {figureSrc ? (
+          <SpeakingFigure src={figureSrc} alt={alt} speaking={speaking} level={level} />
+        ) : (
+          <div className="mb-6 flex h-32 w-32 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-surface)_80%,transparent)]">
+            <PersonFallback role={active.role} />
+          </div>
+        )}
+      </div>
     </section>
   );
 }
