@@ -51,6 +51,7 @@ different language from the one you must answer in; translate the situation
 rather than echoing their wording.
 
 Rules:
+- Keep the trainer's facts exactly: who the patient is (age, gender, relationship to the others), what has happened to them, and who is present. If the idea says the patient has died or could not be revived, they are dead in your scenario - never rewrite it so they survive, were brought back, or are only unconscious. Translating the idea into another language must not change any of these facts.
 - Write the scenario at the difficulty stated above. If the trainer's idea sounds gentler or harsher than that tier, keep their situation and people but pitch the counterpart's behaviour and the pressure to the stated tier.
 - Focus on communication, empathy, patient interaction, and pressure handling.
 - Do not provide diagnosis, medication, treatment instructions, triage advice, or clinical decision-making advice.
@@ -69,8 +70,9 @@ Rules:
   "Mr. Harrison sits with his arms crossed, avoiding eye contact and giving short answers. He asks nothing. What do you say to him?"
 - Good firstPrompt (narrator scene + patient's own words):
   "Mrs. Alvarez looks up as you enter, still calm. 'Is there any news on my daughter yet?' she asks. What do you say?"
-- familyEmotion is REQUIRED. It describes the emotional state of the family member or bystander the trainee actually speaks to, and it must describe THEM, not the patient. Whenever the starting situation or firstPrompt involves a parent, relative, partner, or bystander - which is most scenarios, and always the case when the patient is unconscious, sedated, or too young to speak for themselves - fill it in with their state. Only write "No family or bystander present" when the trainee genuinely deals with the patient alone.
-- patientEmotion describes the patient. If the patient cannot speak (unconscious, sedated, an infant), say so plainly there; do not put the family's emotion in that field.
+- patientStatus is "deceased" when the patient has already died by the time this conversation starts - the trainee is declaring, breaking, or explaining a death. Otherwise it is "alive" - a patient who is unconscious or critically ill is still alive. Always one of those two English words, whatever language the rest is written in.
+- familyEmotion is REQUIRED. It describes the emotional state of the family member or bystander the trainee actually speaks to, and it must describe THEM, not the patient. Whenever the starting situation or firstPrompt involves a parent, relative, partner, or bystander - which is most scenarios, and always the case when the patient is deceased, unconscious, sedated, or too young to speak for themselves - fill it in with their state. Only write "No family or bystander present" when the trainee genuinely deals with the patient alone.
+- patientEmotion describes the patient. If patientStatus is "deceased", return an empty string: a death is a status, not an emotion, and never write "deceased" or "dead" in this field. If the patient is alive but cannot speak (unconscious, sedated, an infant), say so plainly there; do not put the family's emotion in that field.
 - evaluationCriteria: exactly 4 short items.
 - suggestedTurns: 3 to 5.
 - Return only valid JSON matching this TypeScript shape:
@@ -80,6 +82,7 @@ Rules:
   "setting": "string",
   "summary": "string",
   "patientProfile": "string",
+  "patientStatus": "alive" | "deceased",
   "patientEmotion": "string",
   "familyEmotion": "string",
   "traineeObjective": "string",

@@ -28,12 +28,28 @@ export type CharacterVoice = {
   emotion: string;
 };
 
+/**
+ * Whether the patient is alive when the conversation starts. A sedated,
+ * unconscious or dying patient is still "alive"; "deceased" means the trainee is
+ * declaring or explaining a death and speaks only to the people around them.
+ */
+export type PatientStatus = "alive" | "deceased";
+
 export type Scenario = {
   id: string;
   title: string;
   setting: string;
   summary: string;
   patientProfile: string;
+  /*
+   * Its own field rather than a value of patientEmotion. Before it existed the
+   * model wrote "Deceased" into the emotion slot, so the brief showed a death
+   * as if it were a feeling and nothing downstream could tell the two apart.
+   * Optional so scenarios saved before it still load; read it through
+   * getPatientStatus(), which recognises those older cases.
+   */
+  patientStatus?: PatientStatus;
+  /** Empty when the patient is deceased: there is no emotional state to play. */
   patientEmotion: string;
   familyEmotion?: string;
   traineeObjective: string;

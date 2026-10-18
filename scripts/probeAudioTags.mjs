@@ -17,7 +17,7 @@ const mk = (familyEmotion, tensionLevel, messages, extra = {}) => ({
     id: "probe", title: "Sudden cardiac death",
     setting: "Emergency department relatives' room",
     summary: "A 35-year-old man died after cardiac arrest.",
-    patientProfile: "35-year-old man.", patientEmotion: "deceased",
+    patientProfile: "35-year-old man.", patientStatus: "deceased", patientEmotion: "",
     familyEmotion, traineeObjective: "Declare death with empathy.",
     communicationChallenge: "Bad news to a family who blames intervention.",
     startingSituation: "Family brought into the relatives' room.",

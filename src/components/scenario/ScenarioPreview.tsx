@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { MetricChip } from "@/components/common/VisualCards";
 import { useT, type StringKey } from "@/lib/i18n/strings";
-import type { Scenario } from "@/types/scenario";
+import { getPatientStatus } from "@/lib/scenarios/patientStatus";
+import type { PatientStatus, Scenario } from "@/types/scenario";
 
 type Tone = "slate" | "emerald" | "amber" | "rose" | "blue" | "indigo";
 
@@ -63,6 +64,96 @@ const compactBriefCards = [
   label: StringKey;
   tone: Tone;
 }>;
+
+const patientStatusOptions: Array<{ value: PatientStatus; label: StringKey; selected: string }> = [
+  {
+    value: "alive",
+    label: "brief.alive",
+    selected: "bg-[var(--color-primary-soft)] text-[var(--color-primary-ink)]",
+  },
+  {
+    value: "deceased",
+    label: "brief.deceased",
+    selected: "bg-[var(--color-ink)] text-[var(--color-surface)]",
+  },
+];
+
+/**
+ * Alive or deceased, in the header row where it is read before anything else.
+ * A toggle rather than a chip because the model decides it and can be wrong,
+ * and the mentor is the one who knows. Selection is shown with aria-pressed
+ * and a fill, not `disabled` — `.btn-editorial:disabled` repaints grey and a
+ * disabled button cannot be focused to read which option is chosen.
+ */
+function PatientStatusToggle({
+  status,
+  onChange,
+}: {
+  status: PatientStatus;
+  onChange?: (next: PatientStatus) => void;
+}) {
+  const t = useT();
+
+  if (!onChange) {
+    return (
+      <MetricChip
+        label={t("brief.patientStatus")}
+        value={t(status === "deceased" ? "brief.deceased" : "brief.alive")}
+        tone={status === "deceased" ? "slate" : "emerald"}
+      />
+    );
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label={t("brief.statusGroup")}
+      className="eyebrow eyebrow-tight inline-flex min-h-6 items-center gap-1 rounded-full border border-[var(--color-border-strong)] py-0.5 pr-0.5 pl-2.5 text-[var(--color-ink-muted)]"
+    >
+      <span>{t("brief.patientStatus")}</span>
+      {patientStatusOptions.map((option) => {
+        const isSelected = status === option.value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onChange(option.value)}
+            className={`rounded-full px-2 py-0.5 text-[0.8125rem] font-semibold normal-case tracking-normal transition ${
+              isSelected
+                ? option.selected
+                : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+            }`}
+          >
+            {t(option.label)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Takes the emotion card's place for a death. It states the status in words
+ * rather than leaving an empty "Patient emotion" — the brief's job is to make
+ * alive and deceased impossible to confuse, and an empty card reads as an
+ * omission. Not editable: there is nothing to edit; the toggle changes it.
+ */
+function DeceasedPatientCard() {
+  const t = useT();
+
+  return (
+    <BriefCard label={t("brief.statusGroup")} tone="slate">
+      <p className="text-[0.9375rem] font-semibold leading-7 text-[var(--color-ink)]">
+        {t("brief.deceasedTitle")}
+      </p>
+      <p className="mt-1 text-sm leading-6 text-[var(--color-ink-soft)]">
+        {t("brief.deceasedDetail")}
+      </p>
+    </BriefCard>
+  );
+}
 
 function PencilIcon() {
   return (
@@ -333,6 +424,7 @@ export function ScenarioPreview({
   onScenarioChange?: (updates: Partial<Scenario>) => void;
 }) {
   const t = useT();
+  const patientStatus = getPatientStatus(scenario);
 
   function updateField<K extends keyof Scenario>(key: K, value: Scenario[K]) {
     onScenarioChange?.({ [key]: value } as Partial<Scenario>);
@@ -346,6 +438,12 @@ export function ScenarioPreview({
           <h2 className="display-xl mt-2 max-w-3xl">{scenario.title}</h2>
           <div className="mt-4 flex flex-wrap gap-2">
             <MetricChip label={t("brief.setting")} value={scenario.setting} tone="emerald" />
+            <PatientStatusToggle
+              status={patientStatus}
+              onChange={
+                onScenarioChange ? (next) => updateField("patientStatus", next) : undefined
+              }
+            />
             {/* Pacing, not a limit. The roleplay ends on the scenario's ending
                 condition, and the hard cap shown in the simulation is higher. */}
             <MetricChip
@@ -359,6 +457,12 @@ export function ScenarioPreview({
 
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5">
           {compactBriefCards.map((card) => {
+            // Swapped in place, so the grid keeps its shape and the family card
+            // stays beside it — for a death, theirs is the emotion that matters.
+            if (card.key === "patientEmotion" && patientStatus === "deceased") {
+              return <DeceasedPatientCard key="patientStatus" />;
+            }
+
             const value = scenario[card.key];
 
             return (
