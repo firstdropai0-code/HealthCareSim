@@ -1,0 +1,96 @@
+{
+  "expressions": {
+    "calm": "calm and attentive: relaxed brow, steady eyes, neutral closed mouth",
+    "worried": "worried and anxious: brows drawn together and raised, tense eyes, lips pressed tight",
+    "shocked": "shocked disbelief: eyes wide, brows raised high, mouth slightly open, frozen",
+    "angry": "angry and confrontational: brows pulled down hard, narrowed eyes, jaw clenched, mouth tense as if speaking sharply",
+    "grieving": "grieving: eyes wet with tears, brows pulled up and together, mouth trembling slightly open, overwhelmed by sudden loss",
+    "relieved": "relieved and softened: brows relaxed, eyes softening, a slight tired smile, shoulders lowered"
+  },
+  "characters": [
+    {
+      "id": "woman-young",
+      "gender": "female",
+      "ageBand": "young_adult",
+      "kind": "civilian",
+      "description": "an Indian woman in her early 20s, long dark hair in a loose side braid, wearing a simple printed kurta with a denim jacket over it"
+    },
+    {
+      "id": "man-young",
+      "gender": "male",
+      "ageBand": "young_adult",
+      "kind": "civilian",
+      "description": "an Indian man in his early 20s, short wavy dark hair, light stubble, wearing a plain grey t-shirt under an open checked shirt"
+    },
+    {
+      "id": "woman-adult-a",
+      "gender": "female",
+      "ageBand": "adult",
+      "kind": "civilian",
+      "description": "an Indian woman in her mid-40s wearing a simple cotton salwar kameez and dupatta, hair tied back"
+    },
+    {
+      "id": "woman-adult-b",
+      "gender": "female",
+      "ageBand": "adult",
+      "kind": "civilian",
+      "description": "an Indian woman in her late 30s, shoulder-length dark hair, a small bindi, wearing a plain cotton saree with the pallu over one shoulder"
+    },
+    {
+      "id": "man-adult-a",
+      "gender": "male",
+      "ageBand": "adult",
+      "kind": "civilian",
+      "description": "an Indian man in his mid-40s, short hair greying at the temples, a neat moustache, wearing a light blue collared half-sleeve shirt"
+    },
+    {
+      "id": "man-adult-b",
+      "gender": "male",
+      "ageBand": "adult",
+      "kind": "civilian",
+      "description": "a Sikh man in his early 40s wearing a navy blue turban, full neatly kept dark beard, wearing a plain off-white kurta"
+    },
+    {
+      "id": "woman-older",
+      "gender": "female",
+      "ageBand": "older",
+      "kind": "civilian",
+      "description": "an Indian woman in her late 60s, grey hair in a low bun, thin reading glasses, wearing a simple printed saree with a beige cardigan"
+    },
+    {
+      "id": "man-older",
+      "gender": "male",
+      "ageBand": "older",
+      "kind": "civilian",
+      "description": "an Indian man in his late 60s, thinning white hair, short white stubble, wearing a cream kurta with a brown sleeveless sweater"
+    },
+    {
+      "id": "girl-child",
+      "gender": "female",
+      "ageBand": "child",
+      "kind": "civilian",
+      "description": "an Indian girl about 8 years old, hair in two plaits tied with ribbons, wearing a white school uniform blouse"
+    },
+    {
+      "id": "boy-child",
+      "gender": "male",
+      "ageBand": "child",
+      "kind": "civilian",
+      "description": "an Indian boy about 8 years old, short messy dark hair, wearing a blue and white striped t-shirt"
+    },
+    {
+      "id": "nurse-woman",
+      "gender": "female",
+      "ageBand": "adult",
+      "kind": "nurse",
+      "description": "an Indian woman nurse in her early 30s, hair neatly tied back, wearing a light blue nurse's uniform tunic with a small plain ID badge"
+    },
+    {
+      "id": "nurse-man",
+      "gender": "male",
+      "ageBand": "adult",
+      "kind": "nurse",
+      "description": "an Indian man nurse in his early 30s, short neat hair, wearing light blue hospital scrubs with a small plain ID badge"
+    }
+  ]
+}
