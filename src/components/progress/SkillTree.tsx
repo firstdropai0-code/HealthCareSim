@@ -108,12 +108,15 @@ function LevelCard({
   difficultyLabel,
   startCase,
   onStart,
+  startingId,
 }: {
   node: SkillNodeProgress | undefined;
   difficultyLabel: string;
   /** The case the button runs: the one they already tried here, if any. */
   startCase: AssignedCase | null;
   onStart?: (entry: AssignedCase) => void;
+  /** The case being started, while an older case's cast is worked out. */
+  startingId?: string | null;
 }) {
   const t = useT();
   const status = statusOf(node);
@@ -155,15 +158,20 @@ function LevelCard({
           <button
             type="button"
             onClick={() => onStart?.(startCase)}
+            // Held while any case starts: an older case pauses a moment to
+            // work out its cast, and a second press would start a second run.
+            disabled={Boolean(startingId)}
             className={`btn-editorial mt-1.5 min-h-8 w-full justify-center px-2 py-1 text-xs ${
               suggested ? "btn-editorial--accent" : "btn-editorial--quiet"
             }`}
           >
-            {status === "open"
-              ? t("tree.start")
-              : status === "tried"
-                ? t("tree.tryAgain")
-                : t("tree.practiseAgain")}
+            {startingId === startCase?.id
+              ? t("common.working")
+              : status === "open"
+                ? t("tree.start")
+                : status === "tried"
+                  ? t("tree.tryAgain")
+                  : t("tree.practiseAgain")}
           </button>
         </div>
       ) : null}
@@ -202,11 +210,14 @@ export function SkillTree({
   nodes,
   cases = [],
   onStart,
+  startingId = null,
 }: {
   nodes: SkillNodeProgress[];
   cases?: AssignedCase[];
   /** Omitted on the mentor's view of a trainee, where cards stay read-only. */
   onStart?: (entry: AssignedCase) => void;
+  /** The case currently being started, so its card can say so. */
+  startingId?: string | null;
 }) {
   const t = useT();
   const allCategories = [...new Set(nodes.map((node) => node.category))];
@@ -297,6 +308,7 @@ export function SkillTree({
                             : null
                         }
                         onStart={onStart}
+                        startingId={startingId}
                       />,
                     ];
                   })}

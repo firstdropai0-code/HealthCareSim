@@ -30,11 +30,7 @@ import {
   type LibraryScenario,
   type ScenarioDifficulty,
 } from "@/lib/scenarios/scenarioLibrary";
-import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
-import {
-  clearSimulationState,
-  saveSimulationState,
-} from "@/lib/storage/localSimulationStorage";
+import { startSimulationRun } from "@/lib/simulation/startRun";
 import type { Scenario } from "@/types/scenario";
 
 export default function ScenarioCreatorPage() {
@@ -157,13 +153,15 @@ export default function ScenarioCreatorPage() {
     }
   }
 
-  function handleStartSimulation() {
+  // Through the shared start helper like every other entry point. A freshly
+  // generated case already has its cast, so this is immediate; the one that
+  // does not -- the canned fallback when generation fails -- gets one here.
+  async function handleStartSimulation() {
     if (!scenario) {
       return;
     }
 
-    clearSimulationState();
-    saveSimulationState(createInitialSimulationState(scenario));
+    await startSimulationRun(scenario);
     router.push("/simulation");
   }
 
@@ -359,7 +357,7 @@ export default function ScenarioCreatorPage() {
 
                   <button
                     type="button"
-                    onClick={handleStartSimulation}
+                    onClick={() => void handleStartSimulation()}
                     className={`btn-editorial w-full md:w-auto ${
                       canPublish ? "btn-editorial--quiet" : "btn-editorial--accent sheen"
                     }`}

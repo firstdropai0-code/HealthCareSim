@@ -21,11 +21,7 @@ import { computeSkillTree } from "@/lib/progress/skillTree";
 import { listGroupCases } from "@/lib/cases/caseRepository";
 import { listMyRunNoteIds } from "@/lib/runs/runNoteRepository";
 import { listGroupRunStats, listMyRuns } from "@/lib/runs/runRepository";
-import { createInitialSimulationState } from "@/lib/simulation/simulationEngine";
-import {
-  clearSimulationState,
-  saveSimulationState,
-} from "@/lib/storage/localSimulationStorage";
+import { startSimulationRun } from "@/lib/simulation/startRun";
 import type { AssignedCase } from "@/types/assignedCase";
 import type { RunStat, RunSummary } from "@/types/run";
 import { languageDateLocale, type AppLanguage } from "@/types/language";
@@ -58,6 +54,7 @@ export default function ProgressPage() {
   const [notedRunIds, setNotedRunIds] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startingId, setStartingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!uid) {
@@ -139,11 +136,12 @@ export default function ProgressPage() {
     return <AuthGate gate={gate} />;
   }
 
-  // Same path as starting from /cases: a fresh run id per attempt, so a retry
-  // becomes its own record rather than overwriting the score being improved on.
-  function handleStartCase(entry: AssignedCase) {
-    clearSimulationState();
-    saveSimulationState(createInitialSimulationState(entry.scenario));
+  // Same path as starting from /cases, through the one helper every start
+  // button shares: a fresh run id per attempt, and a cast worked out first for
+  // a case published before casts existed.
+  async function handleStartCase(entry: AssignedCase) {
+    setStartingId(entry.id);
+    await startSimulationRun(entry.scenario);
     router.push("/simulation");
   }
 
@@ -231,7 +229,12 @@ export default function ProgressPage() {
                 {t("progress.treeIntro")}
               </p>
               <div className="mt-5">
-                <SkillTree nodes={tree} cases={casesInLanguage} onStart={handleStartCase} />
+                <SkillTree
+                  nodes={tree}
+                  cases={casesInLanguage}
+                  onStart={(entry) => void handleStartCase(entry)}
+                  startingId={startingId}
+                />
               </div>
             </section>
 
