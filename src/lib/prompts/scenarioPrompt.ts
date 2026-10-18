@@ -1,5 +1,7 @@
 import { languageDirective, type AppLanguage } from "@/types/language";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
+import { getPatientStatus } from "@/lib/scenarios/patientStatus";
+import type { Scenario } from "@/types/scenario";
 
 /**
  * The tier is an INPUT constraint only. It shapes how demanding the generated
@@ -73,6 +75,7 @@ Rules:
 - patientStatus is "deceased" when the patient has already died by the time this conversation starts - the trainee is declaring, breaking, or explaining a death. Otherwise it is "alive" - a patient who is unconscious or critically ill is still alive. Always one of those two English words, whatever language the rest is written in.
 - familyEmotion is REQUIRED. It describes the emotional state of the family member or bystander the trainee actually speaks to, and it must describe THEM, not the patient. Whenever the starting situation or firstPrompt involves a parent, relative, partner, or bystander - which is most scenarios, and always the case when the patient is deceased, unconscious, sedated, or too young to speak for themselves - fill it in with their state. Only write "No family or bystander present" when the trainee genuinely deals with the patient alone.
 - patientEmotion describes the patient. If patientStatus is "deceased", return an empty string: a death is a status, not an emotion, and never write "deceased" or "dead" in this field. If the patient is alive but cannot speak (unconscious, sedated, an infant), say so plainly there; do not put the family's emotion in that field.
+- cast lists the people in this scenario, at most one entry per role: the patient (always, even when deceased), the family member the trainee speaks to (if any), and a nurse or bystander only if one is present or likely to speak. "family_member" is ONE person - pick the relative the trainee mainly talks to. Give each a realistic Indian name - the app trains clinicians in India and its portraits are of Indian people - unless the trainer's idea names them or clearly sets the case somewhere else, and use exactly those names everywhere else in the scenario (summary, starting situation, firstPrompt). Give each a short relationship to the patient written as the characters would say it ("Mother", "Son", "Wife"; "Patient" for the patient). gender and ageBand must match the facts in the idea - a 19-year-old is young_adult, a 6-year-old is a child, a grandparent is older. expression is how that person looks at the very start, before the trainee has said anything: a deceased patient is "calm"; a relative who has not yet been told bad news is "worried" or "shocked", never already "grieving"; otherwise it must fit familyEmotion.
 - evaluationCriteria: exactly 4 short items.
 - suggestedTurns: 3 to 5.
 - Return only valid JSON matching this TypeScript shape:
@@ -92,6 +95,45 @@ Rules:
   "suggestedTurns": 5,
   "endingCondition": "string",
   "evaluationCriteria": ["string"],
-  "mediaAssets": []
+  "mediaAssets": [],
+  "cast": [
+    {
+      "role": "patient" | "family_member" | "nurse" | "bystander",
+      "name": "string",
+      "relationship": "string",
+      "gender": "female" | "male",
+      "ageBand": "child" | "young_adult" | "adult" | "older",
+      "expression": "calm" | "worried" | "shocked" | "angry" | "grieving" | "relieved"
+    }
+  ]
 }`;
+}
+
+/**
+ * Works out who is in a scenario that was published before casts existed, so
+ * an older case gets faces and gender-matched voices without the mentor
+ * regenerating it. Read-only: it describes the people already written into the
+ * brief and must not invent a different story.
+ */
+export function buildCastPrompt(scenario: Scenario): string {
+  const status = getPatientStatus(scenario);
+
+  return `List the people in this existing healthcare communication training scenario. Do not change the scenario; describe only who is already in it.
+
+Title: ${scenario.title}
+Summary: ${scenario.summary}
+Patient: ${scenario.patientProfile} (${status === "deceased" ? "the patient has died" : "the patient is alive"})
+Patient emotion: ${scenario.patientEmotion || "none"}
+Family or bystander emotion: ${scenario.familyEmotion || "none"}
+Starting situation: ${scenario.startingSituation}
+Opening line: ${scenario.firstPrompt}
+
+Rules:
+- At most one entry per role: the patient (always, even when deceased), the family member the trainee speaks to (if any), and a nurse or bystander only if the scenario has one.
+- "family_member" is ONE person - the relative the trainee mainly talks to.
+- name: exactly as the scenario writes it, without titles such as Mr or Mrs. If a person is not named, give a realistic name that fits the scenario's setting and language.
+- relationship: their relationship to the patient as the characters would say it ("Mother", "Husband"; "Patient" for the patient), in the same language as the scenario text.
+- gender and ageBand must follow the text: "his mother" is female, "her son" is male, a 19-year-old is young_adult, a grandparent is older.
+- expression: how they look at the very start - a deceased patient is "calm"; a relative who has not yet been told bad news is "worried" or "shocked", never already "grieving".
+- Return only JSON: { "cast": [ { "role", "name", "relationship", "gender", "ageBand", "expression" } ] }`;
 }

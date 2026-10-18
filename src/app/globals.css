@@ -575,6 +575,22 @@ button:disabled {
 
 /* --- Animation ----------------------------------------------------------- */
 
+/* A portrait changing expression. Opacity only: any movement reads as the
+   person shifting in their seat, which a face going from worried to grieving
+   should not do. `forwards` for the reason given on .animate-fade-up. */
+@keyframes portraitFade {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.portrait-fade {
+  animation: portraitFade 320ms ease-out forwards;
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;

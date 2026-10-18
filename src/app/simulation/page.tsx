@@ -12,6 +12,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
+import { SimulationStage } from "@/components/simulation/SimulationStage";
+import { createSpeakingLevelStore } from "@/components/simulation/speakingLevel";
 import { TensionBadge } from "@/components/simulation/TensionBadge";
 import { generateNextSimulationTurn } from "@/lib/ai/geminiClient";
 import {
@@ -126,6 +128,10 @@ export default function SimulationPage() {
   // Paces how each new turn's text appears. Held in state rather than a ref so
   // it is created once without being read during render.
   const [reveal] = useState(createRevealStore);
+  // How loud the current line is, for the stage's speaking ring. Same reason
+  // as the reveal store for living outside React state: it changes per frame.
+  const [speakingLevel] = useState(createSpeakingLevelStore);
+  const [briefOpen, setBriefOpen] = useState(false);
 
   // On by default: the voice is most of what makes the roleplay feel like a
   // conversation, and a toggle nobody finds is a feature nobody hears. Any
@@ -267,6 +273,7 @@ export default function SimulationPage() {
         const playback = await speakText(stripTraineePrompt(message.content), {
           ...voiceOptions,
           signal: controller.signal,
+          onLevel: (level) => speakingLevel.setLevel(level),
           onProgress: ({ elapsedMs, durationMs }) => {
             if (!durationMs) {
               return;
@@ -335,7 +342,7 @@ export default function SimulationPage() {
         setSpeakingMessageId((current) => (current === message.id ? null : current));
       }
     },
-    [reveal, speakingMessageId, state, stopSpeaking],
+    [reveal, speakingLevel, speakingMessageId, state, stopSpeaking],
   );
 
   // Seed the "already handled" set once so auto-read only fires for genuinely
@@ -618,18 +625,34 @@ export default function SimulationPage() {
             </div>
           </div>
 
-          {/* The training brief, inlined so it never needs to be scrolled to.
-              Three full-width columns give these enough measure to read
-              properly instead of wrapping every few words. */}
-          <div className="mt-3 grid gap-x-8 gap-y-3 border-t border-[var(--color-border)] pt-3 sm:grid-cols-2 lg:grid-cols-3">
-            <BriefItem label={t("simulation.situation")} tone="ink" value={state.scenario.summary} />
+          {/* The goal stays in view; the situation and challenge open on
+              request. All three used to be inlined, and on a 900px screen
+              their prose left the conversation history under 180px -- too
+              short for the stage's portrait or more than one message. The
+              trainee has read the whole brief on the way in; the goal is the
+              part they act on turn by turn. */}
+          <div className="mt-3 flex flex-col gap-2 border-t border-[var(--color-border)] pt-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
             <BriefItem label={t("simulation.goal")} tone="primary" value={state.scenario.traineeObjective} />
-            <BriefItem
-              label={t("simulation.challenge")}
-              tone="warning"
-              value={state.scenario.communicationChallenge}
-            />
+            <button
+              type="button"
+              aria-expanded={briefOpen}
+              aria-controls="simulation-brief-detail"
+              onClick={() => setBriefOpen((open) => !open)}
+              className="link-editorial shrink-0 self-start text-sm"
+            >
+              {briefOpen ? t("simulation.hideBrief") : t("simulation.showBrief")}
+            </button>
           </div>
+          {briefOpen ? (
+            <div id="simulation-brief-detail" className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+              <BriefItem label={t("simulation.situation")} tone="ink" value={state.scenario.summary} />
+              <BriefItem
+                label={t("simulation.challenge")}
+                tone="warning"
+                value={state.scenario.communicationChallenge}
+              />
+            </div>
+          ) : null}
 
           {/* The total is the hard safety cap, not the target. Most roleplays
               end well before it, on the ending condition. */}
@@ -674,129 +697,160 @@ export default function SimulationPage() {
               </div>
             </div>
 
-            <div
-              ref={scrollRef}
-              onScroll={handleHistoryScroll}
-              tabIndex={0}
-              aria-label={t("simulation.history")}
-              aria-busy={loading}
-              className="min-h-[16rem] max-h-[55dvh] flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 lg:[@media(min-height:800px)]:max-h-none lg:[@media(min-height:800px)]:min-h-0"
-            >
-              <div ref={contentRef} className="space-y-4">
-                <ChatMessageList
-                  messages={state.messages}
-                  reveal={reveal}
-                  onSpeak={speakMessage}
-                  speakingMessageId={speakingMessageId}
-                />
-                {loading ? <TypingIndicator /> : null}
-              </div>
+            {/* On narrow screens the stage rides above the conversation, so the
+                face is never scrolled away from the lines it is saying. */}
+            <div className="lg:hidden">
+              <SimulationStage
+                variant="compact"
+                scenario={state.scenario}
+                messages={state.messages}
+                speakingMessageId={speakingMessageId}
+                level={speakingLevel}
+              />
             </div>
 
-            {/* Persistent bottom area: speech controls + composer / completed */}
-            <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
-              {speakingMessageId || ttsError || audioGestureMessage ? (
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  {speakingMessageId ? (
-                    <button
-                      type="button"
-                      onClick={stopSpeaking}
-                      className="eyebrow eyebrow-tight inline-flex min-h-9 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-1.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
-                    >
-                      <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
-                      {t("simulation.stopReading")}
-                    </button>
+            {/* The person on the left, their words and the composer on the
+                right, like the other side of a call. The column runs the full
+                height of the panel so the portrait has room even on a 900px
+                screen, where the history alone is under 200px; it is sized from
+                that height, so on a shorter screen the face shrinks rather
+                than being cut off or pushing the composer down. */}
+            <div className="flex min-h-0 flex-1">
+              <div className="hidden w-52 shrink-0 border-r border-[var(--color-border)] lg:flex lg:flex-col">
+                <SimulationStage
+                  variant="column"
+                  scenario={state.scenario}
+                  messages={state.messages}
+                  speakingMessageId={speakingMessageId}
+                  level={speakingLevel}
+                />
+              </div>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <div
+                  ref={scrollRef}
+                  onScroll={handleHistoryScroll}
+                  tabIndex={0}
+                  aria-label={t("simulation.history")}
+                  aria-busy={loading}
+                  className="min-h-[16rem] min-w-0 max-h-[55dvh] flex-1 overflow-y-auto overscroll-contain scroll-pb-4 px-4 py-4 lg:[@media(min-height:800px)]:max-h-none lg:[@media(min-height:800px)]:min-h-0"
+                >
+                  <div ref={contentRef} className="space-y-4">
+                    <ChatMessageList
+                      messages={state.messages}
+                      reveal={reveal}
+                      onSpeak={speakMessage}
+                      speakingMessageId={speakingMessageId}
+                    />
+                    {loading ? <TypingIndicator /> : null}
+                  </div>
+                </div>
+
+                {/* Persistent bottom area: speech controls + composer / completed */}
+                <div className="glass shrink-0 border-t border-[var(--color-border)] px-4 py-3.5">
+                  {speakingMessageId || ttsError || audioGestureMessage ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      {speakingMessageId ? (
+                        <button
+                          type="button"
+                          onClick={stopSpeaking}
+                          className="eyebrow eyebrow-tight inline-flex min-h-9 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-1.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
+                        >
+                          <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
+                          {t("simulation.stopReading")}
+                        </button>
+                      ) : null}
+                      {/* Deliberately quiet rather than in the danger colour: a
+                          browser waiting for a gesture is not a failure. Clicking
+                          is itself the gesture, so the call to speak has to come
+                          straight from the handler. */}
+                      {audioGestureMessage ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const blocked = audioGestureMessage;
+                              setAudioGestureMessage(null);
+                              void speakMessage(blocked);
+                            }}
+                            className="btn-editorial btn-editorial--quiet min-h-9"
+                          >
+                            {t("simulation.turnOnReadAloud")}
+                          </button>
+                          <p className="text-xs text-[var(--color-ink-soft)]">
+                            {t("simulation.gestureHint")}
+                          </p>
+                        </>
+                      ) : null}
+                      {ttsError ? (
+                        <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
+                      ) : null}
+                    </div>
                   ) : null}
-                  {/* Deliberately quiet rather than in the danger colour: a
-                      browser waiting for a gesture is not a failure. Clicking
-                      is itself the gesture, so the call to speak has to come
-                      straight from the handler. */}
-                  {audioGestureMessage ? (
+
+                  {!completed ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const blocked = audioGestureMessage;
-                          setAudioGestureMessage(null);
-                          void speakMessage(blocked);
-                        }}
-                        className="btn-editorial btn-editorial--quiet min-h-9"
-                      >
-                        {t("simulation.turnOnReadAloud")}
-                      </button>
-                      <p className="text-xs text-[var(--color-ink-soft)]">
-                        {t("simulation.gestureHint")}
-                      </p>
-                    </>
-                  ) : null}
-                  {ttsError ? (
-                    <p className="text-xs font-medium text-[var(--color-danger)]">{ttsError}</p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {!completed ? (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
-                      {t("simulation.yourResponse")}
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
-                        {t("common.chars", { n: response.trim().length })}
-                      </p>
-                      {/* The scenario's language, not the reader's UI setting:
-                          a Hindi case is answered in Hindi. */}
-                      <MicButton
-                        onTranscript={handleTranscript}
-                        disabled={loading}
-                        language={state?.scenario.language ?? "en"}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label htmlFor="trainee-response" className="eyebrow text-[var(--color-ink)]">
+                          {t("simulation.yourResponse")}
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <p className="text-xs font-medium tabular-nums text-[var(--color-ink-soft)]">
+                            {t("common.chars", { n: response.trim().length })}
+                          </p>
+                          {/* The scenario's language, not the reader's UI setting:
+                              a Hindi case is answered in Hindi. */}
+                          <MicButton
+                            onTranscript={handleTranscript}
+                            disabled={loading}
+                            language={state?.scenario.language ?? "en"}
+                          />
+                        </div>
+                      </div>
+                      <textarea
+                        id="trainee-response"
+                        rows={2}
+                        value={response}
+                        onChange={(event) => setResponse(event.target.value)}
+                        placeholder={t("simulation.placeholder")}
+                        className="mt-2.5 w-full resize-y border border-[var(--color-border-strong)] bg-white p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
                       />
-                    </div>
-                  </div>
-                  <textarea
-                    id="trainee-response"
-                    rows={2}
-                    value={response}
-                    onChange={(event) => setResponse(event.target.value)}
-                    placeholder={t("simulation.placeholder")}
-                    className="mt-2.5 w-full resize-y border border-[var(--color-border-strong)] bg-white p-3 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)]"
-                  />
 
-                  {error ? (
-                    <div className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
-                      {error}
-                      <button
-                        type="button"
-                        onClick={handleSend}
-                        disabled={!response.trim() || loading}
-                        className="ml-3 font-semibold underline disabled:opacity-50"
-                      >
-                        {t("common.retry")}
-                      </button>
-                    </div>
-                  ) : null}
+                      {error ? (
+                        <div className="mt-3 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                          {error}
+                          <button
+                            type="button"
+                            onClick={handleSend}
+                            disabled={!response.trim() || loading}
+                            className="ml-3 font-semibold underline disabled:opacity-50"
+                          >
+                            {t("common.retry")}
+                          </button>
+                        </div>
+                      ) : null}
 
-                  <div className="mt-2.5">
-                    <LoadingButton
-                      type="button"
-                      loading={loading}
-                      disabled={!response.trim()}
-                      onClick={handleSend}
-                      className="sheen min-h-11 w-full"
-                    >
-                      {t("simulation.send")}
-                    </LoadingButton>
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-3">
-                  <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
-                  <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
-                    {t("simulation.completedBody")}
-                  </p>
+                      <div className="mt-2.5">
+                        <LoadingButton
+                          type="button"
+                          loading={loading}
+                          disabled={!response.trim()}
+                          onClick={handleSend}
+                          className="sheen min-h-11 w-full"
+                        >
+                          {t("simulation.send")}
+                        </LoadingButton>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-3">
+                      <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
+                      <p className="mt-2 text-sm leading-6 text-[var(--color-ink-muted)]">
+                        {t("simulation.completedBody")}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </section>
 

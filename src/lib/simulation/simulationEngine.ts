@@ -79,7 +79,13 @@ export function appendSimulationTurn(
       traineeVoiceMetrics
         ? { ...traineeMessage, voiceMetrics: traineeVoiceMetrics }
         : traineeMessage,
-      createMessage("scenario", turn.message, turn.speaker, turn.delivery, turn.spokenMessage),
+      {
+        ...createMessage("scenario", turn.message, turn.speaker, turn.delivery, turn.spokenMessage),
+        // Conditional for the same reason createMessage's fields are: this
+        // object is written to Firestore, which rejects undefined values.
+        ...(turn.expression ? { expression: turn.expression } : {}),
+        tensionLevel: turn.tensionLevel,
+      },
     ],
     currentTurn: nextTurn,
     tensionLevel: turn.tensionLevel,

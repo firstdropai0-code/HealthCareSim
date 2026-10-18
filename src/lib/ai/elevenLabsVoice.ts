@@ -1,4 +1,4 @@
-import type { Intensity } from "./voiceDirection";
+import type { Intensity, SlotVoiceResolver, VoiceGender } from "./voiceDirection";
 import type { OpenAiVoiceId } from "@/types/scenario";
 
 /**
@@ -86,11 +86,46 @@ function voiceMap(): Record<OpenAiVoiceId, string | CastEntry> {
  * the exact opposite. A single global model would force half the cast to be
  * spoken by the wrong one.
  */
-export type CastEntry = { voiceId: string; model?: string };
+export type CastEntry = { voiceId: string; model?: string; gender?: VoiceGender };
 
 function toEntry(value: string | CastEntry): CastEntry {
   return typeof value === "string" ? { voiceId: value } : value;
 }
+
+/*
+ * How the voices this app has cast actually sound, so a character can be given
+ * one of their own gender. Read off ElevenLabs' own labels for each voice
+ * (GET /v1/voices/{id}) on 2026-10-18. A voice not listed here has no known
+ * gender and is only used for a character when nothing of the right gender is
+ * free; a map entry can declare its own, e.g. {"voiceId":"…","gender":"male"}.
+ */
+const KNOWN_VOICE_GENDER: Record<string, VoiceGender> = {
+  // The current cast (ELEVENLABS_VOICE_MAP).
+  pFZP5JQG7iQjIQuC4Bku: "female", // Lily
+  FGY2WhTYpPnrIDTdsKH5: "female", // Laura
+  SOYHLrjzK2X1ezoPC6cr: "male", // Harry
+  hpp4J3VqNfWAUOO0d1Us: "female", // Bella
+  cjVigY5qzO86Huf0OWal: "male", // Eric
+  EXAVITQu4vr4xnSDxMaL: "female", // Sarah
+  nPczCjzI2devNBz1zQrb: "male", // Brian
+  // The placeholder defaults above.
+  onwK4e9ZLuTAKqWW03F9: "male", // Daniel
+  "21m00Tcm4TlvDq8ikWAM": "female", // Rachel
+  AZnzlk1XvdvUeBnXmlld: "female", // Domi
+  MF3mGyEYCl7XYWbV9V6O: "female", // Elli
+  ThT5KcBeYPX3keUQqHPh: "female", // Dorothy
+  pNInz6obpgDQGcFmaJgB: "male", // Adam
+  TxGEqnHWrfWFTfGW9XjX: "male", // Josh
+  VR6AewLTigWG4xSOukaG: "male", // Arnold
+  ErXwobaYiN019PkySvjV: "male", // Antoni
+  yoZ06aMxZJJ28mfd3POQ: "male", // Sam
+};
+
+/** A slot as ElevenLabs will render it, for gender-aware casting. */
+export const elevenLabsSlotVoice: SlotVoiceResolver = (slot) => {
+  const entry = resolveElevenLabsVoice(slot);
+  return { identity: entry.voiceId, gender: entry.gender ?? KNOWN_VOICE_GENDER[entry.voiceId] ?? null };
+};
 
 export function resolveElevenLabsVoice(voice: string | undefined): CastEntry {
   const map = voiceMap();

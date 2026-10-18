@@ -2,6 +2,7 @@ import type { AppLanguage } from "./language";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { MediaAsset } from "./media";
 import type { ScenarioSpeaker } from "./simulation";
+import type { CastMember } from "./cast";
 
 /** One of OpenAI's preset TTS voices. */
 export type OpenAiVoiceId =
@@ -63,6 +64,14 @@ export type Scenario = {
   mediaAssets?: MediaAsset[];
   /** Optional so scenarios saved before voice pinning still load. */
   characterVoices?: Partial<Record<ScenarioSpeaker, CharacterVoice>>;
+  /*
+   * Who is in the room: one entry per speaking role, patient included even when
+   * deceased (their gender still shapes how everyone talks about them). Drives
+   * the simulation stage's portraits and the gender of each pinned voice.
+   * Optional so scenarios generated before it still load; the stage falls back
+   * to a plain role tile for them.
+   */
+  cast?: CastMember[];
 
   /*
    * Progress-tracking metadata. Set on the client from the library case the
