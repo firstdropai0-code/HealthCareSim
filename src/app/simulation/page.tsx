@@ -598,17 +598,22 @@ export default function SimulationPage() {
         {/* 1. Briefing bar — everything the trainee needs at a glance. */}
         <header className="accent-edge shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-soft)]">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
-            <div className="min-w-0">
+            <div className="min-w-0 lg:flex-1">
               <p className="eyebrow text-[var(--color-primary)]">{t("simulation.room")}</p>
               <h1 className="display-md mt-1.5">{state.scenario.title}</h1>
             </div>
-            {/* Chips get the full width of the right side rather than a narrow
-                column: penned into one they wrapped onto three rows and pushed
-                the conversation off screen. */}
+            {/* The title and the chips share the row, the chips taking the
+                larger part and wrapping inside it. The chips used to be barred
+                from shrinking, so they claimed their full one-line width and
+                the title got whatever was left: with a long setting and a long
+                patient emotion ("anxious about son's wedding"), that was one
+                word per line, and the bar grew tall enough to push the stage's
+                figure below the fold. Penned into a narrow column instead they
+                had wrapped onto three rows, so the split is weighted their way. */}
             {/* Short, fixed-length facts live as chips; only the prose fields
                 get a column below. Setting is two words — giving it a third of
                 the brief row wasted the measure the long fields needed. */}
-            <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
+            <div className="flex flex-wrap items-center gap-2 lg:flex-[1.4] lg:justify-end">
               <MetricChip label={t("simulation.setting")} value={state.scenario.setting} tone="emerald" />
               <MetricChip label={t("simulation.speaker")} value={currentSpeaker} tone="blue" />
               <TensionBadge level={state.tensionLevel} />
