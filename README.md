@@ -270,3 +270,8 @@ roadmap/
 npm run lint
 npm run build
 ```
+
+## Dependency Notes
+
+- `overrides` in `package.json` pins `@grpc/grpc-js` to a fixed version. Every Firebase release, 13.x included, asks for `~1.9.0`, which has open security advisories and no patched 1.9 release. It never reaches the browser, where the Firebase client doesn't use it. Remove the override once Firebase moves off 1.9.
+- `npm audit` still reports moderate warnings in development tooling, all from one `minimatch` advisory through ESLint. They only run at lint time, on this repo's own files, and npm offers no sensible fix. `npm audit --omit=dev` should stay clear.
