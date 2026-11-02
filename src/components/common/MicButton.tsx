@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { AppLanguage } from "@/types/language";
 import { useVoiceRecorder } from "@/lib/hooks/useVoiceRecorder";
 import { useT } from "@/lib/i18n/strings";
@@ -11,6 +12,8 @@ type MicButtonProps = {
    * voiceMetrics is null when delivery analysis was unavailable.
    */
   onTranscript: (text: string, voiceMetrics: VoiceMetrics | null) => void;
+  /** Told when recording actually starts and stops. Must be a stable function. */
+  onRecordingChange?: (recording: boolean) => void;
   /** Disable the control (e.g. while a request is in flight). */
   disabled?: boolean;
   /** Language to transcribe in. The scenario's language during a roleplay. */
@@ -25,6 +28,7 @@ type MicButtonProps = {
  */
 export function MicButton({
   onTranscript,
+  onRecordingChange,
   disabled = false,
   language,
   className = "",
@@ -34,6 +38,13 @@ export function MicButton({
 
   const isRecording = status === "recording";
   const isTranscribing = status === "transcribing";
+
+  // From the recorder's status rather than the click, which can fail on a
+  // refused microphone and would report a recording that never began.
+  useEffect(() => {
+    onRecordingChange?.(isRecording);
+  }, [isRecording, onRecordingChange]);
+
   const controlDisabled = disabled || isTranscribing || !isSupported;
 
   async function handleClick() {

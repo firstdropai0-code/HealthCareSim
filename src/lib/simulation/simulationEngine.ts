@@ -5,6 +5,7 @@ import type {
   SimulationMessage,
   SimulationState,
 } from "@/types/simulation";
+import type { TurnPresence } from "@/types/presence";
 import type { VoiceMetrics } from "@/types/voice";
 
 export function createMessage(
@@ -55,30 +56,52 @@ export function createInitialSimulationState(scenario: Scenario): SimulationStat
   };
 }
 
+/**
+ * The messages as they go to Firestore: everything except the camera's numbers.
+ *
+ * Those exist to write the tips, which happens before the save, and nothing reads
+ * them back. A named person's head movements shouldn't sit in a database for no
+ * reason, and leaving them out is what lets the opt-in promise that only the tips
+ * are saved. They stay on the state in this browser, where generating the report
+ * again still needs them.
+ */
+export function messagesForStorage(messages: SimulationMessage[]): SimulationMessage[] {
+  return messages.map((message) => {
+    const stored = { ...message };
+    delete stored.presence;
+    return stored;
+  });
+}
+
 export type SimulationTurnInput = {
   traineeResponse: string;
   /** The generated turn, passed whole rather than unpacked into arguments. */
   turn: NextSimulationTurn;
   /** Present only when the trainee spoke this turn and analysis succeeded. */
   traineeVoiceMetrics?: VoiceMetrics | null;
+  /** Present only when the camera was on and measured something this turn. */
+  traineePresence?: TurnPresence | null;
 };
 
 export function appendSimulationTurn(
   state: SimulationState,
-  { traineeResponse, turn, traineeVoiceMetrics }: SimulationTurnInput,
+  { traineeResponse, turn, traineeVoiceMetrics, traineePresence }: SimulationTurnInput,
 ): SimulationState {
   const nextTurn = state.currentTurn + 1;
   const reachedMaxTurns = nextTurn >= state.maxTurns;
 
-  const traineeMessage = createMessage("trainee", traineeResponse);
+  // Conditional for the same reason as below: Firestore rejects undefined.
+  const traineeMessage = {
+    ...createMessage("trainee", traineeResponse),
+    ...(traineeVoiceMetrics ? { voiceMetrics: traineeVoiceMetrics } : {}),
+    ...(traineePresence ? { presence: traineePresence } : {}),
+  };
 
   return {
     ...state,
     messages: [
       ...state.messages,
-      traineeVoiceMetrics
-        ? { ...traineeMessage, voiceMetrics: traineeVoiceMetrics }
-        : traineeMessage,
+      traineeMessage,
       {
         ...createMessage("scenario", turn.message, turn.speaker, turn.delivery, turn.spokenMessage),
         // Conditional for the same reason createMessage's fields are: this

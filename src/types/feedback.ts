@@ -66,6 +66,12 @@ export type FeedbackReport = {
    * trainee typed their turns or delivery analysis was unavailable.
    */
   deliveryFeedback?: string[];
+  /**
+   * Coaching on which way the trainee's head was pointing, from the camera. Empty
+   * or absent when the camera was off. Like delivery it comes from its own model
+   * call and is never scored: see `src/lib/prompts/presencePrompt.ts`.
+   */
+  presenceFeedback?: string[];
   finalAdvice: string;
   customCriteriaFeedback?: CustomCriterionFeedback[];
   source?: "ai" | "fallback";

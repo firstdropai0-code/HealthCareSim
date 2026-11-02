@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/firebase/firebaseApp";
 import { getGroup } from "@/lib/groups/groupRepository";
 import { translate } from "@/lib/i18n/strings";
+import { messagesForStorage } from "@/lib/simulation/simulationEngine";
 import type { FeedbackReport } from "@/types/feedback";
 import type { RunRecord, RunStat, RunSummary, RunTranscript } from "@/types/run";
 import type { SimulationState } from "@/types/simulation";
@@ -129,7 +130,7 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
   await setDoc(doc(db, "runs", runId), record);
 
   const transcript: RunTranscript = {
-    messages: state.messages,
+    messages: messagesForStorage(state.messages),
     scenario: state.scenario,
   };
   await setDoc(doc(db, "runs", runId, "transcript", "full"), transcript);

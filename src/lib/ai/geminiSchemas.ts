@@ -198,6 +198,14 @@ export const deliveryFeedbackSchema: GeminiSchema = {
   },
 };
 
+export const presenceFeedbackSchema: GeminiSchema = {
+  type: "OBJECT",
+  required: ["presenceFeedback"],
+  properties: {
+    presenceFeedback: stringArraySchema,
+  },
+};
+
 const customCriterionItemSchema: GeminiSchema = {
   type: "OBJECT",
   required: ["criterion", "assessment"],

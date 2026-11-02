@@ -8,6 +8,7 @@ import { LoadingButton } from "@/components/common/LoadingButton";
 import { MicButton } from "@/components/common/MicButton";
 import { AppShell } from "@/components/layout/AppShell";
 import { useShouldAnimate } from "@/components/motion/useShouldAnimate";
+import { CameraOptIn } from "@/components/simulation/CameraOptIn";
 import { ChatMessageList, TypingIndicator } from "@/components/simulation/ChatMessageList";
 import { countRevealWords, createRevealStore } from "@/components/simulation/revealStore";
 import { SimulationScene } from "@/components/simulation/SimulationScene";
@@ -28,10 +29,12 @@ import {
 } from "@/lib/ai/voiceDirection";
 import { aggregateVoiceMetrics } from "@/lib/audio/voiceMetrics";
 import { useRequireAuth } from "@/lib/firebase/useAuth";
+import { canUsePresenceCamera, usePresenceCamera } from "@/lib/hooks/usePresenceCamera";
 import { useT } from "@/lib/i18n/strings";
 import { isPatientDeceased } from "@/lib/scenarios/patientStatus";
 import type { VoiceMetrics } from "@/types/voice";
 import { appendSimulationTurn } from "@/lib/simulation/simulationEngine";
+import { readingWindowMs } from "@/lib/vision/presenceMetrics";
 import {
   clearFeedbackReport,
   loadAutoRead,
@@ -199,6 +202,37 @@ export default function SimulationPage() {
   const autoReadSeeded = useRef(false);
   const pendingVoiceMetrics = useRef<VoiceMetrics[]>([]);
 
+  // Taken apart here rather than held as one object: the lint treats a whole
+  // object as a ref once it contains one, and these are read during render.
+  const {
+    videoRef: cameraVideoRef,
+    phase: cameraPhase,
+    error: cameraError,
+    calibrationSecondsLeft,
+    start: startCamera,
+    stop: stopCamera,
+    beginWindow,
+    endWindow,
+    listenFor,
+    setSpeaking: setCameraSpeaking,
+    takeTurnPresence,
+  } = usePresenceCamera();
+  const [cameraDecided, setCameraDecided] = useState(false);
+  const readLineIds = useRef<Set<string>>(new Set());
+  /*
+   * Asked once, before the first line, because calibration needs the trainee
+   * looking at the scene and shouldn't talk over someone speaking. A run reopened
+   * part-way isn't asked: the camera stays off for the rest of it, and the tips
+   * cover whatever was measured.
+   */
+  const askAboutCamera =
+    state !== null &&
+    !cameraDecided &&
+    state.status !== "completed" &&
+    state.currentTurn === 0 &&
+    state.messages.length === 1 &&
+    canUsePresenceCamera();
+
   useEffect(() => reveal.dispose, [reveal]);
 
   useEffect(() => {
@@ -257,6 +291,8 @@ export default function SimulationPage() {
 
       const controller = new AbortController();
       speechAbortRef.current = controller;
+      // Whether this call opened a measuring window it still has to close.
+      let measuring = false;
 
       // The hold cap. A turn armed for audio stays at its speaker name and
       // cursor until the voice arrives; if it does not arrive in time, the text
@@ -337,6 +373,10 @@ export default function SimulationPage() {
         }
 
         playbackRef.current = playback;
+        // From when the voice actually starts: the wait for it is not the
+        // trainee ignoring anyone.
+        beginWindow("listening");
+        measuring = true;
 
         // Nothing to map a ratio onto, so pace the words instead.
         if (playback.durationMs === null) {
@@ -354,6 +394,9 @@ export default function SimulationPage() {
         // Every failure ends with the whole turn on screen. Sound is the only
         // thing that is ever lost.
         reveal.driveWithTimer(message.id);
+        // No voice after all, so they are reading it instead.
+        measuring = false;
+        listenFor(readingWindowMs(message.content));
 
         if (isAutoplayBlockedError(err)) {
           // Not an error: the browser is waiting for a gesture, and one click
@@ -369,6 +412,10 @@ export default function SimulationPage() {
         window.clearTimeout(holdTimer);
         playbackRef.current = null;
 
+        if (measuring) {
+          endWindow("listening");
+        }
+
         if (speakingMessageIdRef.current === message.id) {
           speakingMessageIdRef.current = null;
         }
@@ -380,7 +427,7 @@ export default function SimulationPage() {
         setSpeakingMessageId((current) => (current === message.id ? null : current));
       }
     },
-    [reveal, speakingLevel, speakingMessageId, state, stopSpeaking],
+    [beginWindow, endWindow, listenFor, reveal, speakingLevel, speakingMessageId, state, stopSpeaking],
   );
 
   // A run reopened from before casts existed has no faces and voices cast
@@ -447,7 +494,9 @@ export default function SimulationPage() {
 
   // Auto-read the newest scenario message when the toggle is on.
   useEffect(() => {
-    if (!autoRead || !state) {
+    // The opening line waits for the camera question: it plays on its own, and
+    // calibration would otherwise happen while someone is talking.
+    if (!autoRead || !state || askAboutCamera) {
       return;
     }
 
@@ -461,7 +510,26 @@ export default function SimulationPage() {
 
     autoReadHandledIds.current.add(latest.id);
     void speakMessage(latest);
-  }, [autoRead, state, speakMessage]);
+  }, [askAboutCamera, autoRead, state, speakMessage]);
+
+  // With read-aloud off there is no playback to measure against, so the window
+  // is how long the newest line takes to read.
+  useEffect(() => {
+    if (autoRead || !state || askAboutCamera) {
+      return;
+    }
+
+    const latest = state.messages.findLast(
+      (message) => message.role === "scenario" && message.content.trim().length > 0,
+    );
+
+    if (!latest || readLineIds.current.has(latest.id)) {
+      return;
+    }
+
+    readLineIds.current.add(latest.id);
+    listenFor(readingWindowMs(latest.content));
+  }, [askAboutCamera, autoRead, listenFor, state]);
 
   // --- Conversation scroll behaviour (UI-only) -----------------------------
   // Keeps the newest turn in view without yanking the user back down while
@@ -594,6 +662,7 @@ export default function SimulationPage() {
           traineeResponse,
           turn,
           traineeVoiceMetrics: aggregateVoiceMetrics(pendingVoiceMetrics.current),
+          traineePresence: takeTurnPresence(),
         }),
         castPatchRef.current,
       );
@@ -620,6 +689,12 @@ export default function SimulationPage() {
       setHasFeedbackReport(false);
       setResponse("");
       pendingVoiceMetrics.current = [];
+
+      // The last line has no reply to attach a measurement to, and nothing is
+      // left to measure for, so the camera goes off with the end of the run.
+      if (updatedState.status === "completed") {
+        stopCamera();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : tRef.current("simulation.turnError"));
     } finally {
@@ -633,9 +708,23 @@ export default function SimulationPage() {
     }
 
     const completedState: SimulationState = { ...state, status: "completed" };
+    stopCamera();
     setState(completedState);
     saveSimulationState(completedState);
     return completedState;
+  }
+
+  async function handleTurnOnCamera() {
+    // Decided only once calibration has worked. A failure stays on the question,
+    // with the reason, so they can fix it or carry on without.
+    if (await startCamera()) {
+      setCameraDecided(true);
+    }
+  }
+
+  function handleSkipCamera() {
+    stopCamera();
+    setCameraDecided(true);
   }
 
   function handleEndSimulation() {
@@ -813,7 +902,7 @@ export default function SimulationPage() {
             from content left it at zero: the room vanished and the dialogue
             floated up over the bar. Pinned, it takes the space left over;
             otherwise it gets a fixed share of the screen. */}
-        <div className="min-h-0 lg:h-[clamp(20rem,60vh,36rem)] lg:[@media(min-height:640px)]:h-auto lg:[@media(min-height:640px)]:flex-1">
+        <div className="relative min-h-0 lg:h-[clamp(20rem,60vh,36rem)] lg:[@media(min-height:640px)]:h-auto lg:[@media(min-height:640px)]:flex-1">
           <SimulationScene
             scenario={state.scenario}
             messages={state.messages}
@@ -826,18 +915,52 @@ export default function SimulationPage() {
             onSpeak={speakMessage}
             onOpenTranscript={() => setTranscriptOpen(true)}
           />
+          {/* Always mounted, because the stream attaches to it before it shows.
+              Visible whenever the camera is on, with its off switch beside it:
+              nobody should have to wonder whether they are being watched. */}
+          <div
+            className={`absolute top-14 right-3 z-10 w-28 flex-col items-stretch gap-1.5 lg:w-36 ${
+              cameraPhase === "off" ? "hidden" : "flex"
+            }`}
+          >
+            <video
+              ref={cameraVideoRef}
+              muted
+              playsInline
+              aria-label={t("simulation.camera.selfView")}
+              className="w-full -scale-x-100 rounded-[var(--radius-md)] border-2 border-[var(--color-surface)] bg-[var(--color-ink)] shadow-[var(--shadow-card)]"
+            />
+            {cameraPhase === "on" ? (
+              <button
+                type="button"
+                onClick={stopCamera}
+                className="rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-2 py-1 text-xs font-medium text-[var(--color-ink)] shadow-[var(--shadow-card)] backdrop-blur-sm transition-colors hover:text-[var(--color-danger)]"
+              >
+                {t("simulation.camera.turnOff")}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {/* 3. The composer. Voice first: the Speak button leads, typing is
             beside it. */}
         <div className="shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-3 py-2.5 shadow-[var(--shadow-soft)]">
-          {!completed ? (
+          {askAboutCamera ? (
+            <CameraOptIn
+              phase={cameraPhase}
+              error={cameraError}
+              secondsLeft={calibrationSecondsLeft}
+              onTurnOn={() => void handleTurnOnCamera()}
+              onSkip={handleSkipCamera}
+            />
+          ) : !completed ? (
             <>
               <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
                 {/* The scenario's language, not the reader's UI setting: a
                     Hindi case is answered in Hindi. */}
                 <MicButton
                   onTranscript={handleTranscript}
+                  onRecordingChange={setCameraSpeaking}
                   disabled={loading}
                   language={state.scenario.language ?? "en"}
                   className="shrink-0"

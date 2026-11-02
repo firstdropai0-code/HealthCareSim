@@ -1,3 +1,4 @@
+import type { TurnPresence } from "./presence";
 import type { Scenario } from "./scenario";
 import type { VoiceMetrics } from "./voice";
 import type { Expression } from "./cast";
@@ -31,6 +32,12 @@ export type SimulationMessage = {
    * rather than spoken, or when analysis was unavailable.
    */
   voiceMetrics?: VoiceMetrics;
+  /**
+   * Which way the trainee's head was pointing during this turn. Trainee turns
+   * only, and absent when the camera was off, which is every run by default.
+   * Browser only: `messagesForStorage` leaves it out of Firestore.
+   */
+  presence?: TurnPresence;
   /** The speaker's face on this line. Character lines only, never narration. */
   expression?: Expression;
   /*

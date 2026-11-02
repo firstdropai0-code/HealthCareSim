@@ -156,6 +156,7 @@ function buildPages(
     t("report.defaultFocus");
   const customCriteriaFeedback = report.customCriteriaFeedback || [];
   const deliveryFeedback = report.deliveryFeedback || [];
+  const presenceFeedback = report.presenceFeedback || [];
 
   const pages: DeckPage[] = [
     {
@@ -276,6 +277,32 @@ function buildPages(
             {deliveryFeedback.map((item, index) => (
               <div
                 key={`delivery-${index}`}
+                className="border-l border-[var(--color-border-strong)] px-3 py-2 text-[var(--color-ink)]"
+              >
+                <ReadMoreText text={item} maxLength={140} />
+              </div>
+            ))}
+          </div>
+        </InfoCard>
+      ),
+    });
+  }
+
+  if (presenceFeedback.length > 0) {
+    pages.push({
+      id: "presence",
+      label: t("report.page.presence"),
+      eyebrow: t("report.presence"),
+      title: t("report.howYouFaced"),
+      body: (
+        <InfoCard label={t("report.presence")} title={t("report.howYouFaced")} tone="blue">
+          <p className="text-xs leading-5 text-[var(--color-ink-soft)]">
+            {t("report.presenceNote")}
+          </p>
+          <div className="mt-3 grid gap-2">
+            {presenceFeedback.map((item, index) => (
+              <div
+                key={`presence-${index}`}
                 className="border-l border-[var(--color-border-strong)] px-3 py-2 text-[var(--color-ink)]"
               >
                 <ReadMoreText text={item} maxLength={140} />
