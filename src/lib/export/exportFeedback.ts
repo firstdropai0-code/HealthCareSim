@@ -108,6 +108,10 @@ ${
     ? `\n${t("export.delivery")}\n${formatList(report.deliveryFeedback)}\n`
     : ""
 }${
+  report.presenceFeedback && report.presenceFeedback.length > 0
+    ? `\n${t("export.presence")}\n${formatList(report.presenceFeedback)}\n`
+    : ""
+}${
   report.customCriteriaFeedback && report.customCriteriaFeedback.length > 0
     ? `\n${t("export.criteria")}\n${report.customCriteriaFeedback
         .map((item) => `- ${item.criterion}: ${item.assessment}`)

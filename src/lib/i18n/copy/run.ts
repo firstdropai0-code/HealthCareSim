@@ -8,6 +8,26 @@ export const en = {
   "simulation.createScenario": "Create scenario",
   "simulation.narrator": "Narrator",
   "simulation.stopReading": "Stop reading aloud",
+  "simulation.camera.title": "Practise with your camera on?",
+  "simulation.camera.body":
+    "You'd get AI-written tips on how much you faced the person you were talking to. Video stays on this device and is never saved, and only the tips are saved to your account. If you have a mentor, they can see them. Your score isn't affected.",
+  "simulation.camera.turnOn": "Turn on camera",
+  "simulation.camera.skip": "Continue without camera",
+  "simulation.camera.tryAgain": "Try again",
+  "simulation.camera.starting": "Starting your camera…",
+  "simulation.camera.calibrating": "Look at the middle of the scene and hold still · {n}",
+  "simulation.camera.errorDenied":
+    "Camera access was blocked. Allow it from the icon in the address bar, or continue without it.",
+  "simulation.camera.errorNoCamera": "No camera was found on this device.",
+  "simulation.camera.errorInUse": "Another app is using your camera. Close it and try again.",
+  "simulation.camera.errorUnavailable": "Your camera couldn't be started in this browser.",
+  "simulation.camera.errorModel": "The face tracker couldn't load. Check your connection and try again.",
+  "simulation.camera.errorNoFace":
+    "We couldn't see your face clearly. Check the light and that you're in the picture.",
+  "simulation.camera.errorMoved":
+    "You moved around a little too much. Sit as you normally would and hold still for a few seconds.",
+  "simulation.camera.selfView": "Your camera",
+  "simulation.camera.turnOff": "Turn camera off",
   "simulation.turnOnReadAloud": "Turn on read-aloud",
   "simulation.gestureHint": "Your browser waits for a click before playing audio.",
   "simulation.completedBody":
@@ -51,6 +71,11 @@ export const en = {
   "report.page.examples": "Examples",
   "report.page.skills": "Skills",
   "report.page.delivery": "Delivery",
+  "report.page.presence": "Facing",
+  "report.presence": "Camera",
+  "report.howYouFaced": "How you faced them",
+  "report.presenceNote":
+    "Measured from the direction of the head during this run, with no video saved. A cue for practice, not part of the score, and not a reading of how anyone felt.",
   "report.page.criteria": "Criteria",
   "report.page.advice": "Carry forward",
   "report.fullNotes": "The full notes",
@@ -98,6 +123,7 @@ export const en = {
   "export.whenSaid": "When {speaker} said",
   "export.couldHaveSaid": "You could have said",
   "export.delivery": "How You Sounded (delivery cues, not part of the score)",
+  "export.presence": "How You Faced Them (camera cues, not part of the score)",
   "export.criteria": "Your Added Evaluation Criteria",
   "export.finalAdvice": "Final Advice",
 } as const;
@@ -107,6 +133,25 @@ export const hi: Record<keyof typeof en, string> = {
   "simulation.createScenario": "परिदृश्य बनाएँ",
   "simulation.narrator": "सूत्रधार",
   "simulation.stopReading": "पढ़कर सुनाना बंद करें",
+  "simulation.camera.title": "क्या कैमरा चालू करके अभ्यास करना चाहेंगे?",
+  "simulation.camera.body":
+    "आपको AI से लिखे सुझाव मिलेंगे कि बात करते समय आपका चेहरा सामने वाले की ओर कितना रहा। वीडियो इसी डिवाइस पर रहता है और कभी सेव नहीं होता, और आपके खाते में सिर्फ़ सुझाव सेव होते हैं। अगर आपके कोई मेंटर हैं, तो वे इन्हें देख सकते हैं। आपके स्कोर पर इसका कोई असर नहीं पड़ता।",
+  "simulation.camera.turnOn": "कैमरा चालू करें",
+  "simulation.camera.skip": "कैमरे के बिना जारी रखें",
+  "simulation.camera.tryAgain": "फिर से कोशिश करें",
+  "simulation.camera.starting": "आपका कैमरा चालू हो रहा है…",
+  "simulation.camera.calibrating": "दृश्य के बीच में देखें और स्थिर रहें · {n}",
+  "simulation.camera.errorDenied":
+    "कैमरे की अनुमति नहीं मिली। पता बार में बने आइकन से अनुमति दें, या इसके बिना जारी रखें।",
+  "simulation.camera.errorNoCamera": "इस डिवाइस पर कोई कैमरा नहीं मिला।",
+  "simulation.camera.errorInUse": "आपका कैमरा कोई दूसरा ऐप इस्तेमाल कर रहा है। उसे बंद करके फिर से कोशिश करें।",
+  "simulation.camera.errorUnavailable": "इस ब्राउज़र में आपका कैमरा चालू नहीं हो सका।",
+  "simulation.camera.errorModel": "चेहरा पहचानने वाला टूल लोड नहीं हो सका। अपना कनेक्शन जाँचकर फिर से कोशिश करें।",
+  "simulation.camera.errorNoFace": "आपका चेहरा साफ़ नहीं दिखा। रोशनी देखें और जाँच लें कि आप फ़्रेम में हैं।",
+  "simulation.camera.errorMoved":
+    "आप थोड़ा ज़्यादा हिले। जैसे आम तौर पर बैठते हैं वैसे बैठें और कुछ सेकंड स्थिर रहें।",
+  "simulation.camera.selfView": "आपका कैमरा",
+  "simulation.camera.turnOff": "कैमरा बंद करें",
   "simulation.turnOnReadAloud": "पढ़कर सुनाना चालू करें",
   "simulation.gestureHint": "ऑडियो चलाने से पहले आपका ब्राउज़र एक क्लिक का इंतज़ार करता है।",
   "simulation.completedBody":
@@ -150,6 +195,11 @@ export const hi: Record<keyof typeof en, string> = {
   "report.page.examples": "उदाहरण",
   "report.page.skills": "कौशल",
   "report.page.delivery": "अंदाज़",
+  "report.page.presence": "रुख़",
+  "report.presence": "कैमरा",
+  "report.howYouFaced": "बात करते समय आपका रुख़",
+  "report.presenceNote":
+    "इस अभ्यास के दौरान सिर की दिशा से मापा गया, कोई वीडियो सेव नहीं हुआ। यह अभ्यास के लिए एक संकेत है, स्कोर का हिस्सा नहीं, और इससे यह पता नहीं चलता कि किसी को कैसा महसूस हो रहा था।",
   "report.page.criteria": "मानदंड",
   "report.page.advice": "आगे के लिए",
   "report.fullNotes": "पूरे नोट्स",
@@ -196,6 +246,7 @@ export const hi: Record<keyof typeof en, string> = {
   "export.whenSaid": "जब {speaker} ने कहा",
   "export.couldHaveSaid": "आप यह कह सकते थे",
   "export.delivery": "आप कैसे सुनाई दिए (बोलने के अंदाज़ के संकेत, स्कोर का हिस्सा नहीं)",
+  "export.presence": "बात करते समय आपका रुख़ (कैमरे के संकेत, स्कोर का हिस्सा नहीं)",
   "export.criteria": "आपके जोड़े गए मूल्यांकन मानदंड",
   "export.finalAdvice": "अंतिम सलाह",
 };

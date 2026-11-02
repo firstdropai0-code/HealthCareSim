@@ -4,6 +4,7 @@ import {
   castOnlySchema,
   deliveryFeedbackSchema,
   nextSimulationTurnSchema,
+  presenceFeedbackSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
 import { elevenLabsSlotVoice, keepAllowedTags, stripAudioTags } from "@/lib/ai/elevenLabsVoice";
@@ -29,6 +30,7 @@ import {
   buildFeedbackPrompt,
   getExtraEvaluationCriteria,
 } from "@/lib/prompts/feedbackPrompt";
+import { buildPresenceFeedbackPrompt } from "@/lib/prompts/presencePrompt";
 import { buildCastPrompt, buildScenarioPrompt } from "@/lib/prompts/scenarioPrompt";
 import { isAppLanguage, type AppLanguage } from "@/types/language";
 import {
@@ -675,6 +677,36 @@ async function generateDeliveryFeedback(state: SimulationState): Promise<string[
   }
 }
 
+/**
+ * Camera coaching, for the same reasons and on the same terms as delivery: never
+ * sees the scoring context, and a failure just leaves the card out.
+ */
+async function generatePresenceFeedback(state: SimulationState): Promise<string[]> {
+  const prompt = buildPresenceFeedbackPrompt(state);
+
+  // Null means the camera was off or measured too little to go on.
+  if (!prompt) {
+    return [];
+  }
+
+  try {
+    const result = (await callGeminiJson({
+      action: "feedback",
+      prompt,
+      models: [process.env.GEMINI_MODEL || "gemini-2.5-flash"],
+      temperature: 0.3,
+      maxOutputTokens: 500,
+      timeoutMs: FEEDBACK_TIMEOUT_MS,
+      schema: presenceFeedbackSchema,
+    })) as { presenceFeedback?: unknown };
+
+    return normalizeStringArray(result?.presenceFeedback);
+  } catch (error) {
+    console.error("Camera feedback generation failed, omitting the section:", error);
+    return [];
+  }
+}
+
 async function generateFeedback(state: SimulationState): Promise<FeedbackReport> {
   const extraCriteria = getExtraEvaluationCriteria(state);
   const hasCustomCriteria = extraCriteria.length > 0;
@@ -683,7 +715,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
   // over the transcript together and cannot reach opposite verdicts about the
   // same behavior. Delivery coaching stays a separate parallel call by design
   // (the scoring context must never see voice metrics).
-  const [mainResult, deliveryFeedback] = await Promise.all([
+  const [mainResult, deliveryFeedback, presenceFeedback] = await Promise.all([
     callGeminiJson({
       action: "feedback",
       prompt: buildFeedbackPrompt(state, extraCriteria),
@@ -697,6 +729,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
       schema: buildFeedbackReportSchema(extraCriteria.length),
     }),
     generateDeliveryFeedback(state),
+    generatePresenceFeedback(state),
   ]);
 
   const normalized = normalizeFeedback(mainResult);
@@ -704,7 +737,7 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
     ? reconcileCustomCriteriaFeedback(extraCriteria, normalized.customCriteriaFeedback)
     : [];
 
-  return { ...normalized, customCriteriaFeedback, deliveryFeedback };
+  return { ...normalized, customCriteriaFeedback, deliveryFeedback, presenceFeedback };
 }
 
 export async function POST(request: Request) {

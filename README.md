@@ -112,6 +112,7 @@ The `NEXT_PUBLIC_FIREBASE_*` values are the one deliberate exception. They are p
 - Gemini-powered next-turn generation.
 - Feedback report generation focused on communication, empathy, clarity, and pressure handling.
 - Per-dimension subscores (empathy, clarity, structure & next steps, professionalism, pressure & de-escalation) alongside the overall score.
+- Optional camera coaching: a trainee can opt in at the start of a run and get written tips on how much they faced the person they were talking to. Head direction only, measured in the browser, and never part of the score.
 - Feedback export as a `.txt` file.
 - Current simulation persistence through `localStorage`.
 - Mentor and trainee accounts with a fixed role, and mentor-run groups joined by a six-character code.
@@ -195,6 +196,8 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 - Read-aloud should only voice AI scenario messages, never the trainee's own turns.
 - Feedback should be communication-focused.
 - No diagnosis or treatment advice should be generated.
+- Camera tips should describe head direction only, never feelings, attention or eye contact.
+- The simulation should work fully with the camera blocked, skipped, or turned off mid-run.
 
 ## Voice Notes
 
@@ -206,6 +209,18 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 - Browser support depends on microphone permission and MediaRecorder support; if voice is unavailable or a call fails, the app still works fully by typing.
 - When recording stops, the transcript remains editable and must be sent manually.
 - Generated audio is played in the browser and is not saved as a file by the app.
+
+## Camera Notes
+
+- Switched off for the whole app unless `NEXT_PUBLIC_CAMERA_COACHING=on` is set at build time. While it's off, a run looks and behaves as it would without this feature. On Vercel, set it per environment and redeploy.
+- When switched on, it's still each trainee's choice, and off by default. A new run asks before its first line, and the question says what is kept and who can see it. It isn't offered on touch-only devices.
+- Face tracking is MediaPipe Face Landmarker running in the browser. Video is never recorded, uploaded or saved.
+- It measures which way the head is pointing, and only while the other person's line plays and while the trainee records a reply. Time spent thinking of a reply isn't measured, because looking away to think is normal.
+- It does not measure eye contact, emotion or attention. Glancing at a phone with the head held still won't register, and a trainee can face the screen without listening. Tips only describe what the head did.
+- The per-turn numbers stay in the browser, apart from going to Gemini through `/api/gemini` to write the tips. Only the written tips are saved to Firebase, where the trainee and their mentor can read them.
+- Tips come from a separate model call and the numbers never reach the scoring prompt, so the camera cannot affect a score.
+- The tracking runtime and model currently load from jsDelivr and Google storage the first time the camera is turned on.
+- `/lab/presence` is a local test bench for checking the tracking against acted-out behaviour. It works whether or not the switch is on, and returns a 404 in production.
 
 ## Future Roadmap
 
