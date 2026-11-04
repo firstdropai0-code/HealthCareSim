@@ -219,21 +219,39 @@ function SpeakingFigure({
   );
 }
 
-/** The latest line, revealed in time with the voice exactly as the transcript reveals it. */
+/**
+ * The latest line, revealed in time with the voice exactly as the transcript
+ * reveals it.
+ *
+ * Below lg the words still to come are laid out too, invisibly, after the
+ * ones revealed, so the dialogue box is its final height from the first word.
+ * There the box sits under the room and takes its height from it, so a box
+ * that grew word by word would shrink the person while they spoke. Kept in
+ * the same run of text rather than stacked in a grid, so it wraps around the
+ * floated replay button exactly as the finished line will. From lg up the box
+ * is over the room's floor and the rest is not rendered.
+ */
 function RevealedLine({ message, reveal }: { message: SimulationMessage; reveal: RevealStore }) {
   const words = message.content.split(" ");
   const count = useRevealedWordCount(reveal, message.id);
-
-  if (count === 0) {
-    return <TypingDots className="py-2 align-middle" />;
-  }
-
   const stillRevealing = count < words.length;
+  const rest = words.slice(count).join(" ");
 
   return (
     <>
-      {stillRevealing ? words.slice(0, count).join(" ") : message.content}
-      {stillRevealing ? <TypingCursor /> : null}
+      {count === 0 ? (
+        <TypingDots className="py-2 align-middle" />
+      ) : stillRevealing ? (
+        words.slice(0, count).join(" ")
+      ) : (
+        message.content
+      )}
+      {count > 0 && stillRevealing ? <TypingCursor /> : null}
+      {stillRevealing ? (
+        <span aria-hidden className="invisible lg:hidden">
+          {" " + rest}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -290,11 +308,13 @@ export function SimulationScene({
   const narrating = line?.speaker === "narrator";
 
   return (
-    <section aria-label={t("simulation.sceneLabel")} className="relative flex min-h-0 flex-col lg:h-full">
+    <section aria-label={t("simulation.sceneLabel")} className="relative flex min-h-0 flex-col max-lg:flex-1 lg:h-full">
       {/* The room. On a phone it is the top of the screen with the dialogue
-          below it; from lg up it fills the stage and the dialogue sits over
-          its floor. */}
-      <div className="relative isolate h-[42vh] min-h-64 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)] lg:absolute lg:inset-0 lg:h-auto lg:min-h-0">
+          below it, taking the height the dialogue and the composer leave on a
+          screen that holds all three -- never less than 12rem, so a phone
+          held sideways still shows a face. From lg up it fills the stage and
+          the dialogue sits over its floor. */}
+      <div className="relative isolate min-h-48 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] shadow-[var(--shadow-soft)] max-lg:flex-1 lg:absolute lg:inset-0 lg:min-h-0">
         {/* eslint-disable-next-line @next/next/no-img-element -- static backdrop, decorative */}
         <img
           src={sceneSrc(scene)}
@@ -351,8 +371,14 @@ export function SimulationScene({
           </div>
         ) : null}
 
+        {/* Centred on a phone. A phone's room can be under 250px tall, and
+            there the head rises to the top corner, where the setting and
+            "patient has died" tags wrap onto two rows: standing at the left,
+            the person hid half the tag and the tag crowded the face. The gap
+            between those tags and the Transcript tab is the middle. Only
+            below sm, where nobody stands beside them. */}
         {active?.portraitId ? (
-          <div className="figure-breathe absolute bottom-0 left-[4%] h-[84%] lg:h-[82%]">
+          <div className="figure-breathe absolute bottom-0 left-[4%] h-[84%] max-sm:left-1/2 max-sm:-translate-x-1/2 lg:h-[82%]">
             <SpeakingFigure
               src={portraitSrc(active.portraitId, active.expression)}
               alt={t("stage.portraitAlt", { name: label(active), expression: moodLabel(active) })}
@@ -372,12 +398,19 @@ export function SimulationScene({
             <p className="text-[10px] font-semibold tracking-[0.08em] uppercase opacity-75">
               {t("simulation.youSaid")}
             </p>
-            <p className="line-clamp-2">{yourLine}</p>
+            {/* One line on a phone, where every line of it comes out of the
+                room's height; the whole of it is in the transcript. */}
+            <p className="line-clamp-2 max-lg:line-clamp-1">{yourLine}</p>
           </div>
         ) : null}
 
+        {/* Below lg the box sits under the room rather than over it, so its
+            height comes out of the room's and the person would shrink and grow
+            with every line. It keeps space for three lines of text, so most
+            lines -- and the wait for the next one -- leave the room the size
+            it was. */}
         {line || loading ? (
-          <div className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-4 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
+          <div className="w-full rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-4 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md max-lg:min-h-36">
             {/* The header row: who is speaking, and a replay button. Narration
                 has no speaker to name, but it can still be heard again. */}
             {loading || line ? (
@@ -397,7 +430,9 @@ export function SimulationScene({
                     onClick={() => onSpeak(line)}
                     title={speakingMessageId === line.id ? t("chat.stopReading") : t("chat.readAloud")}
                     aria-label={speakingMessageId === line.id ? t("chat.stopReadingAria") : t("chat.readAloudAria")}
-                    className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
+                    // Drawn at 28px so the speaker's row stays one line tall;
+                    // the ::after makes what a finger can hit 44px.
+                    className="relative ml-auto inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-primary)] transition-colors after:absolute after:-inset-2 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-soft)]"
                   >
                     {speakingMessageId === line.id ? <SpeakerStopIcon /> : <SpeakerIcon />}
                   </button>

@@ -173,6 +173,7 @@ export default function SimulationPage() {
   const [briefOpen, setBriefOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const transcriptCloseRef = useRef<HTMLButtonElement>(null);
+  const responseRef = useRef<HTMLTextAreaElement>(null);
 
   // On by default: the voice is most of what makes the roleplay feel like a
   // conversation, and a toggle nobody finds is a feature nobody hears. Any
@@ -637,6 +638,31 @@ export default function SimulationPage() {
     };
   }, [transcriptOpen, scrollHistoryToBottom]);
 
+  // On a phone, the site header and the exercise bar above the scene are about
+  // 300px tall, which pushed the Speak button below the bottom of the screen:
+  // every reply meant scrolling down to it, and every reply back meant
+  // scrolling up to the person. Below lg, the room, the latest line and the
+  // composer are sized to one screen together (the stage, below), and the page
+  // opens scrolled to them, with the header and the bar a short scroll up. It
+  // happens once, and only from the top of the page, so it never moves someone
+  // who has already scrolled somewhere.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const stageScrollDone = useRef(false);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+
+    if (!stage || stageScrollDone.current) {
+      return;
+    }
+
+    stageScrollDone.current = true;
+
+    if (window.matchMedia("(width < 64rem)").matches && window.scrollY < 8) {
+      stage.scrollIntoView({ block: "start", behavior: "instant" });
+    }
+  }, [hasState, gate.blocked]);
+
   // A draft can be built from several dictations (plus typing), so metrics
   // accumulate here and are combined when the turn is actually sent.
   function handleTranscript(text: string, voiceMetrics: VoiceMetrics | null) {
@@ -688,6 +714,10 @@ export default function SimulationPage() {
       clearFeedbackReport();
       setHasFeedbackReport(false);
       setResponse("");
+      // A reply longer than the box leaves it scrolled to its last line, and
+      // emptying it kept that offset: on a phone, where the placeholder wraps
+      // past the box's one row, the empty box showed only its last word.
+      responseRef.current?.scrollTo({ top: 0 });
       pendingVoiceMetrics.current = [];
 
       // The last line has no reply to attach a measurement to, and nothing is
@@ -896,181 +926,217 @@ export default function SimulationPage() {
           ) : null}
         </header>
 
-        {/* 2. The scene. */}
-        {/* A definite height either way. The scene positions its room and
-            dialogue against its own box, so a wrapper whose height came only
-            from content left it at zero: the room vanished and the dialogue
-            floated up over the bar. Pinned, it takes the space left over;
-            otherwise it gets a fixed share of the screen. */}
-        <div className="relative min-h-0 lg:h-[clamp(20rem,60vh,36rem)] lg:[@media(min-height:640px)]:h-auto lg:[@media(min-height:640px)]:flex-1">
-          <SimulationScene
-            scenario={state.scenario}
-            messages={state.messages}
-            tensionLevel={state.tensionLevel}
-            reveal={reveal}
-            speakingMessageId={speakingMessageId}
-            level={speakingLevel}
-            loading={loading}
-            pendingLine={loading ? response.trim() || null : null}
-            onSpeak={speakMessage}
-            onOpenTranscript={() => setTranscriptOpen(true)}
-          />
-          {/* Always mounted, because the stream attaches to it before it shows.
-              Visible whenever the camera is on, with its off switch beside it:
-              nobody should have to wonder whether they are being watched. */}
-          <div
-            className={`absolute top-14 right-3 z-10 w-28 flex-col items-stretch gap-1.5 lg:w-36 ${
-              cameraPhase === "off" ? "hidden" : "flex"
-            }`}
-          >
-            <video
-              ref={cameraVideoRef}
-              muted
-              playsInline
-              aria-label={t("simulation.camera.selfView")}
-              className="w-full -scale-x-100 rounded-[var(--radius-md)] border-2 border-[var(--color-surface)] bg-[var(--color-ink)] shadow-[var(--shadow-card)]"
+        {/* The stage: the scene and the composer. Below lg it is one screen
+            tall, the room taking whatever the line and the composer leave, so
+            the person, what they said and the Speak button are on screen
+            together; the page opens scrolled to it. From lg up it dissolves
+            (display: contents), and the scene and composer are children of
+            the pinned column above, exactly as before. */}
+        <div
+          ref={stageRef}
+          className="flex min-h-[calc(100svh-1rem)] scroll-mt-2 flex-col gap-2.5 lg:contents"
+        >
+          {/* 2. The scene. */}
+          {/* A definite height either way. The scene positions its room and
+              dialogue against its own box, so a wrapper whose height came only
+              from content left it at zero: the room vanished and the dialogue
+              floated up over the bar. Pinned, it takes the space left over;
+              otherwise it gets a fixed share of the screen. Below lg it is the
+              part of the stage that grows. */}
+          <div className="relative min-h-0 max-lg:flex max-lg:flex-1 max-lg:flex-col lg:h-[clamp(20rem,60vh,36rem)] lg:[@media(min-height:640px)]:h-auto lg:[@media(min-height:640px)]:flex-1">
+            <SimulationScene
+              scenario={state.scenario}
+              messages={state.messages}
+              tensionLevel={state.tensionLevel}
+              reveal={reveal}
+              speakingMessageId={speakingMessageId}
+              level={speakingLevel}
+              loading={loading}
+              pendingLine={loading ? response.trim() || null : null}
+              onSpeak={speakMessage}
+              onOpenTranscript={() => setTranscriptOpen(true)}
             />
-            {cameraPhase === "on" ? (
-              <button
-                type="button"
-                onClick={stopCamera}
-                className="rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-2 py-1 text-xs font-medium text-[var(--color-ink)] shadow-[var(--shadow-card)] backdrop-blur-sm transition-colors hover:text-[var(--color-danger)]"
-              >
-                {t("simulation.camera.turnOff")}
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* 3. The composer. Voice first: the Speak button leads, typing is
-            beside it. */}
-        <div className="shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-3 py-2.5 shadow-[var(--shadow-soft)]">
-          {askAboutCamera ? (
-            <CameraOptIn
-              phase={cameraPhase}
-              error={cameraError}
-              secondsLeft={calibrationSecondsLeft}
-              onTurnOn={() => void handleTurnOnCamera()}
-              onSkip={handleSkipCamera}
-            />
-          ) : !completed ? (
-            <>
-              <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
-                {/* The scenario's language, not the reader's UI setting: a
-                    Hindi case is answered in Hindi. */}
-                <MicButton
-                  onTranscript={handleTranscript}
-                  onRecordingChange={setCameraSpeaking}
-                  disabled={loading}
-                  language={state.scenario.language ?? "en"}
-                  className="shrink-0"
-                />
-                <label htmlFor="trainee-response" className="sr-only">
-                  {t("simulation.yourResponse")}
-                </label>
-                <textarea
-                  id="trainee-response"
-                  rows={1}
-                  value={response}
-                  onChange={(event) => setResponse(event.target.value)}
-                  placeholder={t("simulation.placeholder")}
-                  // Its own full-width row on a phone, with Speak and Send
-                  // beneath; between them on wider screens. Sharing a phone's
-                  // row it was squeezed to a 55px sliver.
-                  className="order-first min-h-11 w-full min-w-0 basis-full resize-y border border-[var(--color-border-strong)] bg-white px-3 py-2.5 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] sm:order-none sm:flex-1 sm:basis-0"
-                />
-                <LoadingButton
-                  type="button"
-                  loading={loading}
-                  disabled={!response.trim()}
-                  onClick={handleSend}
-                  className="sheen ml-auto min-h-11 shrink-0 px-5 sm:ml-0"
-                >
-                  {t("simulation.send")}
-                </LoadingButton>
-              </div>
-
-              {error ? (
-                <div className="mt-2.5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
-                  {error}
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={!response.trim() || loading}
-                    className="ml-3 font-semibold underline disabled:opacity-50"
-                  >
-                    {t("common.retry")}
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-2.5">
-              <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
-              <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">{t("simulation.completedBody")}</p>
-            </div>
-          )}
-
-          {/* min-h-7 fits the stop button, so the row is the same height
-              whether audio is playing or not and the scene above never moves. */}
-          <div className="mt-2 flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
-              <input
-                type="checkbox"
-                checked={autoRead}
-                onChange={(event) => {
-                  setAutoRead(event.target.checked);
-                  saveAutoRead(event.target.checked);
-
-                  if (!event.target.checked) {
-                    setAudioGestureMessage(null);
-                    stopSpeaking();
-                  }
-                }}
-                className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
+            {/* Always mounted, because the stream attaches to it before it shows.
+                Visible whenever the camera is on, with its off switch beside it:
+                nobody should have to wonder whether they are being watched. */}
+            <div
+              className={`absolute top-14 right-3 z-10 w-28 flex-col items-stretch gap-1.5 lg:w-36 ${
+                cameraPhase === "off" ? "hidden" : "flex"
+              }`}
+            >
+              <video
+                ref={cameraVideoRef}
+                muted
+                playsInline
+                aria-label={t("simulation.camera.selfView")}
+                className="w-full -scale-x-100 rounded-[var(--radius-md)] border-2 border-[var(--color-surface)] bg-[var(--color-ink)] shadow-[var(--shadow-card)]"
               />
-              {t("simulation.autoRead")}
-            </label>
-            {/* Playback controls share this row rather than sitting above the
-                composer. Above it, they appeared and vanished with every
-                spoken line, and each time the scene -- which takes whatever
-                height is left -- shrank and grew, the figure with it. */}
-            {speakingMessageId ? (
+              {cameraPhase === "on" ? (
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-2 py-1 text-xs font-medium text-[var(--color-ink)] shadow-[var(--shadow-card)] backdrop-blur-sm transition-colors hover:text-[var(--color-danger)]"
+                >
+                  {t("simulation.camera.turnOff")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {/* 3. The composer. Voice first: the Speak button leads, typing is
+              beside it. */}
+          <div className="shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] px-3 py-2.5 shadow-[var(--shadow-soft)]">
+            {askAboutCamera ? (
+              <CameraOptIn
+                phase={cameraPhase}
+                error={cameraError}
+                secondsLeft={calibrationSecondsLeft}
+                onTurnOn={() => void handleTurnOnCamera()}
+                onSkip={handleSkipCamera}
+              />
+            ) : !completed ? (
+              <>
+                <div className="flex flex-wrap items-end gap-2 sm:flex-nowrap">
+                  {/* The scenario's language, not the reader's UI setting: a
+                      Hindi case is answered in Hindi. */}
+                  <MicButton
+                    onTranscript={handleTranscript}
+                    onRecordingChange={setCameraSpeaking}
+                    disabled={loading}
+                    language={state.scenario.language ?? "en"}
+                    className="shrink-0"
+                  />
+                  <label htmlFor="trainee-response" className="sr-only">
+                    {t("simulation.yourResponse")}
+                  </label>
+                  <textarea
+                    ref={responseRef}
+                    id="trainee-response"
+                    rows={1}
+                    value={response}
+                    onChange={(event) => setResponse(event.target.value)}
+                    placeholder={t("simulation.placeholder")}
+                    // Its own full-width row on a phone, with Speak and Send
+                    // beneath; between them on wider screens. Sharing a phone's
+                    // row it was squeezed to a 55px sliver.
+                    className="order-first min-h-11 w-full min-w-0 basis-full resize-y border border-[var(--color-border-strong)] bg-white px-3 py-2.5 text-sm leading-6 text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] sm:order-none sm:flex-1 sm:basis-0"
+                  />
+                  <LoadingButton
+                    type="button"
+                    loading={loading}
+                    disabled={!response.trim()}
+                    onClick={handleSend}
+                    className="sheen ml-auto min-h-11 shrink-0 px-5 sm:ml-0"
+                  >
+                    {t("simulation.send")}
+                  </LoadingButton>
+                </div>
+
+                {error ? (
+                  <div className="mt-2.5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm text-[var(--color-danger)]">
+                    {error}
+                    <button
+                      type="button"
+                      onClick={handleSend}
+                      disabled={!response.trim() || loading}
+                      className="ml-3 font-semibold underline disabled:opacity-50"
+                    >
+                      {t("common.retry")}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-[var(--radius-lg)] border border-l-4 border-[var(--color-border)] border-l-[var(--color-info)] bg-[var(--color-info-soft)] px-4 py-2.5">
+                {/* A 16rem basis, so on a phone the button wraps under the text
+                    rather than squeezing it into a column a word wide. */}
+                <div className="min-w-0 flex-[1_1_16rem]">
+                  <p className="eyebrow text-[var(--color-info)]">{t("simulation.completed")}</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--color-ink-muted)]">{t("simulation.completedBody")}</p>
+                </div>
+                {/* The bar's feedback button again, below lg only: there the
+                    page sits scrolled to the stage, so the bar is above the top
+                    of the screen just when this is the one thing to do next. */}
+                <button
+                  type="button"
+                  onClick={hasFeedbackReport ? () => router.push("/feedback") : handleGenerateFeedback}
+                  className="btn-editorial btn-editorial--solid min-h-9 px-3 py-1.5 lg:hidden"
+                >
+                  {hasFeedbackReport ? t("simulation.viewFeedback") : t("simulation.generateFeedback")}
+                </button>
+              </div>
+            )}
+
+            {/* min-h-7 fits the stop button, so the row is the same height
+                whether audio is playing or not and the scene above never moves. */}
+            <div className="mt-2 flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <label className="eyebrow eyebrow-tight inline-flex cursor-pointer items-center gap-2 text-[var(--color-ink-muted)]">
+                <input
+                  type="checkbox"
+                  checked={autoRead}
+                  onChange={(event) => {
+                    setAutoRead(event.target.checked);
+                    saveAutoRead(event.target.checked);
+
+                    if (!event.target.checked) {
+                      setAudioGestureMessage(null);
+                      stopSpeaking();
+                    }
+                  }}
+                  className="h-3.5 w-3.5 rounded-none border-[var(--color-border-strong)] accent-[var(--color-ink)]"
+                />
+                {t("simulation.autoRead")}
+              </label>
+              {/* Playback controls share this row rather than sitting above the
+                  composer. Above it, they appeared and vanished with every
+                  spoken line, and each time the scene -- which takes whatever
+                  height is left -- shrank and grew, the figure with it. */}
+              {/* Below lg it is laid out even while nothing plays, only
+                  invisible. A phone's row has no room for it beside the
+                  checkbox, so it wraps onto a line of its own, and that line
+                  coming and going changed the composer's height -- and with it
+                  the room's -- twice for every line spoken. From lg up it is
+                  not rendered when idle, as before. */}
               <button
                 type="button"
                 onClick={stopSpeaking}
-                className="eyebrow eyebrow-tight inline-flex h-7 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-2.5 text-[var(--color-danger)] transition-colors hover:bg-transparent"
+                disabled={!speakingMessageId}
+                // Drawn 28px tall to keep the row still; the ::after extends
+                // what a finger can hit to 44px without moving anything.
+                className={`eyebrow eyebrow-tight relative inline-flex h-7 items-center gap-2 border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-2.5 text-[var(--color-danger)] transition-colors after:absolute after:inset-x-0 after:-inset-y-2 hover:bg-transparent ${
+                  speakingMessageId ? "" : "invisible lg:hidden"
+                }`}
               >
                 <span aria-hidden className="inline-block h-1.5 w-1.5 animate-pulse bg-[var(--color-danger)]" />
                 {t("simulation.stopReading")}
               </button>
-            ) : null}
-            {/* Deliberately quiet rather than in the danger colour: a browser
-                waiting for a gesture is not a failure. Clicking is itself the
-                gesture, so the call to speak has to come straight from the
-                handler. */}
-            {audioGestureMessage ? (
-              <span className="inline-flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const blocked = audioGestureMessage;
-                    setAudioGestureMessage(null);
-                    void speakMessage(blocked);
-                  }}
-                  className="link-editorial text-xs font-medium"
-                >
-                  {t("simulation.turnOnReadAloud")}
-                </button>
-                <span className="text-[11px] text-[var(--color-ink-soft)]">{t("simulation.gestureHint")}</span>
-              </span>
-            ) : null}
-            {ttsError ? <span className="text-[11px] font-medium text-[var(--color-danger)]">{ttsError}</span> : null}
-            {/* The safety line, with the note about the AI voice on hover: both
-                must stay reachable, neither needs a box of its own. */}
-            <p className="ml-auto text-[11px] leading-4 text-[var(--color-ink-soft)]" title={t("simulation.audioDisclaimer")}>
-              {t("safety.summary")}
-            </p>
+              {/* Deliberately quiet rather than in the danger colour: a browser
+                  waiting for a gesture is not a failure. Clicking is itself the
+                  gesture, so the call to speak has to come straight from the
+                  handler. */}
+              {audioGestureMessage ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const blocked = audioGestureMessage;
+                      setAudioGestureMessage(null);
+                      void speakMessage(blocked);
+                    }}
+                    className="link-editorial text-xs font-medium"
+                  >
+                    {t("simulation.turnOnReadAloud")}
+                  </button>
+                  <span className="text-[11px] text-[var(--color-ink-soft)]">{t("simulation.gestureHint")}</span>
+                </span>
+              ) : null}
+              {ttsError ? <span className="text-[11px] font-medium text-[var(--color-danger)]">{ttsError}</span> : null}
+              {/* The safety line, with the note about the AI voice on hover: both
+                  must stay reachable, neither needs a box of its own. */}
+              <p className="ml-auto text-[11px] leading-4 text-[var(--color-ink-soft)]" title={t("simulation.audioDisclaimer")}>
+                {t("safety.summary")}
+              </p>
+            </div>
           </div>
         </div>
       </div>

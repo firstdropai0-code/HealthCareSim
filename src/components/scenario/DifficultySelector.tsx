@@ -41,7 +41,9 @@ export function CategorySelector({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 w-full max-w-sm border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 py-2.5 text-[0.9375rem] text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
+        // 16px, not 15: Safari on an iPhone zooms the page in on any field
+        // smaller than that when it is tapped, and leaves it zoomed.
+        className="mt-3 w-full max-w-sm border border-[var(--color-border-strong)] bg-[var(--color-canvas-soft)] px-3 py-2.5 text-[1rem] text-[var(--color-ink)] outline-none transition focus:border-[var(--color-ink)] focus:bg-white"
       >
         {categoryOptions.map((option) => (
           // The value stays the stored English track; only the label moves.
