@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { DocumentLanguage } from "@/components/layout/DocumentLanguage";
 import { IntroSplash } from "@/components/layout/IntroSplash";
@@ -56,6 +56,20 @@ const uiFont = Inter({
 export const metadata: Metadata = {
   title: "FirstDropAI Healthcare Simulation",
   description: "Communication-focused healthcare roleplay simulation prototype.",
+  // iOS ignores most of the manifest. This is what makes "Add to Home Screen"
+  // open full screen, under a short name, instead of as a Safari bookmark.
+  appleWebApp: {
+    capable: true,
+    title: "FirstDropAI",
+    statusBarStyle: "default",
+  },
+};
+
+// The browser bar and phone status bar in --color-canvas, so the installed app
+// doesn't sit under a stripe of a different colour. Mirrors theme_color in
+// manifest.ts.
+export const viewport: Viewport = {
+  themeColor: "#e9efe9",
 };
 
 export default function RootLayout({
