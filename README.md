@@ -37,14 +37,14 @@ GEMINI_MODEL=gemini-2.5-flash
 
 # Voice is optional. Set OPENAI_API_KEY to enable speech-to-text and read-aloud.
 OPENAI_API_KEY=your_openai_key_here
-OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe
+OPENAI_TRANSCRIBE_MODEL=whisper-1
 OPENAI_TTS_MODEL=gpt-4o-mini-tts
 OPENAI_TTS_VOICE=alloy
 ```
 
 `GEMINI_API_KEY` is required for all text generation (scenario, simulation turns, feedback). `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`.
 
-Voice is powered by OpenAI and is fully optional: only `OPENAI_API_KEY` is needed to enable it. `OPENAI_TRANSCRIBE_MODEL`, `OPENAI_TTS_MODEL`, and `OPENAI_TTS_VOICE` are optional and default to `gpt-4o-transcribe`, `gpt-4o-mini-tts`, and `alloy`. If `OPENAI_API_KEY` is absent, the app still works fully by typing and the voice controls surface a clear disabled/error state.
+Voice is powered by OpenAI and is fully optional: only `OPENAI_API_KEY` is needed to enable it. `OPENAI_TRANSCRIBE_MODEL`, `OPENAI_TTS_MODEL`, and `OPENAI_TTS_VOICE` are optional and default to `whisper-1`, `gpt-4o-mini-tts`, and `alloy`. Leave the transcription model on `whisper-1`: it is the only one that returns word timings, and the pace and pause feedback is built from those. A `gpt-4o-*` transcription model still transcribes, but that feedback silently disappears. If `OPENAI_API_KEY` is absent, the app still works fully by typing and the voice controls surface a clear disabled/error state.
 
 Run the app locally:
 
@@ -78,11 +78,15 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 
 Mentor notes add a `runNotes` collection, so `firestore.rules` must be re-published before that feature works; it needs no new index. Until the rules are published the rest of the app is unaffected: a mentor sees "Could not load the note for this session" on a run, and trainees see no notes.
 
+Transcripts are now written once and cohort stats must match their run, so `firestore.rules` needs re-publishing for that too. The app works against the older rules in the meantime; they are simply looser. After publishing, finish one run as a trainee and check its feedback page says **Saved** — the rules cannot be tested from this repo, so that is the test.
+
 Then: sign up as a mentor, create a group, copy the join code, and sign up as a trainee in a **separate browser profile** (not a second tab — Firebase Auth is per-origin) to redeem it.
 
 ### Security model, stated plainly
 
 All access control lives in `firestore.rules`. The route guards in the app are redirects for convenience only: Firebase client auth has no server-readable session cookie without the Admin SDK, so middleware cannot enforce anything.
+
+The AI routes (`/api/gemini`, `/api/openai/*`) are the one place the server checks who is calling. When Firebase is configured they require the caller's Firebase ID token, verified against Google's public keys (no Admin SDK needed for that), and apply a per-account request limit. The limit lives in each server instance's memory, so it slows abuse rather than capping spend; a hard cap needs a shared store or the host's firewall rules. **Without Firebase configured these routes are open to anyone who can reach the deployment** — fine on localhost, not for a public URL.
 
 This build uses the client SDK with no Cloud Functions, which means **the client performs the write that carries its own score**. The rules enforce shape, ownership, cohort membership, a server-set timestamp, and immutability — a scored run can never be rewritten. They cannot verify that a score is genuine. For an internship demo this is an accepted limit; a production deployment would move report generation and the run write behind a trusted server.
 
