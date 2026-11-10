@@ -7,6 +7,10 @@ import {
 } from "firebase/auth";
 import { getDb, getFirebaseAuth } from "./firebaseApp";
 import { translate, type StringKey } from "@/lib/i18n/strings";
+import {
+  loadSimulationOwner,
+  releaseSimulationStorage,
+} from "@/lib/storage/localSimulationStorage";
 import type { Role, UserProfile } from "@/types/user";
 
 export type SignUpInput = {
@@ -57,9 +61,27 @@ export async function ensureProfile(
   await setDoc(ref, profile);
 }
 
+/**
+ * Drops whatever run is in this browser unless it was made by `uid`.
+ *
+ * Stricter than the claim the auth provider makes on every session: a run with
+ * no owner stamp is dropped too, because at a fresh sign-in there is no way to
+ * tell whose it was. The owner is read BEFORE signing in for the same reason --
+ * the provider stamps the new user the moment the session changes, which can
+ * be before the sign-in call returns, and a stamp read afterwards would
+ * already name them.
+ */
+function dropRunUnlessOwnedBy(uid: string, ownerBeforeSignIn: string | null): void {
+  if (ownerBeforeSignIn !== uid) {
+    releaseSimulationStorage();
+  }
+}
+
 export async function signUp(input: SignUpInput): Promise<User> {
   const auth = getFirebaseAuth();
+  const ownerBefore = loadSimulationOwner();
   const credential = await createUserWithEmailAndPassword(auth, input.email, input.password);
+  dropRunUnlessOwnedBy(credential.user.uid, ownerBefore);
 
   await updateProfile(credential.user, { displayName: input.displayName });
   await ensureProfile(credential.user, { displayName: input.displayName, role: input.role });
@@ -68,11 +90,18 @@ export async function signUp(input: SignUpInput): Promise<User> {
 }
 
 export async function signIn(email: string, password: string): Promise<User> {
+  const ownerBefore = loadSimulationOwner();
   const credential = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+  // Someone whose session lapsed mid-run signs back in and finds it; anyone
+  // else starts clean.
+  dropRunUnlessOwnedBy(credential.user.uid, ownerBefore);
   return credential.user;
 }
 
 export async function signOutUser(): Promise<void> {
+  // Before the session ends, so the run is gone even if the sign-out request
+  // itself fails: on a shared computer the next person must not find it.
+  releaseSimulationStorage();
   await signOut(getFirebaseAuth());
 }
 

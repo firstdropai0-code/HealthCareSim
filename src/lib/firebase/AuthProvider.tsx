@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { getDb, getFirebaseAuth, isFirebaseConfigured } from "./firebaseApp";
+import { claimSimulationStorage } from "@/lib/storage/localSimulationStorage";
 import { isRole, type Role, type UserProfile } from "@/types/user";
 
 /**
@@ -67,6 +68,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({ status: "anonymous" });
         return;
       }
+
+      // The run in this browser belongs to one account. Stamped here, on every
+      // session, so a run left by somebody else is gone before any page reads it.
+      claimSimulationStorage(user.uid);
 
       setState({ status: "loading" });
 

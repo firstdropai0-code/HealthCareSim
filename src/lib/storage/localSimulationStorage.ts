@@ -87,6 +87,56 @@ export function clearFeedbackReport(): void {
   window.localStorage.removeItem(FEEDBACK_KEY);
 }
 
+/*
+ * Whose run this is.
+ *
+ * The keys above are per browser, not per account, and a training lab's
+ * computers are shared: without an owner the next person to sign in found the
+ * last one's conversation and report waiting, and could finish that run and
+ * save it as their own. The run is therefore tied to the account that was
+ * signed in while it was made, and dropped when anyone else arrives.
+ *
+ * None of this applies without Firebase, where there are no accounts and the
+ * browser's single run belongs to whoever is using it.
+ */
+const OWNER_KEY = "firstdrop.simulationOwner";
+
+export function loadSimulationOwner(): string | null {
+  return typeof window === "undefined" ? null : window.localStorage.getItem(OWNER_KEY);
+}
+
+/**
+ * Called whenever a session resolves to a user, including one restored on a
+ * reload. Drops a run stamped for somebody else, then stamps this user.
+ *
+ * A run with no stamp is kept: it predates the stamp, and on a restored session
+ * it belongs to the person who is still signed in. A fresh sign-in is stricter
+ * and handles that case itself -- see `signIn` in `authRepository.ts`.
+ */
+export function claimSimulationStorage(uid: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const owner = window.localStorage.getItem(OWNER_KEY);
+
+  if (owner && owner !== uid) {
+    clearSimulationState();
+  }
+
+  window.localStorage.setItem(OWNER_KEY, uid);
+}
+
+/** Signing out, or a different account signing in: nothing is carried over. */
+export function releaseSimulationStorage(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  clearSimulationState();
+  window.localStorage.removeItem(OWNER_KEY);
+}
+
 export function saveAutoRead(value: boolean): void {
   if (typeof window === "undefined") {
     return;
