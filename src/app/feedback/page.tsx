@@ -128,8 +128,15 @@ export default function FeedbackPage() {
     }
   }, [profile, report, state]);
 
+  // Waits for the sign-in check as well as the local state. On a full page load
+  // the run is read from this browser before the account has resolved, and a
+  // report generated in that gap was built by a callback that still saw no
+  // profile: it appeared on screen and was never saved, with no chip to say so.
+  const gateBlocked = gate.blocked;
+
   useEffect(() => {
     if (
+      gateBlocked ||
       !hasLoaded ||
       !state ||
       report ||
@@ -146,7 +153,7 @@ export default function FeedbackPage() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [handleGenerateReport, hasLoaded, loading, pendingAutoGenerate, report, state]);
+  }, [gateBlocked, handleGenerateReport, hasLoaded, loading, pendingAutoGenerate, report, state]);
 
   function handleRestart() {
     clearSimulationState();

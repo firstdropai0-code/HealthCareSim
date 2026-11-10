@@ -8,6 +8,7 @@ import {
 import { getDb, getFirebaseAuth } from "./firebaseApp";
 import { translate, type StringKey } from "@/lib/i18n/strings";
 import {
+  claimSimulationStorage,
   loadSimulationOwner,
   releaseSimulationStorage,
 } from "@/lib/storage/localSimulationStorage";
@@ -75,6 +76,12 @@ function dropRunUnlessOwnedBy(uid: string, ownerBeforeSignIn: string | null): vo
   if (ownerBeforeSignIn !== uid) {
     releaseSimulationStorage();
   }
+
+  // Stamped again here, not left to the provider: releasing also removes the
+  // stamp the provider may have just written, and without one the run this
+  // person is about to start would look ownerless at their next sign-in and
+  // be dropped.
+  claimSimulationStorage(uid);
 }
 
 export async function signUp(input: SignUpInput): Promise<User> {
