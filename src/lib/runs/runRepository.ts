@@ -63,13 +63,26 @@ function runIdFor(state: SimulationState): string {
   );
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "permission-denied"
+  );
+}
+
 /**
  * Writes the run, its transcript, and the anonymous cohort projection.
  *
  * These are three sequential awaits, NOT a batch: the `runStats` create rule
  * get()s `runs/{runId}` to prove ownership, and inside a writeBatch that get()
- * would run against pre-batch state where the run does not exist yet. The
- * deterministic run id makes a retry after a partial failure idempotent.
+ * would run against pre-batch state where the run does not exist yet.
+ *
+ * Safe to call again after a partial failure, which the deterministic run id
+ * alone never made it: a scored run is immutable, so re-sending the first write
+ * was refused by the rules and the retry stopped there -- leaving a run with no
+ * transcript and no place in the cohort numbers, behind a Retry button that
+ * could not work. Each step now writes only what is not already there.
  */
 export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
   const { state, report, profile } = input;
@@ -78,7 +91,7 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
     throw new Error(translate("error.joinBeforeSaving"));
   }
 
-  const [db, { doc, serverTimestamp, setDoc }, group] = await Promise.all([
+  const [db, { doc, getDoc, serverTimestamp, setDoc }, group] = await Promise.all([
     getDb(),
     import("firebase/firestore"),
     // Read rather than trusted from the client: the create rule cross-checks
@@ -127,13 +140,51 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
     report,
   };
 
-  await setDoc(doc(db, "runs", runId), record);
+  const runRef = doc(db, "runs", runId);
 
-  const transcript: RunTranscript = {
-    messages: messagesForStorage(state.messages),
-    scenario: state.scenario,
-  };
-  await setDoc(doc(db, "runs", runId, "transcript", "full"), transcript);
+  try {
+    // A create, or the one update the rules allow: a fallback run being
+    // upgraded to the AI score it could not get the first time.
+    await setDoc(runRef, record);
+  } catch (error) {
+    // Refused. That is also what a retry looks like when the run landed last
+    // time and a later step did not, so look before giving up. The check has
+    // to come after the attempt rather than before it: the read rule
+    // dereferences the run, so reading one that does not exist is itself
+    // refused and says nothing.
+    if (!isPermissionDenied(error)) {
+      throw error;
+    }
+
+    const existing = await getDoc(runRef).catch(() => null);
+    const stored = existing?.exists() ? existing.data() : null;
+
+    // Only the same result counts as "already saved". If what is stored
+    // differs from this report, the chip must keep saying "Not saved" --
+    // claiming otherwise would show one score and keep another.
+    if (
+      !stored ||
+      stored.userId !== profile.uid ||
+      stored.reportSource !== record.reportSource ||
+      stored.score !== record.score
+    ) {
+      throw error;
+    }
+  }
+
+  // Written once and never again: the transcript is what a mentor reads to
+  // check a score, and the rules now refuse any later change to it. The
+  // conversation is over by the time a run is saved, so a retry or a score
+  // upgrade has nothing new to put here.
+  const transcriptRef = doc(db, "runs", runId, "transcript", "full");
+
+  if (!(await getDoc(transcriptRef)).exists()) {
+    const transcript: RunTranscript = {
+      messages: messagesForStorage(state.messages),
+      scenario: state.scenario,
+    };
+    await setDoc(transcriptRef, transcript);
+  }
 
   // Anonymous projection. Deliberately carries no name, no uid, and no text.
   const stat: Omit<RunStat, "completedAt"> & { completedAt: unknown } = {
@@ -147,7 +198,17 @@ export async function saveCompletedRun(input: SaveRunInput): Promise<string> {
     completedAt: serverTimestamp(),
     countsTowardStats: record.countsTowardStats,
   };
-  await setDoc(doc(db, "groups", profile.groupId, "runStats", runId), stat);
+  const statRef = doc(db, "groups", profile.groupId, "runStats", runId);
+  const existingStat = await getDoc(statRef);
+
+  // Missing, or the placeholder left by a fallback run that has just been
+  // scored. A stat that already counts is final, like the run it mirrors.
+  if (
+    !existingStat.exists() ||
+    (existingStat.data().countsTowardStats === false && stat.countsTowardStats)
+  ) {
+    await setDoc(statRef, stat);
+  }
 
   return runId;
 }

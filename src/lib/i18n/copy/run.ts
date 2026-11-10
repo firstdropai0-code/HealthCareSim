@@ -60,6 +60,9 @@ export const en = {
   "feedback.export": "Export feedback as .txt",
   "feedback.restart": "Restart",
   "feedback.fallback": "Basic fallback feedback generated because Gemini feedback was unavailable.",
+  "feedback.retryScore": "Try scoring again",
+  "feedback.stillFallback":
+    "The AI scorer is still unavailable. Your basic report is kept, so you can try again in a few minutes.",
 
   "report.notes": "{count} notes",
   "report.whenSaid": "When the {speaker} said",
@@ -184,6 +187,9 @@ export const hi: Record<keyof typeof en, string> = {
   "feedback.export": "फ़ीडबैक .txt के रूप में डाउनलोड करें",
   "feedback.restart": "फिर से शुरू करें",
   "feedback.fallback": "AI फ़ीडबैक उपलब्ध नहीं था, इसलिए एक बुनियादी फ़ीडबैक बनाया गया है।",
+  "feedback.retryScore": "फिर से स्कोर करें",
+  "feedback.stillFallback":
+    "AI स्कोरिंग अभी भी उपलब्ध नहीं है। आपकी बुनियादी रिपोर्ट सुरक्षित है, कुछ मिनट बाद फिर से कोशिश करें।",
 
   "report.notes": "{count} नोट्स",
   "report.whenSaid": "जब {speaker} ने कहा",

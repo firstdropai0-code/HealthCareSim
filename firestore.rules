@@ -170,8 +170,18 @@ service cloud.firestore {
     //   - injecting fake runs into somebody else's cohort (groupId is pinned to
     //     the writer's own profile, and a live membership is required, so a
     //     trainee the mentor removed cannot keep adding results);
-    //   - back-dating (completedAt must be the server's own request time).
+    //   - back-dating (completedAt must be the server's own request time);
+    //   - a run counting toward the cohort when it has no business to: an
+    //     unscored fallback run, or a mentor's own practice. The client has
+    //     always written the flag that way; now it cannot write it any other.
     match /runs/{runId} {
+      // True only for a scored run by a trainee. `false` is always allowed.
+      function countsHonestly() {
+        return request.resource.data.countsTowardStats is bool
+          && (request.resource.data.countsTowardStats == false
+              || (request.resource.data.score is int && profile().role == 'trainee'));
+      }
+
       allow create: if request.auth.uid == request.resource.data.userId
         && request.resource.data.id == runId
         && request.resource.data.groupId == profile().groupId
@@ -187,7 +197,8 @@ service cloud.firestore {
           || (request.resource.data.score is int
               && request.resource.data.score >= 1
               && request.resource.data.score <= 10)
-        );
+        )
+        && countsHonestly();
 
       // Runs are immutable, with ONE carve-out: a run saved from the offline
       // fallback report (score null, excluded from every aggregate) may be
@@ -207,7 +218,8 @@ service cloud.firestore {
         && request.resource.data.completedAt == request.time
         && request.resource.data.score is int
         && request.resource.data.score >= 1
-        && request.resource.data.score <= 10;
+        && request.resource.data.score <= 10
+        && countsHonestly();
 
       allow delete: if false;
 
@@ -217,8 +229,16 @@ service cloud.firestore {
 
       // Transcripts follow the run they belong to. Written after the run, in a
       // separate request, so this get() can see it.
+      //
+      // Written ONCE. This used to be `allow write`, which also meant update
+      // and delete: the run was immutable, but the conversation a mentor reads
+      // to judge whether its score is fair could be rewritten or removed by the
+      // trainee afterwards. The conversation is finished before a run is saved,
+      // so nothing legitimate ever needs to change it -- `saveCompletedRun`
+      // skips this write when the document is already there.
       match /transcript/{docId} {
-        allow write: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid;
+        allow create: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid;
+        allow update, delete: if false;
         allow read: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
           || get(/databases/$(database)/documents/runs/$(runId)).data.mentorId == request.auth.uid;
       }
@@ -294,18 +314,40 @@ service cloud.firestore {
     // see a peer's name, report, or transcript — so the numbers get their own
     // copy that contains nothing identifying. Do not add a uid or a name here.
     match /groups/{groupId}/runStats/{runId} {
+      function statRun() {
+        return get(/databases/$(database)/documents/runs/$(runId)).data;
+      }
+
+      // The projection may say only what the run says. Without this a trainee
+      // could give their own stat any score, or mark an unscored run as
+      // counting, and move the group's numbers for everybody who reads them --
+      // and the key list is what enforces "do not add a uid or a name here"
+      // rather than leaving it to the comment above.
+      function mirrorsRun() {
+        return request.resource.data.keys().hasOnly(
+            ['runId', 'runnerKey', 'difficulty', 'category', 'libraryId',
+             'score', 'subscores', 'completedAt', 'countsTowardStats'])
+          && request.resource.data.runId == runId
+          && request.resource.data.score == statRun().score
+          && request.resource.data.countsTowardStats == statRun().countsTowardStats;
+      }
+
       allow read: if signedIn()
         && (exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
             || get(/databases/$(database)/documents/groups/$(groupId)).data.mentorId == request.auth.uid);
 
       // Ownership is proved by pointing at the real run, so this document never
       // has to name anyone. Written after the run, never in the same batch.
-      allow create: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
-        && get(/databases/$(database)/documents/runs/$(runId)).data.groupId == groupId;
+      allow create: if statRun().userId == request.auth.uid
+        && statRun().groupId == groupId
+        && mirrorsRun();
 
-      // Mirrors the run's fallback-to-scored carve-out, and nothing else.
-      allow update: if get(/databases/$(database)/documents/runs/$(runId)).data.userId == request.auth.uid
-        && resource.data.countsTowardStats == false;
+      // Mirrors the run's fallback-to-scored carve-out, and nothing else. The
+      // run is updated first, in its own request, so statRun() sees the score
+      // this has to match.
+      allow update: if statRun().userId == request.auth.uid
+        && resource.data.countsTowardStats == false
+        && mirrorsRun();
 
       allow delete: if false;
     }

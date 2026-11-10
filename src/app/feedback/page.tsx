@@ -87,6 +87,14 @@ export default function FeedbackPage() {
         return;
       }
 
+      // Asked to score a basic report again, and the scorer is still down.
+      // Say so: swapping one basic report for an identical one looks like the
+      // button did nothing.
+      if (nextReport.source === "fallback" && report?.source === "fallback") {
+        setError(tRef.current("feedback.stillFallback"));
+        return;
+      }
+
       setState(completedState);
       setReport(nextReport);
       setPendingAutoGenerate(false);
@@ -96,8 +104,10 @@ export default function FeedbackPage() {
 
       // The one and only Firestore write for a run. Awaited so the chip can
       // report the outcome, but never fatal: a failed save must not cost the
-      // trainee the report they just earned. The run id is deterministic, so
-      // retrying overwrites rather than duplicating.
+      // trainee the report they just earned. The run id is deterministic and
+      // the save skips what already landed, so retrying completes a partial
+      // save rather than duplicating it -- and when this report replaces a
+      // basic one, it upgrades that same run to its real score.
       if (profile?.groupId) {
         setSaveStatus("saving");
         try {
@@ -313,6 +323,19 @@ export default function FeedbackPage() {
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
+                {/* A run scored while the AI was unavailable has no score at
+                    all. The rules have always allowed it to be upgraded once;
+                    until this button nothing in the app asked for that, so an
+                    outage left the run unscored for good. */}
+                {report.source === "fallback" ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleGenerateReport()}
+                    className="btn-editorial btn-editorial--accent"
+                  >
+                    {t("feedback.retryScore")}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => exportFeedback(state, report, t)}
