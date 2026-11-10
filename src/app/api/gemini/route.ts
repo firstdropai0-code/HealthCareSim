@@ -7,6 +7,7 @@ import {
   presenceFeedbackSchema,
   scenarioSchema,
 } from "@/lib/ai/geminiSchemas";
+import { refuseOversizedBody, requireCaller, REQUEST_TOO_LARGE } from "@/lib/ai/apiGuard";
 import { elevenLabsSlotVoice, keepAllowedTags, stripAudioTags } from "@/lib/ai/elevenLabsVoice";
 import {
   callGeminiJson,
@@ -37,11 +38,9 @@ import {
   difficultyOrder,
   type ScenarioDifficulty,
 } from "@/lib/scenarios/scenarioLibrary";
-import {
-  buildSimulationPrompt,
-  type SimulationPromptMessage,
-  type SimulationPromptPayload,
-} from "@/lib/prompts/simulationPrompt";
+import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
+import { appearsToSpeakAsTrainee } from "@/lib/simulation/roleGuard";
+import { HARD_TURN_LIMIT } from "@/lib/simulation/simulationEngine";
 import {
   subscoreDimensions,
   type FeedbackReport,
@@ -61,12 +60,7 @@ type GeminiRequest =
     }
   | {
       action: "nextTurn";
-      payload: {
-        state: SimulationState;
-        traineeResponse: string;
-        systemInstruction?: string;
-        messages?: SimulationPromptMessage[];
-      };
+      payload: { state: SimulationState; traineeResponse: string };
     }
   | { action: "feedback"; payload: { state: SimulationState } }
   | { action: "castScenario"; payload: { scenario: Scenario } };
@@ -80,8 +74,53 @@ const CAST_TIMEOUT_MS = 8_000;
 const NEXT_TURN_TIMEOUT_MS = 35_000;
 const FEEDBACK_TIMEOUT_MS = 22_000;
 
+/*
+ * Ceilings on what one request may carry. Every character here is billed as
+ * model input, so none of them should be open-ended. Each sits far above what
+ * the app itself sends: a full run is the opening line plus twelve exchanges,
+ * and its largest request (the last one, carrying the whole conversation with
+ * its voice measurements) is a few tens of kilobytes.
+ */
+const MAX_BODY_BYTES = 400_000;
+const MAX_SCENARIO_IDEA_CHARS = 4_000;
+const MAX_TRAINEE_RESPONSE_CHARS = 4_000;
+const MAX_MESSAGE_CHARS = 6_000;
+/** The opening line, then a reply and an answer per turn, with a little slack. */
+const MAX_MESSAGES = HARD_TURN_LIMIT * 2 + 3;
+
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * The least a simulation state has to be before anything below reads it. The
+ * body is whatever the caller posted, and the prompt builders index straight
+ * into `scenario` and `messages`: without this a malformed state surfaced as a
+ * thrown TypeError and a 502 rather than as a refused request, and a
+ * conversation of any length was sent to the model as it stood.
+ */
+function isUsableState(value: unknown): value is SimulationState {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const state = value as Partial<SimulationState>;
+
+  return (
+    typeof state.scenario === "object" &&
+    state.scenario !== null &&
+    typeof state.scenario.title === "string" &&
+    Array.isArray(state.messages) &&
+    state.messages.length <= MAX_MESSAGES &&
+    state.messages.every(
+      (message) =>
+        typeof message === "object" &&
+        message !== null &&
+        typeof message.role === "string" &&
+        typeof message.content === "string" &&
+        message.content.length <= MAX_MESSAGE_CHARS,
+    )
+  );
 }
 
 function isScenarioDifficulty(value: unknown): value is ScenarioDifficulty {
@@ -90,28 +129,6 @@ function isScenarioDifficulty(value: unknown): value is ScenarioDifficulty {
 
 function normalizeStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
-function normalizeSimulationPromptPayload(
-  systemInstruction: unknown,
-  messages: unknown,
-): SimulationPromptPayload | undefined {
-  if (typeof systemInstruction !== "string" || !Array.isArray(messages)) {
-    return undefined;
-  }
-
-  const normalizedMessages = messages.filter(
-    (message): message is SimulationPromptMessage =>
-      Boolean(message) &&
-      typeof message === "object" &&
-      ((message as SimulationPromptMessage).role === "user" ||
-        (message as SimulationPromptMessage).role === "model") &&
-      typeof (message as SimulationPromptMessage).text === "string",
-  );
-
-  return normalizedMessages.length > 0
-    ? { systemInstruction, messages: normalizedMessages }
-    : undefined;
 }
 
 /**
@@ -359,30 +376,6 @@ function normalizeScenarioSpeaker(value: unknown): ScenarioSpeaker {
   return "narrator";
 }
 
-function appearsToSpeakAsTrainee(turn: NextSimulationTurn): boolean {
-  if (turn.speaker === "nurse" || turn.speaker === "narrator") {
-    return false;
-  }
-
-  const normalizedMessage = turn.message
-    .trim()
-    .replace(/^["']+/, "")
-    .toLowerCase();
-  const doctorLikeStarts = [
-    "i understand",
-    "i can",
-    "i will",
-    "we are",
-    "let me",
-    "i'm going to",
-    "i am going to",
-    "i cannot share",
-    "i can't share",
-  ];
-
-  return doctorLikeStarts.some((phrase) => normalizedMessage.startsWith(phrase));
-}
-
 function buildSafeNarratorTurn(): NextSimulationTurn {
   return {
     speaker: "narrator",
@@ -449,7 +442,9 @@ function normalizeFeedback(value: unknown): FeedbackReport {
   const subscores = normalizeSubscores(report.subscores);
 
   return {
-    overallScore: Math.max(1, Math.min(10, Number(report.overallScore || 6))),
+    // Rounded: the run rules accept only a whole number, so a stray 7.5 would
+    // otherwise produce a report the trainee can read but never save.
+    overallScore: Math.max(1, Math.min(10, Math.round(Number(report.overallScore || 6)))),
     ...(subscores ? { subscores } : {}),
     summary: report.summary,
     whatWentWell: normalizeStringArray(report.whatWentWell),
@@ -563,19 +558,19 @@ async function castExistingScenario(
 async function generateTurn(
   state: SimulationState,
   traineeResponse: string,
-  promptPayload?: SimulationPromptPayload,
   roleCorrection?: { rejectedMessage: string },
 ): Promise<NextSimulationTurn> {
-  const prompt =
-    roleCorrection || !promptPayload
-      ? buildSimulationPrompt(
-          state,
-          traineeResponse,
-          roleCorrection
-            ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
-            : undefined,
-        )
-      : promptPayload;
+  // Always built here, from the conversation alone. The browser used to send a
+  // ready-made system instruction and this route passed it straight to the
+  // model, which made the rules that keep the roleplay to communication
+  // practice -- and the model itself -- anyone's to redirect.
+  const prompt = buildSimulationPrompt(
+    state,
+    traineeResponse,
+    roleCorrection
+      ? { roleCorrection: true, rejectedMessage: roleCorrection.rejectedMessage }
+      : undefined,
+  );
 
   const result = await callGeminiJson({
     action: "nextTurn",
@@ -741,14 +736,31 @@ async function generateFeedback(state: SimulationState): Promise<FeedbackReport>
 }
 
 export async function POST(request: Request) {
+  const caller = await requireCaller(request, "gemini");
+
+  if (caller instanceof NextResponse) {
+    return caller;
+  }
+
+  const oversized = refuseOversizedBody(request, MAX_BODY_BYTES);
+
+  if (oversized) {
+    return oversized;
+  }
+
   try {
     const body = (await request.json()) as GeminiRequest;
 
     if (body.action === "generateScenario") {
-      const input = body.payload.input?.trim();
+      const rawInput = body.payload?.input;
+      const input = typeof rawInput === "string" ? rawInput.trim() : "";
 
       if (!input) {
         return errorResponse("Enter a scenario idea before generating.");
+      }
+
+      if (input.length > MAX_SCENARIO_IDEA_CHARS) {
+        return errorResponse(REQUEST_TOO_LARGE, 413);
       }
 
       // Never trusted straight from the body: an unrecognised value would index
@@ -779,17 +791,20 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "nextTurn") {
-      const { state, traineeResponse, systemInstruction, messages } = body.payload;
+      const { state, traineeResponse } = body.payload ?? {};
 
-      if (!state || !traineeResponse?.trim()) {
+      if (!isUsableState(state) || typeof traineeResponse !== "string" || !traineeResponse.trim()) {
         return errorResponse("Simulation state and trainee response are required.");
       }
 
-      const promptPayload = normalizeSimulationPromptPayload(systemInstruction, messages);
+      if (traineeResponse.length > MAX_TRAINEE_RESPONSE_CHARS) {
+        return errorResponse(REQUEST_TOO_LARGE, 413);
+      }
+
       let firstResult: NextSimulationTurn;
 
       try {
-        firstResult = await generateTurn(state, traineeResponse, promptPayload);
+        firstResult = await generateTurn(state, traineeResponse);
       } catch (error) {
         console.error("Gemini next-turn generation failed, using safe narrator turn:", error);
         return NextResponse.json({ result: buildSafeNarratorTurn() });
@@ -800,7 +815,7 @@ export async function POST(request: Request) {
       }
 
       try {
-        const correctedResult = await generateTurn(state, traineeResponse, undefined, {
+        const correctedResult = await generateTurn(state, traineeResponse, {
           rejectedMessage: firstResult.message,
         });
 
@@ -826,9 +841,9 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "feedback") {
-      const { state } = body.payload;
+      const { state } = body.payload ?? {};
 
-      if (!state) {
+      if (!isUsableState(state)) {
         return errorResponse("Simulation state is required.");
       }
 

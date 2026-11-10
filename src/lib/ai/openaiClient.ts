@@ -6,6 +6,7 @@
  * our own /api/openai/* handlers.
  */
 
+import { authHeaders } from "@/lib/firebase/authHeaders";
 import { localizeServerError, translate } from "@/lib/i18n/strings";
 import type { AppLanguage } from "@/types/language";
 import type { TranscribedWord } from "@/types/voice";
@@ -34,6 +35,8 @@ export async function transcribeAudio(
 
   const response = await fetch("/api/openai/transcribe", {
     method: "POST",
+    // No Content-Type here: the browser sets the multipart boundary itself.
+    headers: await authHeaders(),
     body: formData,
   });
 
@@ -269,6 +272,7 @@ export async function speakText(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await authHeaders()),
     },
     body: JSON.stringify({
       text: trimmed,

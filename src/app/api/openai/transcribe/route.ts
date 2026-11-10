@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 
+import { refuseOversizedBody, requireCaller, REQUEST_TOO_LARGE } from "@/lib/ai/apiGuard";
+import { isAppLanguage } from "@/types/language";
 import type { TranscribedWord } from "@/types/voice";
 
 const TRANSCRIBE_TIMEOUT_MS = 30_000;
+
+/**
+ * Transcription is billed by the minute of audio, so the clip is capped. A
+ * spoken reply is well under a megabyte in the recorder's format; this allows
+ * several minutes and refuses an hour.
+ */
+const MAX_AUDIO_BYTES = 8_000_000;
 
 /**
  * whisper-1 rather than gpt-4o-transcribe: word-level timestamps require
@@ -27,6 +36,18 @@ function errorResponse(message: string, status = 400) {
 }
 
 export async function POST(request: Request) {
+  const caller = await requireCaller(request, "transcribe");
+
+  if (caller instanceof NextResponse) {
+    return caller;
+  }
+
+  const oversized = refuseOversizedBody(request, MAX_AUDIO_BYTES);
+
+  if (oversized) {
+    return oversized;
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -40,14 +61,20 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     file = formData.get("file");
 
+    // Only a language the app can run a case in. Anything else was forwarded
+    // to the provider as it came, which made a typo a failed transcription.
     const raw = formData.get("language");
-    requestedLanguage = typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    requestedLanguage = isAppLanguage(raw) ? raw : null;
   } catch {
     return errorResponse("Request body must be multipart form data.");
   }
 
   if (!(file instanceof Blob) || file.size === 0) {
     return errorResponse("No audio file was provided.");
+  }
+
+  if (file.size > MAX_AUDIO_BYTES) {
+    return errorResponse(REQUEST_TOO_LARGE, 413);
   }
 
   const model = process.env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_TRANSCRIBE_MODEL;

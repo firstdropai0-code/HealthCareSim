@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { refuseOversizedBody, requireCaller } from "@/lib/ai/apiGuard";
 import {
   applyAudioTags,
   keepAllowedTags,
@@ -12,6 +13,14 @@ const TTS_TIMEOUT_MS = 30_000;
 const DEFAULT_TTS_MODEL = "gpt-4o-mini-tts";
 const DEFAULT_TTS_VOICE = "alloy";
 const MAX_TTS_INPUT_LENGTH = 4096;
+/** The line, its tagged twin and the delivery prose, with room to spare. */
+const MAX_BODY_BYTES = 32_000;
+/**
+ * `instructions` is billed as input on the OpenAI path and was the one field
+ * with no ceiling. The prose `buildVoiceInstructions` writes is a few hundred
+ * characters.
+ */
+const MAX_INSTRUCTIONS_LENGTH = 2_000;
 
 /**
  * ElevenLabs' v3 family caps a single request at 5,000 characters, so the
@@ -56,6 +65,20 @@ function isIntensity(value: unknown): value is Intensity {
 }
 
 export async function POST(request: Request) {
+  // Before anything else: this is the most expensive route per request, and
+  // the one a month's voice credit drains through.
+  const caller = await requireCaller(request, "tts");
+
+  if (caller instanceof NextResponse) {
+    return caller;
+  }
+
+  const oversized = refuseOversizedBody(request, MAX_BODY_BYTES);
+
+  if (oversized) {
+    return oversized;
+  }
+
   let body: TtsRequestBody;
 
   try {
@@ -132,7 +155,7 @@ async function speakWithOpenAi(body: TtsRequestBody, text: string): Promise<TtsR
   };
 
   if (typeof body.instructions === "string" && body.instructions.trim()) {
-    payload.instructions = body.instructions.trim();
+    payload.instructions = body.instructions.trim().slice(0, MAX_INSTRUCTIONS_LENGTH);
   }
 
   return requestAudio({

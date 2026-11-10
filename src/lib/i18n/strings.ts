@@ -557,6 +557,10 @@ const serverErrorKeys: Record<string, StringKey> = {
   "Transcription timed out. Please try a shorter clip.": "error.transcriptionTimeout",
   "Could not generate audio. Please try again.": "error.audioFailed",
   "Audio generation timed out. Please try again.": "error.audioTimeout",
+  // From apiGuard.ts, which every AI route passes through first.
+  "Sign in to use this.": "error.signInRequired",
+  "Too many requests. Please wait a moment and try again.": "error.tooManyRequests",
+  "That request is too large.": "error.requestTooLarge",
 };
 
 export function localizeServerError(message: string | undefined, fallback: StringKey): string {

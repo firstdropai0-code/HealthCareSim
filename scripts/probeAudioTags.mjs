@@ -55,6 +55,13 @@ for (const { label, state, trainee } of CASES) {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "nextTurn", payload: { state, traineeResponse: trainee } }),
   });
+  if (r.status === 401) {
+    // With Firebase in .env.local the route asks for a signed-in user, and a
+    // script has none.
+    console.error("The dev server refused the request: set API_REQUIRE_AUTH=off in .env.local and restart it.");
+    process.exit(1);
+  }
+
   const t = (await r.json()).result;
   const tags = (t.spokenMessage || "").match(/\[[^\]]+\]/g) ?? [];
   console.log(`\n${label}`);

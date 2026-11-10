@@ -1,6 +1,6 @@
+import { authHeaders } from "@/lib/firebase/authHeaders";
 import { localizeServerError } from "@/lib/i18n/strings";
 import type { AppLanguage } from "@/types/language";
-import { buildSimulationPrompt } from "@/lib/prompts/simulationPrompt";
 import type { ScenarioDifficulty } from "@/lib/scenarios/scenarioLibrary";
 import type { FeedbackReport } from "@/types/feedback";
 import type { Scenario } from "@/types/scenario";
@@ -13,11 +13,15 @@ async function callGemini<T>(action: GeminiAction, payload: unknown): Promise<T>
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(await authHeaders()),
     },
     body: JSON.stringify({ action, payload }),
   });
 
-  const data = (await response.json()) as { result?: T; error?: string };
+  // Tolerant of a body that is not JSON: a platform-level refusal (a timeout
+  // page, an oversized request) is HTML, and parsing it used to surface as
+  // "Unexpected token <" instead of the generic failure message.
+  const data = ((await response.json().catch(() => null)) ?? {}) as { result?: T; error?: string };
 
   if (!response.ok || !data.result) {
     throw new Error(localizeServerError(data.error, "error.aiFailed"));
@@ -47,14 +51,10 @@ export function generateNextSimulationTurn(
   state: SimulationState,
   traineeResponse: string,
 ): Promise<NextSimulationTurn> {
-  const prompt = buildSimulationPrompt(state, traineeResponse);
-
-  return callGemini<NextSimulationTurn>("nextTurn", {
-    state,
-    traineeResponse,
-    systemInstruction: prompt.systemInstruction,
-    messages: prompt.messages,
-  });
+  // Only the conversation is sent. The prompt is built from it on the server:
+  // it carries the rules that keep the roleplay to communication practice, and
+  // a prompt the browser supplied was a prompt anyone could replace.
+  return callGemini<NextSimulationTurn>("nextTurn", { state, traineeResponse });
 }
 
 export function generateFeedbackReport(
