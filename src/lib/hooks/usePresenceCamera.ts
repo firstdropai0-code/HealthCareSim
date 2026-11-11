@@ -64,6 +64,125 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+/* How often the picture is checked for having stopped. */
+const SELF_VIEW_CHECK_MS = 2000;
+
+/**
+ * Keeps the trainee's own picture moving, and says why when it stopped.
+ *
+ * Reported from the first real use on the live site: the camera came on, the
+ * picture froze on one frame, and everything else carried on. It could not be
+ * reproduced with a stand-in feed, where the picture ran at full rate with no
+ * pause, so the cause is something about a real webcam or browser that was not
+ * visible from here. A picture stuck on its last frame is a video element that
+ * has been paused or has stopped being given frames, and both can be answered
+ * without knowing who did it: play it again, and failing that, hand it the
+ * stream again.
+ *
+ * It matters beyond looks. The tracker reads this same element and skips any
+ * frame it has already seen, so a stalled picture is also a run that silently
+ * measures nothing.
+ *
+ * The one case it cannot help is the camera itself going quiet (the track is
+ * muted: a privacy shutter, another app taking the device). That is logged and
+ * left, since there is nothing here to restart.
+ *
+ * Returns the function that stops watching.
+ */
+function keepSelfViewRunning(video: HTMLVideoElement, stream: MediaStream): () => void {
+  let lastFrames = -1;
+  let stalledChecks = 0;
+  let reported = false;
+
+  const track = () => stream.getVideoTracks()[0];
+
+  // Once per camera session: enough to learn the cause from a console, without
+  // a line every two seconds for as long as it lasts.
+  const report = (what: string) => {
+    if (reported) {
+      return;
+    }
+
+    reported = true;
+    console.warn(`[camera] the self-view ${what}.`, {
+      paused: video.paused,
+      readyState: video.readyState,
+      trackState: track()?.readyState,
+      trackMuted: track()?.muted,
+      tabHidden: document.hidden,
+    });
+  };
+
+  const resume = () => {
+    void video.play().catch(() => {
+      // Nothing to do about a refusal; the next check tries again.
+    });
+  };
+
+  const onPause = () => {
+    // Our own stop empties the element first, so this is somebody else's pause.
+    if (video.srcObject === stream) {
+      report("was paused; playing it again");
+      resume();
+    }
+  };
+
+  const onMute = () => report("stopped receiving frames from the camera");
+
+  video.addEventListener("pause", onPause);
+  track()?.addEventListener("mute", onMute);
+
+  const timer = window.setInterval(() => {
+    const current = track();
+
+    // A hidden tab is not painted, so it shows no new frames and nothing is wrong.
+    if (document.hidden || video.srcObject !== stream || !current || current.readyState !== "live") {
+      return;
+    }
+
+    if (video.paused) {
+      report("was paused; playing it again");
+      resume();
+      return;
+    }
+
+    // Counted by the browser as frames reach the screen. Absent in a few older
+    // browsers, where the pause check above is all there is.
+    const frames = video.getVideoPlaybackQuality?.().totalVideoFrames ?? -1;
+
+    if (frames < 0 || current.muted) {
+      return;
+    }
+
+    if (frames === lastFrames) {
+      stalledChecks += 1;
+      report("stopped showing new frames; restarting it");
+
+      if (stalledChecks === 1) {
+        resume();
+      } else if (stalledChecks === 2) {
+        // Playing again was not enough, so give the element its stream afresh.
+        // Once per stall, not on every check: a picture scrolled out of view
+        // can also stop counting frames, and that must not turn into the
+        // element being reset every two seconds.
+        video.srcObject = null;
+        video.srcObject = stream;
+        resume();
+      }
+    } else {
+      stalledChecks = 0;
+    }
+
+    lastFrames = frames;
+  }, SELF_VIEW_CHECK_MS);
+
+  return () => {
+    window.clearInterval(timer);
+    video.removeEventListener("pause", onPause);
+    track()?.removeEventListener("mute", onMute);
+  };
+}
+
 /**
  * The trainee's camera during a run: permission, calibration, and which way
  * their head was pointing while each line played and while they spoke.
@@ -87,6 +206,7 @@ export function usePresenceCamera() {
   const activeWindowRef = useRef<WindowKind | null>(null);
   const windowsRef = useRef<Record<WindowKind, PresenceSample[]>>({ listening: [], speaking: [] });
   const readingTimerRef = useRef<number | null>(null);
+  const stopWatchingSelfViewRef = useRef<(() => void) | null>(null);
   // Bumped by every stop, so a start still waiting on permission or the model
   // can tell it was abandoned instead of switching the camera back on.
   const attemptRef = useRef(0);
@@ -114,6 +234,10 @@ export function usePresenceCamera() {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
+
+    // Before the element is emptied below, or that would read as a stall.
+    stopWatchingSelfViewRef.current?.();
+    stopWatchingSelfViewRef.current = null;
 
     trackerRef.current?.close();
     trackerRef.current = null;
@@ -184,6 +308,7 @@ export function usePresenceCamera() {
 
       video.srcObject = stream;
       await video.play();
+      stopWatchingSelfViewRef.current = keepSelfViewRunning(video, stream);
       tracker = await createPresenceTracker(video);
     } catch (loadError) {
       console.error("Face tracking failed to start:", loadError);

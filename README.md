@@ -217,7 +217,7 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 ## Camera Notes
 
 - Switched off for the whole app unless `NEXT_PUBLIC_CAMERA_COACHING=on` is set at build time. While it's off, a run looks and behaves as it would without this feature. On Vercel, set it per environment and redeploy.
-- When switched on, it's still each trainee's choice, and off by default. A new run asks before its first line, and the question says what is kept and who can see it. It isn't offered on touch-only devices.
+- When switched on, it's still each trainee's choice, and off by default. A new run asks before its first line, and the question says what is kept and who can see it. It isn't offered on touch-only devices. A trainee who skipped it or turned it off can turn it on later in the same run, from a button over the scene, and gets the same question again first.
 - Face tracking is MediaPipe Face Landmarker running in the browser. Video is never recorded, uploaded or saved.
 - It measures which way the head is pointing, and only while the other person's line plays and while the trainee records a reply. Time spent thinking of a reply isn't measured, because looking away to think is normal.
 - It does not measure eye contact, emotion or attention. Glancing at a phone with the head held still won't register, and a trainee can face the screen without listening. Tips only describe what the head did.

@@ -219,20 +219,44 @@ export default function SimulationPage() {
     takeTurnPresence,
   } = usePresenceCamera();
   const [cameraDecided, setCameraDecided] = useState(false);
+  // Set when the trainee asks for the camera part-way through a run.
+  const [cameraAskedFor, setCameraAskedFor] = useState(false);
   const readLineIds = useRef<Set<string>>(new Set());
   /*
-   * Asked once, before the first line, because calibration needs the trainee
-   * looking at the scene and shouldn't talk over someone speaking. A run reopened
-   * part-way isn't asked: the camera stays off for the rest of it, and the tips
-   * cover whatever was measured.
+   * Asked unprompted once, before the first line, because calibration needs the
+   * trainee looking at the scene and shouldn't talk over someone speaking. A run
+   * reopened part-way isn't asked.
+   *
+   * It can be asked for again at any point, though (the button over the scene,
+   * below). It used to be once and for all: the first person to use this on the
+   * live site turned the camera off when its picture froze, and found no way to
+   * turn it back on short of starting the run again. The same question comes
+   * back rather than the camera simply starting, so what it keeps and who sees
+   * it is in front of them before the browser's prompt, and so the composer
+   * gives way to it -- calibration is three seconds of looking at the scene,
+   * not of typing.
    */
+  const cameraAvailable = canUsePresenceCamera();
+  const freshRun = state !== null && state.currentTurn === 0 && state.messages.length === 1;
   const askAboutCamera =
     state !== null &&
     !cameraDecided &&
     state.status !== "completed" &&
-    state.currentTurn === 0 &&
-    state.messages.length === 1 &&
-    canUsePresenceCamera();
+    (freshRun || cameraAskedFor) &&
+    cameraAvailable;
+  /*
+   * Offered whenever the camera is off and nothing is being said or awaited:
+   * calibrating over someone's line would have the trainee holding still for
+   * the camera instead of listening.
+   */
+  const offerCamera =
+    state !== null &&
+    cameraAvailable &&
+    cameraPhase === "off" &&
+    !askAboutCamera &&
+    state.status !== "completed" &&
+    speakingMessageId === null &&
+    !loading;
 
   useEffect(() => reveal.dispose, [reveal]);
 
@@ -757,6 +781,12 @@ export default function SimulationPage() {
     setCameraDecided(true);
   }
 
+  /** The camera, asked for part-way through: bring the question back. */
+  function handleAskForCamera() {
+    setCameraAskedFor(true);
+    setCameraDecided(false);
+  }
+
   function handleEndSimulation() {
     completeSimulation();
   }
@@ -981,6 +1011,30 @@ export default function SimulationPage() {
                 </button>
               ) : null}
             </div>
+            {/* Where the picture would be, so turning the camera off and on
+                again happens in one place. */}
+            {offerCamera ? (
+              <button
+                type="button"
+                onClick={handleAskForCamera}
+                className="absolute top-14 right-3 z-10 flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] px-2 py-1 text-xs font-medium text-[var(--color-ink)] shadow-[var(--shadow-card)] backdrop-blur-sm transition-colors hover:text-[var(--color-primary)]"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                  className="h-3.5 w-3.5 shrink-0"
+                >
+                  <path d="M3 8a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <path d="m16 10.5 5-3v9l-5-3" />
+                </svg>
+                {t("simulation.camera.turnOn")}
+              </button>
+            ) : null}
           </div>
 
           {/* 3. The composer. Voice first: the Speak button leads, typing is
