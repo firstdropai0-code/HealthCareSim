@@ -8,16 +8,19 @@ import type { PresenceSample } from "@/types/presence";
  * No frame is stored or sent anywhere; only the numbers in a PresenceSample
  * survive a call to sample().
  *
- * The runtime and model come from a CDN for now so ~14MB of wasm stays out of
- * the repo while this is still an experiment. They are code and weights being
- * fetched, nothing about the user goes the other way. Self-host both in
- * public/ before this reaches real trainees.
+ * The runtime and model are served by this site, from public/mediapipe/. They
+ * used to come from jsDelivr and Google storage, which meant a network that
+ * blocks outside file hosts -- a hospital's, a college's -- could load the
+ * whole app and still fail to start the camera.
  *
  * The wasm version must match the installed @mediapipe/tasks-vision exactly.
+ * That is why the runtime is not committed: scripts/copyMediapipeWasm.mjs
+ * copies it out of the installed package before every dev and build, so it
+ * cannot drift from it. The model is not in the package, so it is committed
+ * (face_landmarker, float16, version 1, from Google's mediapipe-models bucket).
  */
-const WASM_BASE_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm";
-const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const WASM_BASE_URL = "/mediapipe/wasm";
+const MODEL_URL = "/mediapipe/face_landmarker.task";
 
 const ROUTINE_MEDIAPIPE_LOG = "INFO: Created TensorFlow Lite";
 

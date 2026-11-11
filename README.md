@@ -223,7 +223,7 @@ Use these trainer prompts to test the prototype end to end. They are designed to
 - It does not measure eye contact, emotion or attention. Glancing at a phone with the head held still won't register, and a trainee can face the screen without listening. Tips only describe what the head did.
 - The per-turn numbers stay in the browser, apart from going to Gemini through `/api/gemini` to write the tips. Only the written tips are saved to Firebase, where the trainee and their mentor can read them.
 - Tips come from a separate model call and the numbers never reach the scoring prompt, so the camera cannot affect a score.
-- The tracking runtime and model currently load from jsDelivr and Google storage the first time the camera is turned on.
+- The tracking runtime and model are served by this site, from `public/mediapipe/`, so the camera works on a network that blocks outside file hosts. The runtime is copied out of the installed `@mediapipe/tasks-vision` package before every `dev` and `build` (`scripts/copyMediapipeWasm.mjs`) and is not committed; the model is committed.
 - `/lab/presence` is a local test bench for checking the tracking against acted-out behaviour. It works whether or not the switch is on, and returns a 404 in production.
 
 ## Future Roadmap

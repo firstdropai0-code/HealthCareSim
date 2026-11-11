@@ -44,5 +44,9 @@ next-env.d.ts
 # source media — the encode the app serves lives in public/
 /How to use video/
 
+# MediaPipe's runtime, copied out of node_modules before every dev and build
+# (scripts/copyMediapipeWasm.mjs). The model beside it is committed.
+/public/mediapipe/wasm/
+
 # Local voice audition output
 scratch/

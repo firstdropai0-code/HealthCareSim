@@ -3,11 +3,10 @@ import type { NextConfig } from "next";
 /*
  * The headers a browser needs to be told, sent on every response.
  *
- * Deliberately not a Content-Security-Policy. The app loads Firebase, Google
- * Fonts' stylesheet at build time, an inline pre-paint script, and (with camera
- * coaching on) a WebAssembly runtime and model from two CDNs; a policy written
- * without exercising every one of those in a browser would break something
- * quietly. These four cannot.
+ * Deliberately not a Content-Security-Policy. The app loads Firebase, an
+ * inline pre-paint script, and (with camera coaching on) a WebAssembly runtime
+ * that needs its own allowance; a policy written without exercising every one
+ * of those in a browser would break something quietly. These four cannot.
  */
 const securityHeaders = [
   // Nothing embeds this app, and a framed sign-in page is how clickjacking works.

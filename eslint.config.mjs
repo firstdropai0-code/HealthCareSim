@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // MediaPipe's own minified loader, copied out of node_modules by
+    // scripts/copyMediapipeWasm.mjs. Not ours to lint.
+    "public/mediapipe/**",
   ]),
 ]);
 
